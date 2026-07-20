@@ -6,7 +6,7 @@ Reviewed on 2026-07-20 from full Git clones pinned in `SOURCE_SNAPSHOTS.md`.
 
 Several projects meet the basic Blender-MCP-level bar: they implement a real MCP transport, keep an AEDT/HFSS connection alive, and expose structured tools that can drive the host. None meets the full EDA-Agent-level bar required by this project: a constrained tool surface, durable asynchronous jobs, checkpoint and recovery semantics, auditable runs, tool maturity metadata, and layered automated verification.
 
-The official `ansys/pyaedt-mcp` has the strongest repository engineering and should become the primary implementation reference. It is not a drop-in foundation for this product because arbitrary Python and script execution are first-class tools, and its non-blocking solve options do not provide a durable `start/status/result/cancel` job protocol. The current `hfss-mcp` rewrite remains justified.
+The official `ansys/pyaedt-mcp` has the strongest repository engineering and should remain the primary implementation reference. It is not a drop-in foundation for this product because arbitrary Python and script execution are first-class tools, and its non-blocking solve options do not provide a durable `start/status/result/cancel` job protocol. A second review against the project's accepted autonomy philosophy reached the stronger decision not to deploy, fork, or wrap it as the product runtime; see `ADR-001-AUTONOMY-EXECUTION-MODEL.md`. The current `hfss-mcp` rewrite remains justified.
 
 ## Evaluation bar
 
@@ -32,6 +32,8 @@ Legend: **Strong** is implemented and evidenced in source/tests; **Partial** exi
 
 ### 1. `ansys/pyaedt-mcp` — primary upstream reference
 
+The remote `main` branch was checked again on 2026-07-20 and still pointed to the reviewed commit `eb2fd030ac50de2d77282a43bdf9262a7d773485`.
+
 Strengths:
 
 - Official Ansys/Synopsys repository, Apache-2.0, conventional packaging, CI/security/documentation structure, 99 commits at the reviewed revision.
@@ -50,7 +52,7 @@ Gaps against this project:
 - There is no automatic pre-mutation project checkpoint or per-run artifact manifest.
 - Toolsets describe logical groups but do not carry EDA-Agent-style maturity and interaction-risk metadata.
 
-Adopt: lifecycle/context patterns, session discovery and explicit selection, dynamic tool gating, transport setup, toolset resource, screenshot/log patterns, test taxonomy, and Apache-licensed helper ideas. Do not adopt the arbitrary-code tools or broad default permissions.
+Adopt as reference or small components only: lifecycle/context patterns, session discovery and explicit selection, dynamic tool gating, transport setup, toolset resource, screenshot/log patterns, test taxonomy, and Apache-licensed helper ideas. Do not use the official server as the runtime foundation, and do not adopt the arbitrary-code tools or broad default permissions.
 
 ### 2. `LaplaceYoung/ansys-aedt-mcp` — broad wrapper and test reference
 

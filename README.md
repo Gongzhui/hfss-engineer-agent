@@ -25,4 +25,4 @@ Reference source snapshots and their upstream commits are documented in `SOURCE_
 - [`Gongzhui/hfss-cli-optimize-skill`](https://github.com/Gongzhui/hfss-cli-optimize-skill) preserves the legacy tuning workflow. It will be adapted after the MCP contract stabilizes.
 - Blender MCP and EDA Agent are read-only third-party architectural references stored in the sibling `../hfss-mcp-references/` directory.
 
-The detailed migration boundary and baseline are recorded in `docs/MIGRATION_FROM_HFSS_CLI.md`. A code-level comparison of existing public HFSS/AEDT MCP implementations is recorded in `docs/COMMUNITY_HFSS_MCP_REVIEW.md`.
+The detailed migration boundary and baseline are recorded in `docs/MIGRATION_FROM_HFSS_CLI.md`. The autonomy execution philosophy and the resulting build-versus-adopt decision are recorded in `docs/ADR-001-AUTONOMY-EXECUTION-MODEL.md`. A code-level comparison of existing public HFSS/AEDT MCP implementations is recorded in `docs/COMMUNITY_HFSS_MCP_REVIEW.md`.
