@@ -13,3 +13,5 @@ workspace/
 artifacts/
 references/
 *.aedt.lock
+.pytest-hfss-mcp-tmp/
+*.sqlite3
