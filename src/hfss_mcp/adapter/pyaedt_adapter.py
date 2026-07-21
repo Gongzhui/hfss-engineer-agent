@@ -78,6 +78,7 @@ class PyAedtAdapter:
         self._owned_pids: set[int] = set(owned_pids or [])
         self._aedt_process_ids_before: set[int] = set()
         self._attached_to_user = bool(aedt_process_id is not None or not new_desktop)
+        self._user_desktop: Any | None = None
 
     def inspect_environment(self) -> EnvironmentStatus:
         return inspect_environment()
@@ -134,14 +135,20 @@ class PyAedtAdapter:
         self._aedt_process_ids_before = before
 
         attach = self._aedt_process_id is not None or not self._new_desktop
+        # When attaching to a live GUI session, do NOT pass project= path into the
+        # constructor — that tries to re-open the file and hits "Project is locked".
+        # Connect to the Desktop first, then activate the already-open project by name.
         kwargs: dict[str, Any] = {
-            "project": str(project_path) if project_path else None,
-            "design": design_name or None,
             "version": self._version,
             "non_graphical": False if attach else self._non_graphical,
             "new_desktop": False if attach else self._new_desktop,
             "close_on_exit": False if attach else self._close_on_exit,
         }
+        if not attach:
+            if project_path:
+                kwargs["project"] = str(project_path)
+            if design_name:
+                kwargs["design"] = design_name
         if self._aedt_process_id is not None:
             kwargs["aedt_process_id"] = int(self._aedt_process_id)
             kwargs["new_desktop"] = False
@@ -157,7 +164,13 @@ class PyAedtAdapter:
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
         try:
-            self._hfss = hfss_cls(**kwargs)
+            # Prefer Desktop-level attach for GUI, then wrap as Hfss on active design
+            if attach:
+                self._hfss = self._attach_hfss_to_running_desktop(
+                    hfss_cls, project_path, design_name, kwargs
+                )
+            else:
+                self._hfss = hfss_cls(**kwargs)
             self._owns_desktop = bool(kwargs.get("new_desktop", False)) and (
                 self._aedt_process_id is None
             )
@@ -197,32 +210,122 @@ class PyAedtAdapter:
         self._activate_project_design(project_path, design_name)
         return self._hfss
 
+    def _attach_hfss_to_running_desktop(
+        self,
+        hfss_cls: Any,
+        project_path: Path,
+        design_name: str,
+        base_kwargs: dict[str, Any],
+    ) -> Any:
+        """Attach without reopening the locked .aedt file."""
+        import importlib
+
+        # Strategy 1: Hfss without project= (session only)
+        try:
+            hfss = hfss_cls(**base_kwargs)
+            self._activate_on_app(hfss, project_path, design_name)
+            return hfss
+        except Exception as first_exc:
+            last: Exception = first_exc
+
+        # Strategy 2: Desktop attach then Hfss(specified_desktop / existing)
+        try:
+            desktop_cls = None
+            for module_name in ("ansys.aedt.core", "pyaedt"):
+                try:
+                    mod = importlib.import_module(module_name)
+                    desktop_cls = getattr(mod, "Desktop", None)
+                    if desktop_cls is not None:
+                        break
+                except Exception:
+                    continue
+            if desktop_cls is None:
+                raise last
+            desk_kwargs = {
+                k: v
+                for k, v in base_kwargs.items()
+                if k in {
+                    "version",
+                    "non_graphical",
+                    "new_desktop",
+                    "close_on_exit",
+                    "aedt_process_id",
+                    "port",
+                    "machine",
+                }
+            }
+            desktop = desktop_cls(**desk_kwargs)
+            # Construct Hfss bound to this desktop if supported
+            try:
+                hfss = hfss_cls(
+                    project=None,
+                    design=design_name or None,
+                    version=base_kwargs.get("version"),
+                    new_desktop=False,
+                    close_on_exit=False,
+                    non_graphical=False,
+                )
+            except TypeError:
+                hfss = hfss_cls(**base_kwargs)
+            self._activate_on_app(hfss, project_path, design_name)
+            # Keep desktop reference so GC does not release user session
+            self._user_desktop = desktop  # type: ignore[attr-defined]
+            return hfss
+        except Exception as second_exc:
+            raise AdapterError(
+                f"GUI attach failed: {second_exc}",
+                code="aedt_attach_failed",
+                details={
+                    "first": str(last),
+                    "second": str(second_exc),
+                    "pid": self._aedt_process_id,
+                    "port": self._grpc_port,
+                },
+            ) from second_exc
+
+    def _activate_on_app(self, app: Any, project_path: Path, design_name: str) -> None:
+        target_name = project_path.stem if project_path else None
+        try:
+            proj_list = list(getattr(app, "project_list", None) or [])
+            open_names = {str(p) for p in proj_list}
+            if target_name and target_name in open_names:
+                set_active = getattr(app, "set_active_project", None)
+                if callable(set_active):
+                    set_active(target_name)
+            elif target_name and proj_list:
+                # Fuzzy: match ignoring case
+                for name in open_names:
+                    if name.lower() == target_name.lower():
+                        set_active = getattr(app, "set_active_project", None)
+                        if callable(set_active):
+                            set_active(name)
+                        break
+            if design_name:
+                set_design = getattr(app, "set_active_design", None)
+                if callable(set_design):
+                    with suppress(Exception):
+                        set_design(design_name)
+        except Exception:
+            pass
+
     def _activate_project_design(self, project_path: Path, design_name: str) -> None:
         if self._hfss is None:
             return
-        # Prefer matching already-open project by path/name
+        # Prefer matching already-open project by name — never force-load locked file
+        # when attached to a user session.
         try:
+            self._activate_on_app(self._hfss, project_path, design_name)
+            if self._attached_to_user:
+                return
             target_name = project_path.stem if project_path else None
             proj_list = list(getattr(self._hfss, "project_list", None) or [])
             if target_name and proj_list:
-                # load_project if path exists and not open
                 open_names = {str(p) for p in proj_list}
                 if target_name not in open_names and project_path.is_file():
                     loader = getattr(self._hfss, "load_project", None)
                     if callable(loader):
                         with suppress(Exception):
                             loader(str(project_path), set_active=True)
-                set_active = getattr(self._hfss, "set_active_project", None)
-                if callable(set_active) and target_name in (
-                    open_names | {target_name}
-                ):
-                    with suppress(Exception):
-                        set_active(target_name)
-            if design_name:
-                set_design = getattr(self._hfss, "set_active_design", None)
-                if callable(set_design):
-                    with suppress(Exception):
-                        set_design(design_name)
         except Exception:
             pass
 
