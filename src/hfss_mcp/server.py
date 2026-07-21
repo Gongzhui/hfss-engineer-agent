@@ -17,6 +17,15 @@ PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "session_list",
     "manifest_validate",
     "design_snapshot",
+    "setup_schema",
+    "setup_list",
+    "setup_get",
+    "setup_create",
+    "setup_update",
+    "setup_delete",
+    "setup_sweep_create",
+    "setup_sweep_update",
+    "setup_sweep_delete",
     "trial_start",
     "trial_status",
     "trial_result",
@@ -114,6 +123,190 @@ def design_snapshot(manifest_id: str) -> dict[str, Any]:
     """Snapshot via workspace copy; checks project_name and design_name identity."""
     try:
         return get_app().design_snapshot(manifest_id)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_schema() -> dict[str, Any]:
+    """Document setup types, sweep types, and property aliases for agents."""
+    try:
+        return get_app().setup_schema()
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_list(
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """List solution setups and their frequency sweeps (props included)."""
+    try:
+        return get_app().setup_list(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_get(
+    name: str,
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Get one setup with full property bag and sweeps."""
+    try:
+        return get_app().setup_get(
+            name=name,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_create(
+    config: dict[str, Any],
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Create a solution setup.
+
+    ``config`` fields:
+    - name (required), setup_type (HFSSDriven/HFSSDrivenAuto/HFSSEigen/…)
+    - convenience: frequency, max_passes, max_delta_s, minimum_passes, basis_order, …
+    - properties: dict of any native AEDT setup keys
+    - sweep / sweeps: optional frequency sweep config(s)
+    Target: manifest_id **or** project_path + design_name.
+    """
+    try:
+        return get_app().setup_create(
+            config=config,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_update(
+    config: dict[str, Any],
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Update an existing setup (any property via aliases or properties dict).
+
+    ``config`` requires ``name``; optional ``new_name`` to rename; same property
+    fields as setup_create.
+    """
+    try:
+        return get_app().setup_update(
+            config=config,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_delete(
+    name: str,
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Delete a solution setup by name."""
+    try:
+        return get_app().setup_delete(
+            name=name,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_sweep_create(
+    setup_name: str,
+    sweep: dict[str, Any],
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Create a frequency sweep on a setup.
+
+    ``sweep`` fields: name, unit, start, stop, points|step, range_type
+    (LinearCount/LinearStep/SinglePoint/LogScale), sweep_type
+    (Discrete/Interpolating/Fast), save_fields, save_rad_fields, properties.
+    """
+    try:
+        return get_app().setup_sweep_create(
+            setup_name=setup_name,
+            sweep=sweep,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_sweep_update(
+    setup_name: str,
+    sweep_name: str,
+    properties: dict[str, Any],
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Update sweep properties (aliases start/stop/points/step/type or native keys)."""
+    try:
+        return get_app().setup_sweep_update(
+            setup_name=setup_name,
+            sweep_name=sweep_name,
+            properties=properties,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def setup_sweep_delete(
+    setup_name: str,
+    sweep_name: str,
+    manifest_id: str | None = None,
+    project_path: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Delete a frequency sweep from a setup."""
+    try:
+        return get_app().setup_sweep_delete(
+            setup_name=setup_name,
+            sweep_name=sweep_name,
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 

@@ -608,6 +608,354 @@ class AppContext:
         job = self.store.request_cancel(job_id)
         return {"ok": True, "job": job.model_dump(mode="json")}
 
+    # --- Setup CRUD (list / get / create / update / delete + sweeps) ------------
+
+    def _resolve_project_target(
+        self,
+        *,
+        manifest_id: str | None = None,
+        project_path: str | Path | None = None,
+        design_name: str | None = None,
+    ) -> tuple[Path, str]:
+        if manifest_id:
+            manifest = self.get_manifest(manifest_id)
+            return Path(manifest.project_path), manifest.design_name
+        if project_path and design_name:
+            return Path(project_path), str(design_name).strip()
+        raise PolicyError(
+            "provide manifest_id or both project_path and design_name",
+            code="setup_target_required",
+        )
+
+    def _adapter_for_project(
+        self,
+        *,
+        project_path: Path,
+        design_name: str,
+    ) -> Any:
+        """Attach to graphical live session or exclusive in-process adapter.
+
+        Reuses a process-local adapter so setup CRUD is stateful across tools.
+        """
+        path = Path(project_path)
+        # Reuse cached adapter when same project stem is already attached
+        if self._gui_adapter is not None:
+            try:
+                snap = self._gui_adapter.snapshot()
+                if Path(snap.project_path).stem == path.stem or snap.project_name == path.stem:
+                    self._gui_adapter.attach_project(path, design_name)
+                    return self._gui_adapter
+            except Exception:
+                with suppress_exc():
+                    self._gui_adapter.disconnect(close_desktop=False)
+                self._gui_adapter = None
+                self._gui_pid = None
+
+        if self.config.adapter == "fake":
+            from hfss_mcp.domain import ParameterValue
+
+            adapter = FakeAdapter(
+                project_path=path,
+                project_name=path.stem,
+                design_name=design_name,
+                variables={
+                    "a": ParameterValue(name="a", value=5.0, unit="mm"),
+                },
+                setups=["Setup1"],
+            )
+            adapter.attach_project(path, design_name)
+            self._gui_adapter = adapter
+            self._gui_pid = None
+            return adapter
+        if self._should_use_gui_session():
+            return self._get_or_attach_gui(
+                project_path=path,
+                design_name=design_name,
+            )
+        from hfss_mcp.adapter.pyaedt_adapter import PyAedtAdapter
+
+        adapter = PyAedtAdapter(
+            version=self.config.aedt_version,
+            non_graphical=self.config.non_graphical,
+            new_desktop=True,
+            close_on_exit=False,
+        )
+        adapter.attach_project(path, design_name)
+        # Cache so subsequent setup ops reuse the same Desktop
+        self._gui_adapter = adapter
+        self._gui_pid = adapter.desktop_pid
+        return adapter
+
+    def setup_schema(self) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import setup_schema_public
+
+        return {"ok": True, **setup_schema_public()}
+
+    def setup_list(
+        self,
+        *,
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        items = adapter.list_setups()
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            "setups": items,
+            "count": len(items),
+        }
+
+    def setup_get(
+        self,
+        *,
+        name: str,
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import validate_setup_name
+
+        name = validate_setup_name(name)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        setup = adapter.get_setup(name)
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            "setup": setup,
+        }
+
+    def setup_create(
+        self,
+        *,
+        config: dict[str, Any],
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import SetupConfig
+
+        body = SetupConfig.model_validate(config)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        props = body.merged_properties()
+        sweeps_payload: list[dict[str, Any]] = []
+        for sw in body.all_sweeps():
+            sweeps_payload.append(
+                {
+                    "name": sw.name,
+                    "unit": sw.unit,
+                    "start": sw.start,
+                    "stop": sw.stop,
+                    "points": sw.points,
+                    "step": sw.step,
+                    "range_type": sw.range_type,
+                    "sweep_type": sw.sweep_type,
+                    "save_fields": sw.save_fields,
+                    "save_rad_fields": sw.save_rad_fields,
+                    "interpolation_tol": sw.interpolation_tol,
+                    "interpolation_max_solutions": sw.interpolation_max_solutions,
+                    "properties": sw.properties,
+                    "props": sw.properties,
+                }
+            )
+        setup = adapter.create_setup(
+            name=body.name,
+            setup_type=body.setup_type,
+            properties=props,
+            sweeps=sweeps_payload,
+        )
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            "created": setup,
+            "applied_properties": props,
+        }
+
+    def setup_update(
+        self,
+        *,
+        config: dict[str, Any],
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import SetupUpdateConfig
+
+        body = SetupUpdateConfig.model_validate(config)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        props = body.merged_properties()
+        setup = adapter.update_setup(
+            name=body.name,
+            properties=props,
+            new_name=body.new_name,
+        )
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            "updated": setup,
+            "applied_properties": props,
+        }
+
+    def setup_delete(
+        self,
+        *,
+        name: str,
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import validate_setup_name
+
+        name = validate_setup_name(name)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        result = adapter.delete_setup(name)
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            **result,
+        }
+
+    def setup_sweep_create(
+        self,
+        *,
+        setup_name: str,
+        sweep: dict[str, Any],
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import SweepConfig, validate_setup_name
+
+        setup_name = validate_setup_name(setup_name)
+        body = SweepConfig.model_validate(sweep)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        payload = {
+            "name": body.name,
+            "unit": body.unit,
+            "start": body.start,
+            "stop": body.stop,
+            "points": body.points,
+            "step": body.step,
+            "range_type": body.range_type,
+            "sweep_type": body.sweep_type,
+            "save_fields": body.save_fields,
+            "save_rad_fields": body.save_rad_fields,
+            "interpolation_tol": body.interpolation_tol,
+            "interpolation_max_solutions": body.interpolation_max_solutions,
+            "properties": body.properties,
+            "props": body.properties,
+        }
+        result = adapter.create_sweep(setup_name=setup_name, sweep=payload)
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            **result,
+        }
+
+    def setup_sweep_update(
+        self,
+        *,
+        setup_name: str,
+        sweep_name: str,
+        properties: dict[str, Any],
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import validate_setup_name
+
+        setup_name = validate_setup_name(setup_name)
+        sweep_name = validate_setup_name(sweep_name)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        result = adapter.update_sweep(
+            setup_name=setup_name,
+            sweep_name=sweep_name,
+            properties=properties or {},
+        )
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            **result,
+        }
+
+    def setup_sweep_delete(
+        self,
+        *,
+        setup_name: str,
+        sweep_name: str,
+        manifest_id: str | None = None,
+        project_path: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import validate_setup_name
+
+        setup_name = validate_setup_name(setup_name)
+        sweep_name = validate_setup_name(sweep_name)
+        path, design = self._resolve_project_target(
+            manifest_id=manifest_id,
+            project_path=project_path,
+            design_name=design_name,
+        )
+        adapter = self._adapter_for_project(project_path=path, design_name=design)
+        result = adapter.delete_sweep(setup_name=setup_name, sweep_name=sweep_name)
+        return {
+            "ok": True,
+            "project_path": str(path),
+            "design_name": design,
+            "gui_process_id": self._gui_pid,
+            **result,
+        }
+
     def checkpoint_list(
         self,
         *,

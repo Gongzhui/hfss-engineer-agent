@@ -579,6 +579,542 @@ class PyAedtAdapter:
                 }
             return {"ok": True, "setup": setup, "sweep": sweep, "errors": []}
 
+    # --- Setup CRUD (full property bag + sweeps) ---------------------------------
+
+    def _require_hfss(self) -> Any:
+        if self._hfss is None:
+            raise AdapterError("no project attached", code="not_attached")
+        return self._hfss
+
+    def _get_setup_object(self, name: str) -> Any:
+        hfss = self._require_hfss()
+        getter = getattr(hfss, "get_setup", None)
+        setup = None
+        if callable(getter):
+            try:
+                setup = getter(name)
+            except Exception:
+                setup = None
+        if setup is None:
+            for item in getattr(hfss, "setups", []) or []:
+                if str(getattr(item, "name", "")) == name:
+                    setup = item
+                    break
+        if setup is None:
+            known = list(getattr(hfss, "setup_names", []) or [])
+            raise AdapterError(
+                f"setup not found: {name}",
+                code="setup_not_found",
+                details={"name": name, "known": known},
+            )
+        return setup
+
+    def _serialize_setup(self, setup: Any) -> dict[str, Any]:
+        from hfss_mcp.setup_ops import json_safe
+
+        name = str(getattr(setup, "name", "") or "")
+        props = json_safe(getattr(setup, "props", None) or {})
+        setup_type = None
+        for attr in ("setuptype", "setup_type", "solution_type"):
+            val = getattr(setup, attr, None)
+            if val is not None:
+                setup_type = str(val)
+                break
+        sweeps: list[dict[str, Any]] = []
+        for sweep in getattr(setup, "sweeps", []) or []:
+            sweeps.append(
+                {
+                    "name": str(getattr(sweep, "name", "") or ""),
+                    "props": json_safe(getattr(sweep, "props", None) or {}),
+                }
+            )
+        return {
+            "name": name,
+            "setup_type": setup_type,
+            "props": props if isinstance(props, dict) else {},
+            "sweep_count": len(sweeps),
+            "sweeps": sweeps,
+        }
+
+    def list_setups(self) -> list[dict[str, Any]]:
+        with self._lock:
+            hfss = self._require_hfss()
+            items: list[dict[str, Any]] = []
+            for setup in getattr(hfss, "setups", []) or []:
+                items.append(self._serialize_setup(setup))
+            if not items:
+                for name in list(getattr(hfss, "setup_names", []) or []):
+                    try:
+                        items.append(self._serialize_setup(self._get_setup_object(str(name))))
+                    except AdapterError:
+                        items.append(
+                            {
+                                "name": str(name),
+                                "setup_type": None,
+                                "props": {},
+                                "sweep_count": 0,
+                                "sweeps": [],
+                            }
+                        )
+            return items
+
+    def get_setup(self, name: str) -> dict[str, Any]:
+        with self._lock:
+            return self._serialize_setup(self._get_setup_object(name))
+
+    def create_setup(
+        self,
+        *,
+        name: str,
+        setup_type: str | None = None,
+        properties: dict[str, Any] | None = None,
+        sweeps: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            hfss = self._require_hfss()
+            known = list(getattr(hfss, "setup_names", []) or [])
+            if name in known:
+                raise AdapterError(
+                    f"setup already exists: {name}",
+                    code="setup_exists",
+                    details={"name": name},
+                )
+            kwargs = dict(properties or {})
+            try:
+                created = hfss.create_setup(
+                    name=name,
+                    setup_type=setup_type,
+                    **kwargs,
+                )
+            except TypeError:
+                # older signature without setup_type kw
+                created = hfss.create_setup(name, **kwargs)
+            except Exception as exc:
+                raise AdapterError(
+                    f"failed to create setup {name!r}: {exc}",
+                    code="setup_create_failed",
+                    details={"reason": str(exc), "properties": kwargs},
+                ) from exc
+            if created in (None, False):
+                raise AdapterError(
+                    f"failed to create setup {name!r}",
+                    code="setup_create_failed",
+                )
+            # Apply props again via update for keys create_setup may ignore
+            if kwargs:
+                try:
+                    setup_obj = self._get_setup_object(name)
+                    updater = getattr(setup_obj, "update", None)
+                    if callable(updater):
+                        updater(properties=kwargs)
+                except Exception:
+                    pass
+            for sw in sweeps or []:
+                self._create_sweep_unlocked(setup_name=name, sweep=sw)
+            try:
+                if hasattr(hfss, "save_project"):
+                    hfss.save_project()
+            except Exception:
+                pass
+            return self._serialize_setup(self._get_setup_object(name))
+
+    def update_setup(
+        self,
+        *,
+        name: str,
+        properties: dict[str, Any],
+        new_name: str | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            setup = self._get_setup_object(name)
+            props = dict(properties or {})
+            if new_name:
+                props["Name"] = new_name
+            if not props:
+                raise AdapterError(
+                    "no setup properties provided to update",
+                    code="setup_update_empty",
+                )
+            updater = getattr(setup, "update", None)
+            if not callable(updater):
+                raise AdapterError(
+                    "setup object does not support update()",
+                    code="setup_update_unsupported",
+                )
+            try:
+                ok = updater(properties=props)
+            except TypeError:
+                ok = updater(props)
+            except Exception as exc:
+                raise AdapterError(
+                    f"failed to update setup {name!r}: {exc}",
+                    code="setup_update_failed",
+                    details={"reason": str(exc), "properties": props},
+                ) from exc
+            if ok is False:
+                raise AdapterError(
+                    f"failed to update setup {name!r}",
+                    code="setup_update_failed",
+                )
+            target = new_name or name
+            try:
+                if hasattr(self._hfss, "save_project"):
+                    self._hfss.save_project()
+            except Exception:
+                pass
+            return self._serialize_setup(self._get_setup_object(target))
+
+    def delete_setup(self, name: str) -> dict[str, Any]:
+        with self._lock:
+            hfss = self._require_hfss()
+            known = list(getattr(hfss, "setup_names", []) or [])
+            if name not in known:
+                raise AdapterError(
+                    f"setup not found: {name}",
+                    code="setup_not_found",
+                    details={"name": name, "known": known},
+                )
+            try:
+                ok = hfss.delete_setup(name)
+            except Exception as exc:
+                raise AdapterError(
+                    f"failed to delete setup {name!r}: {exc}",
+                    code="setup_delete_failed",
+                    details={"reason": str(exc)},
+                ) from exc
+            if ok is False:
+                raise AdapterError(
+                    f"failed to delete setup {name!r}",
+                    code="setup_delete_failed",
+                )
+            try:
+                if hasattr(hfss, "save_project"):
+                    hfss.save_project()
+            except Exception:
+                pass
+            remaining = list(getattr(hfss, "setup_names", []) or [])
+            return {"ok": True, "deleted": name, "remaining": remaining}
+
+    def _create_sweep_unlocked(
+        self, *, setup_name: str, sweep: dict[str, Any]
+    ) -> dict[str, Any]:
+        hfss = self._require_hfss()
+        setup = self._get_setup_object(setup_name)
+        from hfss_mcp.setup_ops import json_safe
+
+        range_type = str(sweep.get("range_type") or "LinearCount")
+        unit = str(sweep.get("unit") or "GHz")
+        name = sweep.get("name")
+        start = sweep.get("start")
+        stop = sweep.get("stop")
+        points = sweep.get("points")
+        step = sweep.get("step")
+        sweep_type = str(sweep.get("sweep_type") or sweep.get("type") or "Discrete")
+        save_fields = bool(sweep.get("save_fields", True))
+        save_rad_fields = bool(sweep.get("save_rad_fields", False))
+        props_extra = dict(sweep.get("props") or sweep.get("properties") or {})
+
+        # Numeric coercion for start/stop/step if given as bare numbers
+        def _num(v: Any) -> float | None:
+            if v is None:
+                return None
+            if isinstance(v, (int, float)):
+                return float(v)
+            text = str(v).strip()
+            # "1GHz" -> leave to unit param; try parse leading float
+            try:
+                return float(text)
+            except ValueError:
+                # strip unit letters
+                import re
+
+                m = re.match(r"^([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)", text)
+                return float(m.group(1)) if m else None
+
+        created: Any = None
+        try:
+            if range_type == "LinearStep":
+                method = getattr(hfss, "create_linear_step_sweep", None)
+                if not callable(method):
+                    method = getattr(setup, "create_linear_step_sweep", None)
+                if not callable(method):
+                    raise AdapterError(
+                        "create_linear_step_sweep not available",
+                        code="sweep_create_unsupported",
+                    )
+                created = method(
+                    setup=setup_name,
+                    unit=unit,
+                    start_frequency=_num(start),
+                    stop_frequency=_num(stop),
+                    step_size=_num(step),
+                    name=name,
+                    save_fields=save_fields,
+                    save_rad_fields=save_rad_fields,
+                    sweep_type=sweep_type,
+                )
+            elif range_type == "SinglePoint":
+                method = getattr(setup, "create_single_point_sweep", None)
+                if callable(method):
+                    created = method(
+                        freq=_num(start) if start is not None else _num(stop),
+                        name=name,
+                        save_fields=save_fields,
+                        save_rad_fields=save_rad_fields,
+                    )
+                else:
+                    # fall back to 1-point linear count
+                    created = hfss.create_linear_count_sweep(
+                        setup=setup_name,
+                        unit=unit,
+                        start_frequency=_num(start) if start is not None else _num(stop),
+                        stop_frequency=_num(stop) if stop is not None else _num(start),
+                        num_of_freq_points=1,
+                        name=name,
+                        save_fields=save_fields,
+                        save_rad_fields=save_rad_fields,
+                        sweep_type=sweep_type,
+                    )
+            else:
+                # LinearCount / LogScale (LogScale via props after create)
+                created = hfss.create_linear_count_sweep(
+                    setup=setup_name,
+                    unit=unit,
+                    start_frequency=_num(start),
+                    stop_frequency=_num(stop),
+                    num_of_freq_points=int(points) if points is not None else None,
+                    name=name,
+                    save_fields=save_fields,
+                    save_rad_fields=save_rad_fields,
+                    sweep_type=sweep_type,
+                    interpolation_tol=float(
+                        sweep.get("interpolation_tol", 0.5)
+                    ),
+                    interpolation_max_solutions=int(
+                        sweep.get("interpolation_max_solutions", 250)
+                    ),
+                )
+        except AdapterError:
+            raise
+        except Exception as exc:
+            raise AdapterError(
+                f"failed to create sweep on {setup_name!r}: {exc}",
+                code="sweep_create_failed",
+                details={"reason": str(exc), "sweep": sweep},
+            ) from exc
+        if created is False:
+            raise AdapterError(
+                f"failed to create sweep on {setup_name!r}",
+                code="sweep_create_failed",
+            )
+
+        # Resolve sweep name
+        sweep_name = name
+        if created is not None and created is not False:
+            sn = getattr(created, "name", None)
+            if sn:
+                sweep_name = str(sn)
+        if not sweep_name:
+            # last sweep
+            names = []
+            try:
+                names = list(setup.get_sweep_names() or [])
+            except Exception:
+                names = [str(getattr(s, "name", "")) for s in (getattr(setup, "sweeps", []) or [])]
+            sweep_name = names[-1] if names else "Sweep"
+
+        if props_extra or range_type == "LogScale":
+            try:
+                sw_obj = setup.get_sweep(sweep_name) if hasattr(setup, "get_sweep") else created
+                if range_type == "LogScale" and sw_obj is not None:
+                    props_extra = {"RangeType": "LogScale", **props_extra}
+                if sw_obj is not None and props_extra:
+                    sp = getattr(sw_obj, "props", None)
+                    if isinstance(sp, dict) or hasattr(sp, "__setitem__"):
+                        for k, v in props_extra.items():
+                            sp[k] = v
+                    updater = getattr(sw_obj, "update", None)
+                    if callable(updater):
+                        updater()
+            except Exception:
+                pass
+
+        # Re-read
+        try:
+            setup = self._get_setup_object(setup_name)
+            sw_obj = None
+            if hasattr(setup, "get_sweep"):
+                sw_obj = setup.get_sweep(sweep_name)
+            if sw_obj is None:
+                for s in getattr(setup, "sweeps", []) or []:
+                    if str(getattr(s, "name", "")) == sweep_name:
+                        sw_obj = s
+                        break
+            props = json_safe(getattr(sw_obj, "props", None) or {}) if sw_obj else {}
+        except Exception:
+            props = {}
+        return {
+            "setup": setup_name,
+            "sweep": sweep_name,
+            "props": props if isinstance(props, dict) else {},
+        }
+
+    def create_sweep(
+        self,
+        *,
+        setup_name: str,
+        sweep: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._lock:
+            result = self._create_sweep_unlocked(setup_name=setup_name, sweep=sweep)
+            try:
+                if self._hfss is not None and hasattr(self._hfss, "save_project"):
+                    self._hfss.save_project()
+            except Exception:
+                pass
+            return result
+
+    def update_sweep(
+        self,
+        *,
+        setup_name: str,
+        sweep_name: str,
+        properties: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._lock:
+            from hfss_mcp.setup_ops import json_safe
+
+            setup = self._get_setup_object(setup_name)
+            sw_obj = None
+            if hasattr(setup, "get_sweep"):
+                try:
+                    sw_obj = setup.get_sweep(sweep_name)
+                except Exception:
+                    sw_obj = None
+            if sw_obj is None:
+                for s in getattr(setup, "sweeps", []) or []:
+                    if str(getattr(s, "name", "")) == sweep_name:
+                        sw_obj = s
+                        break
+            if sw_obj is None:
+                raise AdapterError(
+                    f"sweep not found: {sweep_name}",
+                    code="sweep_not_found",
+                    details={"setup": setup_name, "sweep": sweep_name},
+                )
+            # Map convenience keys into native props
+            props = dict(properties or {})
+            mapping = {
+                "start": "RangeStart",
+                "stop": "RangeEnd",
+                "points": "RangeCount",
+                "step": "RangeStep",
+                "type": "Type",
+                "sweep_type": "Type",
+                "save_fields": "SaveFields",
+                "save_rad_fields": "SaveRadFields",
+                "range_type": "RangeType",
+                "unit": "RangeUnits",
+            }
+            native: dict[str, Any] = {}
+            for k, v in props.items():
+                if k in ("props", "properties"):
+                    if isinstance(v, dict):
+                        native.update(v)
+                    continue
+                native[mapping.get(k, k)] = v
+            if not native:
+                raise AdapterError(
+                    "no sweep properties provided to update",
+                    code="sweep_update_empty",
+                )
+            sp = getattr(sw_obj, "props", None)
+            if sp is None:
+                raise AdapterError(
+                    "sweep object has no props",
+                    code="sweep_update_unsupported",
+                )
+            for k, v in native.items():
+                try:
+                    sp[k] = v
+                except Exception:
+                    # SetupProps may need setattr-style
+                    try:
+                        setattr(sp, k, v)
+                    except Exception:
+                        pass
+            updater = getattr(sw_obj, "update", None)
+            if not callable(updater):
+                raise AdapterError(
+                    "sweep object does not support update()",
+                    code="sweep_update_unsupported",
+                )
+            try:
+                ok = updater()
+            except Exception as exc:
+                raise AdapterError(
+                    f"failed to update sweep {sweep_name!r}: {exc}",
+                    code="sweep_update_failed",
+                    details={"reason": str(exc)},
+                ) from exc
+            if ok is False:
+                raise AdapterError(
+                    f"failed to update sweep {sweep_name!r}",
+                    code="sweep_update_failed",
+                )
+            try:
+                if self._hfss is not None and hasattr(self._hfss, "save_project"):
+                    self._hfss.save_project()
+            except Exception:
+                pass
+            return {
+                "setup": setup_name,
+                "sweep": sweep_name,
+                "props": json_safe(getattr(sw_obj, "props", None) or {}),
+            }
+
+    def delete_sweep(self, *, setup_name: str, sweep_name: str) -> dict[str, Any]:
+        with self._lock:
+            setup = self._get_setup_object(setup_name)
+            deleter = getattr(setup, "delete_sweep", None)
+            if not callable(deleter):
+                raise AdapterError(
+                    "setup object does not support delete_sweep()",
+                    code="sweep_delete_unsupported",
+                )
+            try:
+                ok = deleter(sweep_name)
+            except Exception as exc:
+                raise AdapterError(
+                    f"failed to delete sweep {sweep_name!r}: {exc}",
+                    code="sweep_delete_failed",
+                    details={"reason": str(exc)},
+                ) from exc
+            if ok is False:
+                raise AdapterError(
+                    f"failed to delete sweep {sweep_name!r}",
+                    code="sweep_delete_failed",
+                )
+            remaining: list[str] = []
+            try:
+                remaining = [str(x) for x in (setup.get_sweep_names() or [])]
+            except Exception:
+                remaining = [
+                    str(getattr(s, "name", ""))
+                    for s in (getattr(setup, "sweeps", []) or [])
+                ]
+            try:
+                if self._hfss is not None and hasattr(self._hfss, "save_project"):
+                    self._hfss.save_project()
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "setup": setup_name,
+                "deleted": sweep_name,
+                "remaining": remaining,
+            }
+
     def start_solve(self, setup: str, sweep: str | None = None) -> SolveHandle:
         """Start solve. In worker processes, blocking=True is preferred for reliability."""
         with self._lock:

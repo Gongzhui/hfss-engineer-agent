@@ -53,6 +53,15 @@ class FakeAdapter:
         self._design_name = design_name
         self._variables: dict[str, ParameterValue] = copy.deepcopy(variables or {})
         self._setups = list(setups or ["Setup1"])
+        self._setup_records: dict[str, dict[str, Any]] = {
+            name: {
+                "name": name,
+                "setup_type": "HFSSDriven",
+                "props": {"Frequency": "5GHz", "MaximumPasses": 10, "MaxDeltaS": 0.02},
+                "sweeps": {},
+            }
+            for name in self._setups
+        }
         self._metrics = dict(metrics or {"S11_dB": -10.0, "Gain_dBi": 5.0})
         self._solve_duration_s = solve_duration_s
         self._fail_readback_names = set(fail_readback_names or set())
@@ -62,6 +71,9 @@ class FakeAdapter:
         self._mutation_count = 0
         self._revision = self._compute_revision()
 
+    def _sync_setup_names(self) -> None:
+        self._setups = list(self._setup_records.keys())
+
     def _compute_revision(self) -> str:
         payload = {
             "project": str(self._project_path),
@@ -70,9 +82,246 @@ class FakeAdapter:
                 k: {"v": v.value, "u": v.unit}
                 for k, v in sorted(self._variables.items())
             },
+            "setups": sorted(self._setup_records.keys()),
             "n": self._mutation_count,
         }
         return sha256_hex(repr(payload))[:16]
+
+    def list_setups(self) -> list[dict[str, Any]]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            items: list[dict[str, Any]] = []
+            for name, rec in self._setup_records.items():
+                sweeps = [
+                    {"name": sn, "props": copy.deepcopy(sp.get("props") or {})}
+                    for sn, sp in (rec.get("sweeps") or {}).items()
+                ]
+                items.append(
+                    {
+                        "name": name,
+                        "setup_type": rec.get("setup_type"),
+                        "props": copy.deepcopy(rec.get("props") or {}),
+                        "sweep_count": len(sweeps),
+                        "sweeps": sweeps,
+                    }
+                )
+            return items
+
+    def get_setup(self, name: str) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            rec = self._setup_records.get(name)
+            if rec is None:
+                raise AdapterError(
+                    f"setup not found: {name}",
+                    code="setup_not_found",
+                    details={"name": name, "known": list(self._setup_records)},
+                )
+            sweeps = [
+                {"name": sn, "props": copy.deepcopy(sp.get("props") or {})}
+                for sn, sp in (rec.get("sweeps") or {}).items()
+            ]
+            return {
+                "name": name,
+                "setup_type": rec.get("setup_type"),
+                "props": copy.deepcopy(rec.get("props") or {}),
+                "sweep_count": len(sweeps),
+                "sweeps": sweeps,
+            }
+
+    def create_setup(
+        self,
+        *,
+        name: str,
+        setup_type: str | None = None,
+        properties: dict[str, Any] | None = None,
+        sweeps: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            if name in self._setup_records:
+                raise AdapterError(
+                    f"setup already exists: {name}",
+                    code="setup_exists",
+                    details={"name": name},
+                )
+            props = dict(properties or {})
+            props.setdefault("Frequency", "5GHz")
+            rec: dict[str, Any] = {
+                "name": name,
+                "setup_type": setup_type or "HFSSDriven",
+                "props": props,
+                "sweeps": {},
+            }
+            for sw in sweeps or []:
+                sn = str(sw.get("name") or f"Sweep{len(rec['sweeps']) + 1}")
+                rec["sweeps"][sn] = {
+                    "name": sn,
+                    "props": copy.deepcopy(sw.get("props") or sw),
+                }
+            self._setup_records[name] = rec
+            self._sync_setup_names()
+            self._mutation_count += 1
+            self._revision = self._compute_revision()
+            return self.get_setup(name)
+
+    def update_setup(
+        self,
+        *,
+        name: str,
+        properties: dict[str, Any],
+        new_name: str | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            rec = self._setup_records.get(name)
+            if rec is None:
+                raise AdapterError(
+                    f"setup not found: {name}",
+                    code="setup_not_found",
+                    details={"name": name},
+                )
+            if not properties and not new_name:
+                raise AdapterError(
+                    "no setup properties provided to update",
+                    code="setup_update_empty",
+                )
+            rec["props"].update(properties or {})
+            target = name
+            if new_name and new_name != name:
+                if new_name in self._setup_records:
+                    raise AdapterError(
+                        f"setup already exists: {new_name}",
+                        code="setup_exists",
+                    )
+                self._setup_records.pop(name)
+                rec["name"] = new_name
+                rec["props"]["Name"] = new_name
+                self._setup_records[new_name] = rec
+                target = new_name
+            self._sync_setup_names()
+            self._mutation_count += 1
+            self._revision = self._compute_revision()
+            return self.get_setup(target)
+
+    def delete_setup(self, name: str) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            if name not in self._setup_records:
+                raise AdapterError(
+                    f"setup not found: {name}",
+                    code="setup_not_found",
+                    details={"name": name},
+                )
+            del self._setup_records[name]
+            self._sync_setup_names()
+            self._mutation_count += 1
+            self._revision = self._compute_revision()
+            return {"ok": True, "deleted": name, "remaining": list(self._setup_records)}
+
+    def create_sweep(
+        self,
+        *,
+        setup_name: str,
+        sweep: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            rec = self._setup_records.get(setup_name)
+            if rec is None:
+                raise AdapterError(
+                    f"setup not found: {setup_name}",
+                    code="setup_not_found",
+                )
+            sn = str(sweep.get("name") or f"Sweep{len(rec['sweeps']) + 1}")
+            if sn in rec["sweeps"]:
+                raise AdapterError(
+                    f"sweep already exists: {sn}",
+                    code="sweep_exists",
+                )
+            rec["sweeps"][sn] = {
+                "name": sn,
+                "props": copy.deepcopy(sweep.get("props") or sweep),
+            }
+            self._mutation_count += 1
+            self._revision = self._compute_revision()
+            return {"setup": setup_name, "sweep": sn, "props": rec["sweeps"][sn]["props"]}
+
+    def update_sweep(
+        self,
+        *,
+        setup_name: str,
+        sweep_name: str,
+        properties: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            rec = self._setup_records.get(setup_name)
+            if rec is None:
+                raise AdapterError(
+                    f"setup not found: {setup_name}",
+                    code="setup_not_found",
+                )
+            sw = rec["sweeps"].get(sweep_name)
+            if sw is None:
+                raise AdapterError(
+                    f"sweep not found: {sweep_name}",
+                    code="sweep_not_found",
+                )
+            mapping = {
+                "start": "RangeStart",
+                "stop": "RangeEnd",
+                "points": "RangeCount",
+                "step": "RangeStep",
+                "type": "Type",
+                "sweep_type": "Type",
+                "save_fields": "SaveFields",
+                "save_rad_fields": "SaveRadFields",
+                "range_type": "RangeType",
+            }
+            native: dict[str, Any] = {}
+            for k, v in (properties or {}).items():
+                native[mapping.get(k, k)] = v
+            sw["props"].update(native)
+            self._mutation_count += 1
+            self._revision = self._compute_revision()
+            return {
+                "setup": setup_name,
+                "sweep": sweep_name,
+                "props": copy.deepcopy(sw["props"]),
+            }
+
+    def delete_sweep(self, *, setup_name: str, sweep_name: str) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            rec = self._setup_records.get(setup_name)
+            if rec is None:
+                raise AdapterError(
+                    f"setup not found: {setup_name}",
+                    code="setup_not_found",
+                )
+            if sweep_name not in rec["sweeps"]:
+                raise AdapterError(
+                    f"sweep not found: {sweep_name}",
+                    code="sweep_not_found",
+                )
+            del rec["sweeps"][sweep_name]
+            self._mutation_count += 1
+            self._revision = self._compute_revision()
+            return {
+                "ok": True,
+                "setup": setup_name,
+                "deleted": sweep_name,
+                "remaining": list(rec["sweeps"]),
+            }
 
     def inspect_environment(self) -> EnvironmentStatus:
         return inspect_environment(
