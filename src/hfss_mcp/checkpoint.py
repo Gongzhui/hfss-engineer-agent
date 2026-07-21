@@ -114,12 +114,18 @@ class CheckpointService:
         self._append_index(record)
         return record
 
+    def reload(self) -> None:
+        """Re-read durable index (e.g. after worker process wrote checkpoints)."""
+        self._records = []
+        self._load_index()
+
     def list_checkpoints(
         self,
         *,
         run_id: str | None = None,
         manifest_id: str | None = None,
     ) -> list[CheckpointRecord]:
+        self.reload()
         items = list(self._records)
         if run_id is not None:
             items = [r for r in items if r.run_id == run_id]
@@ -128,6 +134,7 @@ class CheckpointService:
         return items
 
     def get(self, checkpoint_id: str) -> CheckpointRecord | None:
+        self.reload()
         for record in self._records:
             if record.checkpoint_id == checkpoint_id:
                 return record

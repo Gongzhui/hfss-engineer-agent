@@ -1,90 +1,104 @@
 # HFSS MCP
 
-A constrained MCP bridge for AI-assisted HFSS simulation and antenna tuning.
+Constrained MCP bridge for AI-assisted HFSS antenna tuning on **Ansys Electronics Desktop**.
 
-The v0 implementation is a **tune-only** vertical slice: inspect the environment, validate a project-specific parameter manifest, apply complete allowlisted parameter vectors with checkpointing, run approved setups as **durable asynchronous jobs**, and return traceable metrics. Arbitrary script execution and unrestricted geometry edits are **not** part of the default tool surface.
+v0 delivers a **real closed loop** on AEDT 2023 R2: workspace copy → allowlisted parameter apply with read-back → exclusive worker Desktop → solve → Touchstone S11 metrics → durable SQLite jobs → checkpoint / recovery. Arbitrary script execution is **not** exposed.
 
-Architecture decisions: `docs/ADR-001-AUTONOMY-EXECUTION-MODEL.md`, `docs/ARCHITECTURE_V0.md`, `docs/STATUS.md`.
+Architecture: `docs/ADR-001-AUTONOMY-EXECUTION-MODEL.md`, `docs/ARCHITECTURE_V0.md`, `docs/STATUS.md`.
 
-## Local development
+## Production start (this machine)
 
 ```powershell
+cd C:\Users\Gongzhui\Documents\Projects\hfss-mcp
 uv sync
-uv run pytest
-uv run ruff check .
-uv run mypy
+# Optional overrides:
+# $env:HFSS_MCP_ADAPTER = "pyaedt"   # default when AEDT is installed
+# $env:HFSS_MCP_DATA_DIR = "D:\hfss-mcp-data"
+# $env:HFSS_MCP_AEDT_VERSION = "2023.2"
 uv run hfss-mcp
 ```
 
-Optional data directory (job DB + checkpoints):
+`health` must report:
+
+- `adapter`: `pyaedt`
+- `real_hfss_ready`: `true` when `ansysedt.exe` is present
+- `connection_mode`: `worker_process_exclusive_desktop`
+
+Fake mode (tests/demo only):
 
 ```powershell
-$env:HFSS_MCP_DATA_DIR = "D:\hfss-mcp-data"
+$env:HFSS_MCP_ADAPTER = "fake"
+$env:HFSS_MCP_DEMO = "1"
+uv run hfss-mcp
 ```
 
-The current development machine has AEDT 2023 R2 at `C:\Program Files\AnsysEM\v232`.
+### Minimal MCP client config (stdio)
 
-## MCP tools (v0)
+```json
+{
+  "mcpServers": {
+    "hfss-mcp": {
+      "command": "uv",
+      "args": ["run", "--directory", "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp", "hfss-mcp"],
+      "env": {
+        "HFSS_MCP_ADAPTER": "pyaedt",
+        "HFSS_MCP_AEDT_VERSION": "2023.2"
+      }
+    }
+  }
+}
+```
 
-| Tool | Kind | Description |
+## MCP tools
+
+| Tool | Kind | Notes |
 |---|---|---|
-| `health` | read | Bridge health, version, tool list |
-| `environment_status` | read | AEDT install discovery (version, root, exe, running) without launching AEDT |
-| `manifest_validate` | read | Validate tune-only manifest; returns stable `manifest_id` (SHA-256) |
-| `design_snapshot` | open approved project | Snapshot project/design identity, revision, variables |
-| `trial_start` | mutate + solve | Start one allowlisted trial job (idempotent) |
-| `trial_status` | read | Durable job state |
-| `trial_result` | read | Metrics, checkpoint path, structured errors |
-| `trial_cancel` | best-effort | Cancel queued/running trial |
-| `checkpoint_list` | read | List pre-mutation checkpoints |
+| `health` | read | Adapter + real readiness (honest) |
+| `environment_status` | read | Install discovery, no launch |
+| `manifest_validate` | read | Schema 1.1 + structured metrics; persists for workers |
+| `design_snapshot` | open workspace copy | Checks project_name + design_name |
+| `trial_start` | enqueue | Returns job_id quickly; worker runs AEDT |
+| `trial_status` / `trial_result` / `trial_cancel` | job control | Durable SQLite |
+| `checkpoint_list` / `checkpoint_restore` | recovery | Restore only inside run workspace |
+| `run_start` / `run_status` / `run_result` / `run_cancel` / `run_resume` | multi-trial | Seeded random search; enforces budgets |
 
-**Not registered:** `run_python_code`, `run_python_script`, `exec`, generic invoke/object traversal, unrestricted geometry, clear/close of arbitrary user projects.
+**Not registered:** `run_python_code`, `run_python_script`, `exec`, generic invoke.
 
-## Manifest (tune-only contract)
+## Manifest (schema 1.1)
 
-A run is governed by an immutable JSON manifest that includes:
+- Absolute `.aedt` / `.aedtz` path, project/design identity
+- Complete parameter allowlist (unit, min, max)
+- Structured metrics, e.g. `s11_min_in_band`, `s11_at_freq`, `s11_min_freq`
+- Stop conditions: `max_trials`, `max_runtime_seconds`, `metric_targets`
+- Concurrency (serial default) and checkpoint policy
 
-- schema version, absolute project path (`.aedt` / `.aedtz`)
-- project/design identity
-- allowed setup/sweep pairs
-- complete allowlisted parameters with unit and min/max
-- allowed metrics
-- stop conditions (`max_trials`, `max_runtime_seconds`)
-- concurrency and checkpoint policy
+Candidates must be **full parameter vectors**. Idempotency keys store a **payload hash**; same key + different body → `idempotency_conflict`.
 
-Candidates must supply a **complete parameter vector**. The server rejects unauthorized variables, missing variables, unit mismatches, NaN/Infinity, out-of-range values, unsafe paths, unauthorized setups, and manifest ID mismatches **before** any adapter mutation.
+## Safety model
 
-## Trial job model
+- User original projects are **copied** into a run workspace; originals are never written.
+- Each real trial runs in a **worker process** with its own Desktop (`new_desktop=True`).
+- Only worker-owned `ansysedt` PIDs are killed on cancel.
+- Policy rejections happen in code before mutation.
 
-Jobs are stored in SQLite and support `start` / `status` / `result` / `cancel` with states:
+## Development / tests
 
-`queued`, `running`, `completed`, `failed`, `cancel_requested`, `cancelled`, `interrupted`
-
-- Duplicate `idempotency_key` returns the original job (no re-mutate / re-solve).
-- On process restart, leftover `running` jobs become `interrupted`.
-- First mutation auto-creates a hashed project checkpoint (never overwrites the original path).
-
-Default MCP process uses a **FakeAdapter** so tools and jobs can be exercised without a license. A `PyAedtAdapter` is available for real host work; live cancel and metric extraction still have known limits on AEDT 2023 R2 (documented in `docs/STATUS.md`).
-
-## Repository roles
-
-- This repository (`Gongzhui/hfss-mcp`) is the only active implementation and the public agent interface.
-- [`Gongzhui/hfss-cli`](https://github.com/Gongzhui/hfss-cli) is the preserved first-party legacy implementation (migration input).
-- Blender MCP, EDA Agent, and community HFSS MCP clones under `../hfss-mcp-references/` are **read-only** references — this project does **not** fork or deploy `ansys/pyaedt-mcp`.
-
-See `SOURCE_SNAPSHOTS.md`, `docs/MIGRATION_FROM_HFSS_CLI.md`, and `docs/COMMUNITY_HFSS_MCP_REVIEW.md`.
+```powershell
+uv run pytest                 # offline + real_aedt if AEDT present
+uv run pytest -m "not real_aedt"
+uv run pytest -m real_aedt    # requires AEDT 2023 R2
+uv run ruff check .
+uv run mypy
+```
 
 ## Package layout
 
 ```
 src/hfss_mcp/
-  server.py           # MCP tools (narrow surface)
-  app.py              # Application context
-  manifest.py         # Manifest schema + canonical hash
-  policy.py           # Authorization / validation
-  domain.py           # Jobs, snapshots, vectors
-  environment.py      # AEDT discovery
-  checkpoint.py       # Checkpoint service
-  adapter/            # Protocol, Fake, PyAEDT
-  jobs/               # SQLite store + trial runner
+  server.py app.py config.py
+  manifest.py policy.py metrics_spec.py metrics.py
+  workspace.py checkpoint.py real_project.py
+  adapter/   # Protocol, Fake, PyAEDT
+  jobs/      # SQLite store, supervisor, worker, trial_exec
+  run_optimizer.py
 ```

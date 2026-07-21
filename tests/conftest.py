@@ -22,7 +22,7 @@ def project_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def sample_manifest(project_file: Path) -> TuneManifest:
-    return build_manifest_for_tests(project_file)
+    return build_manifest_for_tests(project_file, sweep=None)
 
 
 @pytest.fixture
@@ -36,18 +36,26 @@ def fake_adapter(project_file: Path) -> FakeAdapter:
             "patch_l": ParameterValue(name="patch_l", value=12.0, unit="mm"),
         },
         setups=["Setup1"],
-        metrics={"S11_dB": -12.0, "Gain_dBi": 6.0},
+        metrics={
+            "S11_min_dB": -12.0,
+            "S11_min_freq_GHz": 2.4,
+            "S11_at_target_dB": -10.0,
+        },
         solve_duration_s=0.02,
     )
 
 
 @pytest.fixture
-def app_ctx(tmp_path: Path, fake_adapter: FakeAdapter) -> AppContext:
+def app_ctx(tmp_path: Path) -> AppContext:
     ctx = AppContext(
         data_dir=tmp_path / "data",
-        adapter=fake_adapter,
         use_fake=True,
         inline_trials=True,
+        start_supervisor=True,
     )
     yield ctx
     ctx.close()
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "real_aedt: requires local AEDT 2023 R2 session")

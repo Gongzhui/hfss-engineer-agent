@@ -32,6 +32,9 @@ artifacts = ["src/hfss_mcp/py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "real_aedt: requires local AEDT 2023 R2 (slow, launches exclusive desktop)",
+]
 
 [tool.ruff]
 line-length = 100
@@ -40,6 +43,7 @@ extend-exclude = ["references"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["SIM105", "SIM102"]
 
 [tool.mypy]
 python_version = "3.12"

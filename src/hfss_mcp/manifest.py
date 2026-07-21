@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from hfss_mcp.errors import ManifestError
 from hfss_mcp.ids import canonical_json_bytes, sha256_hex
+from hfss_mcp.metrics_spec import MetricSpec, coerce_metrics
 
-MANIFEST_SCHEMA_VERSION = "1.0"
+MANIFEST_SCHEMA_VERSION = "1.1"
 
 ConcurrencyMode = Literal["serial", "parallel"]
 CheckpointMode = Literal["before_first_mutation", "every_trial", "manual"]
@@ -90,7 +91,7 @@ class ConcurrencyPolicy(BaseModel):
 
 
 class CheckpointPolicy(BaseModel):
-    mode: CheckpointMode = "before_first_mutation"
+    mode: CheckpointMode = "every_trial"
     directory: str | None = None
 
     model_config = {"extra": "forbid"}
@@ -99,7 +100,7 @@ class CheckpointPolicy(BaseModel):
 class StopConditions(BaseModel):
     max_trials: int = Field(ge=1)
     max_runtime_seconds: float = Field(gt=0)
-    # Optional metric thresholds reserved for later optimizer loops
+    # metric_name -> target (minimize: stop when metric <= target for S11)
     metric_targets: dict[str, float] = Field(default_factory=dict)
 
     model_config = {"extra": "forbid"}
@@ -121,7 +122,7 @@ class TuneManifest(BaseModel):
     design_name: str
     allowed_setups: list[SetupSweepRef] = Field(min_length=1)
     parameters: list[ParameterSpec] = Field(min_length=1)
-    allowed_metrics: list[str] = Field(min_length=1)
+    allowed_metrics: list[MetricSpec] = Field(min_length=1)
     stop_conditions: StopConditions
     concurrency: ConcurrencyPolicy = Field(default_factory=ConcurrencyPolicy)
     checkpoint: CheckpointPolicy = Field(default_factory=CheckpointPolicy)
@@ -132,9 +133,10 @@ class TuneManifest(BaseModel):
     @field_validator("schema_version")
     @classmethod
     def _schema_ok(cls, value: str) -> str:
-        if value != MANIFEST_SCHEMA_VERSION:
+        if value not in {MANIFEST_SCHEMA_VERSION, "1.0"}:
             raise ValueError(
-                f"unsupported schema_version {value!r}; expected {MANIFEST_SCHEMA_VERSION!r}"
+                f"unsupported schema_version {value!r}; "
+                f"expected {MANIFEST_SCHEMA_VERSION!r} (or legacy 1.0)"
             )
         return value
 
@@ -144,7 +146,6 @@ class TuneManifest(BaseModel):
         path = Path(value)
         if not path.is_absolute():
             raise ValueError("project_path must be an absolute path")
-        # Reject path traversal segments after normalization attempt
         resolved = path.resolve(strict=False)
         if ".." in path.parts:
             raise ValueError("project_path must not contain '..' segments")
@@ -161,34 +162,41 @@ class TuneManifest(BaseModel):
             raise ValueError("project_name and design_name must be non-empty")
         return text
 
-    @field_validator("allowed_metrics")
+    @field_validator("allowed_metrics", mode="before")
     @classmethod
-    def _metrics_nonempty_names(cls, value: list[str]) -> list[str]:
-        cleaned = [item.strip() for item in value]
-        if any(not item for item in cleaned):
-            raise ValueError("allowed_metrics entries must be non-empty")
-        if len(set(cleaned)) != len(cleaned):
-            raise ValueError("allowed_metrics must be unique")
-        return cleaned
+    def _coerce_metrics(cls, value: Any) -> list[Any]:
+        return coerce_metrics(list(value))
 
     @model_validator(mode="after")
-    def _unique_parameters(self) -> TuneManifest:
+    def _unique_parameters_and_metric_setups(self) -> TuneManifest:
         names = [p.name for p in self.parameters]
         if len(set(names)) != len(names):
             raise ValueError("parameter names must be unique")
+        allowed = self.allowed_setup_keys()
+        for metric in self.allowed_metrics:
+            key = (metric.setup, metric.sweep)
+            # Allow setup match with explicit sweep listed or setup-only with None
+            setup_ok = any(
+                s.setup == metric.setup and s.sweep == metric.sweep
+                for s in self.allowed_setups
+            )
+            if key not in allowed and (metric.setup, None) not in allowed and not setup_ok:
+                raise ValueError(
+                    f"metric {metric.name!r} setup/sweep not in allowed_setups"
+                )
         return self
 
     def parameter_map(self) -> dict[str, ParameterSpec]:
         return {p.name: p for p in self.parameters}
 
+    def metric_map(self) -> dict[str, MetricSpec]:
+        return {m.name: m for m in self.allowed_metrics}
+
     def allowed_setup_keys(self) -> set[tuple[str, str | None]]:
         return {(item.setup, item.sweep) for item in self.allowed_setups}
 
     def to_canonical_dict(self) -> dict[str, Any]:
-        """Dict used for stable hashing (aliases normalized to public names)."""
         data = self.model_dump(mode="json", by_alias=True)
-        # Drop notes from identity so documentation edits do not change ID? Keep notes
-        # out of identity for stability of engineering contract.
         data.pop("notes", None)
         return data
 
@@ -200,12 +208,11 @@ class TuneManifest(BaseModel):
 
 
 def load_manifest(data: dict[str, Any] | TuneManifest) -> TuneManifest:
-    """Parse and validate a manifest dict or model."""
     if isinstance(data, TuneManifest):
         return data
     try:
         return TuneManifest.model_validate(data)
-    except Exception as exc:  # pydantic ValidationError and ValueError
+    except Exception as exc:
         raise ManifestError(
             f"manifest validation failed: {exc}",
             code="manifest_invalid",
@@ -238,3 +245,46 @@ def load_manifest_json_file(path: Path | str) -> TuneManifest:
             details={"path": str(file_path)},
         )
     return load_manifest(raw)
+
+
+def default_s11_metrics(
+    *,
+    setup: str = "Setup1",
+    sweep: str | None = "Sweep1",
+    f_min_ghz: float = 1.0,
+    f_max_ghz: float = 10.0,
+    f_target_ghz: float = 2.4,
+    port: str = "1",
+) -> list[dict[str, Any]]:
+    """Helper metric pack for tests and demos."""
+    return [
+        {
+            "name": "S11_min_dB",
+            "kind": "s11_min_in_band",
+            "setup": setup,
+            "sweep": sweep,
+            "port": port,
+            "f_min_ghz": f_min_ghz,
+            "f_max_ghz": f_max_ghz,
+            "unit": "dB",
+        },
+        {
+            "name": "S11_min_freq_GHz",
+            "kind": "s11_min_freq",
+            "setup": setup,
+            "sweep": sweep,
+            "port": port,
+            "f_min_ghz": f_min_ghz,
+            "f_max_ghz": f_max_ghz,
+            "unit": "GHz",
+        },
+        {
+            "name": "S11_at_target_dB",
+            "kind": "s11_at_freq",
+            "setup": setup,
+            "sweep": sweep,
+            "port": port,
+            "f_target_ghz": f_target_ghz,
+            "unit": "dB",
+        },
+    ]

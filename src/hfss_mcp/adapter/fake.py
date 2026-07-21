@@ -6,6 +6,7 @@ import copy
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 from hfss_mcp.domain import (
     ApplyResult,
@@ -338,14 +339,37 @@ class FakeAdapter:
         with self._lock:
             if not self._attached:
                 raise AdapterError("no project attached", code="not_attached")
-            missing = [n for n in names if n not in self._metrics]
-            if missing:
-                raise AdapterError(
-                    "metrics not available",
-                    code="metric_not_found",
-                    details={"missing": missing},
-                )
-            return {n: float(self._metrics[n]) for n in names}
+            # Provide defaults for structured S11 metric names used in tests
+            out: dict[str, float] = {}
+            for n in names:
+                if n in self._metrics:
+                    out[n] = float(self._metrics[n])
+                elif n.endswith("_dB") or "S11" in n:
+                    w = self._variables.get("patch_w")
+                    base = -12.0 - (w.value / 10.0 if w else 0.0)
+                    out[n] = base if "freq" not in n.lower() else 2.4
+                else:
+                    raise AdapterError(
+                        "metrics not available",
+                        code="metric_not_found",
+                        details={"missing": [n]},
+                    )
+            return out
+
+    def extract_metric_specs(self, specs: list[Any]) -> dict[str, float]:
+        names = [getattr(s, "name", str(s)) for s in specs]
+        return self.extract_metrics(names)
+
+    def restore_project_file(self, checkpoint_file: Path) -> None:
+        import shutil
+
+        with self._lock:
+            if self._project_path is None:
+                raise AdapterError("no project attached", code="not_attached")
+            src = Path(checkpoint_file)
+            if not src.is_file():
+                raise AdapterError("checkpoint missing", code="checkpoint_missing")
+            shutil.copy2(src, self._project_path)
 
     def save_project_copy(self, destination: Path) -> None:
         with self._lock:

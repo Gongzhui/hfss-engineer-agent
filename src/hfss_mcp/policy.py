@@ -75,7 +75,7 @@ def assert_setup_authorized(
 
 
 def assert_metrics_authorized(manifest: TuneManifest, metrics: list[str]) -> None:
-    allowed = set(manifest.allowed_metrics)
+    allowed = set(manifest.metric_map().keys())
     unknown = [m for m in metrics if m not in allowed]
     if unknown:
         raise PolicyError(
@@ -207,7 +207,7 @@ def explain_manifest(manifest: TuneManifest) -> dict[str, Any]:
         "allowed_setups": [
             {"setup": s.setup, "sweep": s.sweep} for s in manifest.allowed_setups
         ],
-        "allowed_metrics": list(manifest.allowed_metrics),
+        "allowed_metrics": [m.model_dump(mode="json") for m in manifest.allowed_metrics],
         "stop_conditions": manifest.stop_conditions.model_dump(mode="json"),
         "concurrency": manifest.concurrency.model_dump(mode="json"),
         "checkpoint": manifest.checkpoint.model_dump(mode="json"),

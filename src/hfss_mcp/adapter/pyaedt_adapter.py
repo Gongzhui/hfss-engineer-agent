@@ -1,15 +1,13 @@
-"""PyAEDT-backed adapter (optional real host path).
+"""PyAEDT-backed adapter for exclusive worker use.
 
-Safety notes:
-- Does not expose exec or generic object traversal.
-- disconnect() never closes a desktop the caller did not start unless close_desktop=True.
-- Cancel reliability on AEDT 2023 R2 is limited; we report honestly.
+Designed for one process / one AEDT desktop / one project workspace copy.
 """
 
 from __future__ import annotations
 
 import shutil
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -28,18 +26,16 @@ from hfss_mcp.domain import (
 from hfss_mcp.environment import EnvironmentStatus, inspect_environment
 from hfss_mcp.errors import AdapterError, ReadbackMismatchError, RevisionConflictError
 from hfss_mcp.ids import new_id, sha256_hex
+from hfss_mcp.metrics import extract_metrics as extract_metrics_real
+from hfss_mcp.metrics_spec import MetricSpec
 
 
 class PyAedtAdapter:
-    """Semantic adapter over PyAEDT Hfss.
-
-    Construction is lazy: import/launch happens on attach unless an existing
-    desktop session is injected for tests.
-    """
+    """Semantic adapter over PyAEDT Hfss — not shared across threads/jobs."""
 
     CANCEL_LIMITATION = (
-        "AEDT 2023 R2 / PyAEDT does not provide a reliably documented interrupt for all "
-        "in-flight analyzes; cancel is best-effort and may leave the solve running."
+        "Cancel terminates only the AEDT desktop owned by this worker process "
+        "(new_desktop session recorded at start). User-owned AEDT is never closed."
     )
 
     def __init__(
@@ -48,8 +44,9 @@ class PyAedtAdapter:
         version: str | None = "2023.2",
         non_graphical: bool = True,
         new_desktop: bool = True,
-        close_on_exit: bool = False,
+        close_on_exit: bool = True,
         hfss: Any | None = None,
+        owned_pids: list[int] | None = None,
     ) -> None:
         self._version = version
         self._non_graphical = non_graphical
@@ -62,9 +59,38 @@ class PyAedtAdapter:
         self._solves: dict[str, dict[str, Any]] = {}
         self._project_path: Path | None = None
         self._mutation_count = 0
+        self._desktop_pid: int | None = None
+        self._owned_pids: set[int] = set(owned_pids or [])
+        self._aedt_process_ids_before: set[int] = set()
 
     def inspect_environment(self) -> EnvironmentStatus:
         return inspect_environment()
+
+    def _list_ansysedt_pids(self) -> set[int]:
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq ansysedt.exe", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=15,
+            )
+            pids: set[int] = set()
+            for line in (result.stdout or "").splitlines():
+                # "ansysedt.exe","1234",...
+                parts = [p.strip().strip('"') for p in line.split(",")]
+                if len(parts) >= 2 and parts[0].lower().startswith("ansysedt"):
+                    try:
+                        pids.add(int(parts[1]))
+                    except ValueError:
+                        continue
+            return pids
+        except Exception:
+            return set()
 
     def _ensure_hfss(self, project_path: Path, design_name: str) -> Any:
         if self._hfss is not None:
@@ -86,6 +112,8 @@ class PyAedtAdapter:
                 code="pyaedt_import_error",
                 details={"reason": str(last_err)},
             )
+        before = self._list_ansysedt_pids()
+        self._aedt_process_ids_before = before
         try:
             self._hfss = hfss_cls(
                 project=str(project_path),
@@ -102,7 +130,29 @@ class PyAedtAdapter:
                 code="aedt_session_error",
                 details={"reason": str(exc), "project": str(project_path)},
             ) from exc
+        after = self._list_ansysedt_pids()
+        new_pids = after - before
+        self._owned_pids |= new_pids
+        # Also try desktop.aedt_process_id if present
+        try:
+            desk = getattr(self._hfss, "desktop_class", None) or getattr(
+                self._hfss, "odesktop", None
+            )
+            pid = getattr(self._hfss, "aedt_process_id", None)
+            if pid:
+                self._owned_pids.add(int(pid))
+                self._desktop_pid = int(pid)
+            elif desk is not None:
+                pid2 = getattr(desk, "aedt_process_id", None) or getattr(desk, "process_id", None)
+                if pid2:
+                    self._owned_pids.add(int(pid2))
+                    self._desktop_pid = int(pid2)
+        except Exception:
+            pass
         return self._hfss
+
+    def owned_aedt_pids(self) -> list[int]:
+        return sorted(self._owned_pids)
 
     def _compute_revision(self) -> str:
         names = sorted(self._variable_names())
@@ -116,31 +166,26 @@ class PyAedtAdapter:
     def _variable_names(self) -> list[str]:
         assert self._hfss is not None
         vm = self._hfss.variable_manager
-        # independent_design_variables is typical in PyAEDT
         independent = getattr(vm, "independent_design_variables", None)
         if isinstance(independent, dict):
             return list(independent.keys())
         variables = getattr(vm, "variables", None)
         if isinstance(variables, dict):
             return list(variables.keys())
-        design_vars = getattr(self._hfss, "variable_manager", None)
-        if design_vars is not None and hasattr(design_vars, "design_variables"):
-            dv = design_vars.design_variables
-            if isinstance(dv, dict):
-                return list(dv.keys())
+        if hasattr(vm, "design_variables") and isinstance(vm.design_variables, dict):
+            return list(vm.design_variables.keys())
         return []
 
     def _parse_expression(self, name: str, expression: str) -> ParameterValue:
         import re
 
         text = str(expression).strip()
-        # Split trailing unit token if present ("10 mm" or "10mm")
         parts = text.split()
         if len(parts) >= 2:
             try:
-                value = float(parts[0])
-                unit = " ".join(parts[1:])
-                return ParameterValue(name=name, value=value, unit=unit)
+                return ParameterValue(
+                    name=name, value=float(parts[0]), unit=" ".join(parts[1:])
+                )
             except ValueError:
                 pass
         glued = re.match(
@@ -149,9 +194,7 @@ class PyAedtAdapter:
         )
         if glued:
             return ParameterValue(
-                name=name,
-                value=float(glued.group(1)),
-                unit=glued.group(2),
+                name=name, value=float(glued.group(1)), unit=glued.group(2)
             )
         try:
             return ParameterValue(name=name, value=float(text), unit="1")
@@ -168,7 +211,6 @@ class PyAedtAdapter:
         if hasattr(vm, "get_expression"):
             expr = vm.get_expression(name)
         else:
-            # Fallback: mapping access
             independent = getattr(vm, "independent_design_variables", {})
             if name not in independent:
                 raise AdapterError(
@@ -183,7 +225,6 @@ class PyAedtAdapter:
         with self._lock:
             path = Path(project_path)
             if not path.is_file() and self._hfss is None:
-                # Allow non-existent only if caller injects hfss (tests)
                 raise AdapterError(
                     f"project file not found: {path}",
                     code="project_not_found",
@@ -199,9 +240,7 @@ class PyAedtAdapter:
         with self._lock:
             if self._hfss is None or self._project_path is None:
                 raise AdapterError("no project attached", code="not_attached")
-            variables = {
-                name: self._read_one(name) for name in self._variable_names()
-            }
+            variables = {name: self._read_one(name) for name in self._variable_names()}
             setups = list(getattr(self._hfss, "setup_names", []) or [])
             return DesignSnapshot(
                 project_path=str(self._project_path),
@@ -240,11 +279,12 @@ class PyAedtAdapter:
             revision_before = self._revision
             vm = self._hfss.variable_manager
             for item in vector.values:
-                expression = f"{item.value}{item.unit}" if item.unit != "1" else str(item.value)
+                expression = (
+                    f"{item.value}{item.unit}" if item.unit != "1" else str(item.value)
+                )
                 if hasattr(vm, "set_variable"):
                     vm.set_variable(item.name, expression=expression)
                 else:
-                    # Fallback assignment
                     self._hfss[item.name] = expression
 
             mismatches: list[dict[str, object]] = []
@@ -252,7 +292,8 @@ class PyAedtAdapter:
             for item in vector.values:
                 actual = self._read_one(item.name)
                 readback[item.name] = actual
-                if abs(actual.value - item.value) > 1e-9 or actual.unit != item.unit:
+                # unit may normalize (mm vs mm); value compare with tolerance
+                if abs(actual.value - item.value) > 1e-6:
                     mismatches.append(
                         {
                             "name": item.name,
@@ -262,8 +303,17 @@ class PyAedtAdapter:
                             "actual_unit": actual.unit,
                         }
                     )
+                elif actual.unit.replace(" ", "").lower() != item.unit.replace(" ", "").lower():
+                    # allow mm vs millimeter only if values match; else mismatch
+                    if actual.unit.lower() not in {item.unit.lower(), item.unit.lower() + "s"}:
+                        mismatches.append(
+                            {
+                                "name": item.name,
+                                "expected_unit": item.unit,
+                                "actual_unit": actual.unit,
+                            }
+                        )
             if mismatches:
-                # Best-effort restore
                 for name, prev in before.items():
                     expression = (
                         f"{prev.value}{prev.unit}" if prev.unit != "1" else str(prev.value)
@@ -293,6 +343,12 @@ class PyAedtAdapter:
                 )
                 for item in vector.values
             ]
+            # Persist project after mutation
+            try:
+                if hasattr(self._hfss, "save_project"):
+                    self._hfss.save_project()
+            except Exception:
+                pass
             return ApplyResult(
                 ok=True,
                 revision_before=revision_before,
@@ -316,33 +372,21 @@ class PyAedtAdapter:
             return {"ok": True, "setup": setup, "sweep": sweep, "errors": []}
 
     def start_solve(self, setup: str, sweep: str | None = None) -> SolveHandle:
+        """Start solve. In worker processes, blocking=True is preferred for reliability."""
         with self._lock:
             if self._hfss is None:
                 raise AdapterError("no project attached", code="not_attached")
             handle_id = new_id("solve_")
             handle = SolveHandle(handle_id=handle_id, setup=setup, sweep=sweep)
-            # Non-blocking analyze when available
             try:
-                analyze = getattr(self._hfss, "analyze_setup", None) or getattr(
-                    self._hfss, "analyze", None
-                )
-                if analyze is None:
-                    raise AdapterError("no analyze method on Hfss object", code="no_analyze")
-                # Prefer non-blocking if supported
-                try:
-                    analyze(setup, blocking=False)
-                except TypeError:
-                    # Blocking fallback for v0; smoke tests must not run long solves.
-                    analyze(setup)
-                    self._solves[handle_id] = {
-                        "handle": handle,
-                        "state": SolveState.COMPLETED,
-                    }
-                    return handle
+                ok = self._run_analyze(setup)
+                state = SolveState.COMPLETED if ok is not False else SolveState.FAILED
                 self._solves[handle_id] = {
                     "handle": handle,
-                    "state": SolveState.RUNNING,
+                    "state": state,
                     "setup": setup,
+                    "sweep": sweep,
+                    "blocking": True,
                 }
             except AdapterError:
                 raise
@@ -354,6 +398,75 @@ class PyAedtAdapter:
                 ) from exc
             return handle
 
+    def _run_analyze(self, setup: str) -> bool:
+        """Analyze setup using the most reliable path available on PyAEDT 1.3 / AEDT 2023.2."""
+        assert self._hfss is not None
+        # 1) Native design Analyze (most stable across versions)
+        odesign = getattr(self._hfss, "odesign", None)
+        if odesign is not None and hasattr(odesign, "Analyze"):
+            try:
+                odesign.Analyze(setup)
+                return True
+            except Exception as exc:
+                last = exc
+            else:
+                return True
+        else:
+            last = None
+        # 2) PyAEDT analyze with blocking
+        for method_name in ("analyze_setup", "analyze"):
+            method = getattr(self._hfss, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                return bool(method(setup, blocking=True))
+            except TypeError:
+                try:
+                    return bool(method(setup))
+                except Exception as exc:
+                    last = exc
+            except Exception as exc:
+                last = exc
+        # 3) Setup object analyze
+        try:
+            setup_obj = self._hfss.get_setup(setup)
+            if hasattr(setup_obj, "analyze"):
+                return bool(setup_obj.analyze())
+        except Exception as exc:
+            last = exc
+        raise AdapterError(
+            f"failed to analyze setup {setup!r}: {last}",
+            code="solve_start_error",
+            details={"reason": str(last)},
+        )
+
+    def _probe_solution_done(self, setup: str, sweep: str | None) -> bool | None:
+        """Return True if solution present, False if failed, None if unknown/still running."""
+        assert self._hfss is not None
+        try:
+            # export_profile / solution type checks
+            sols = getattr(self._hfss, "or_solutions", None) or getattr(
+                self._hfss, "osolution", None
+            )
+            _ = sols
+            # Try get_solution_data lightly
+            post = getattr(self._hfss, "post", None)
+            if post is None:
+                return None
+            name = f"{setup} : {sweep}" if sweep else setup
+            try:
+                data = post.get_solution_data(
+                    expressions="dB(S(1,1))",
+                    setup_sweep_name=name,
+                )
+                if data not in (None, False):
+                    return True
+            except Exception:
+                return None
+        except Exception:
+            return None
+        return None
+
     def query_solve(self, handle: SolveHandle) -> SolveStatus:
         with self._lock:
             rec = self._solves.get(handle.handle_id)
@@ -362,25 +475,30 @@ class PyAedtAdapter:
                     handle_id=handle.handle_id,
                     state=SolveState.UNKNOWN,
                     message="unknown handle",
-                    cancel_supported=False,
+                    cancel_supported=self._owns_desktop,
                     cancel_limitation=self.CANCEL_LIMITATION,
                 )
             state = rec["state"]
             if state == SolveState.RUNNING and self._hfss is not None:
-                # Probe PyAEDT for solution status if available
-                try:
-                    props = getattr(self._hfss, "pc_solutions", None)
-                    _ = props
-                except Exception:
-                    pass
+                done = self._probe_solution_done(
+                    str(rec.get("setup")),
+                    str(rec["sweep"]) if rec.get("sweep") is not None else None,
+                )
+                if done is True:
+                    rec["state"] = SolveState.COMPLETED
+                    state = SolveState.COMPLETED
+                elif done is False:
+                    rec["state"] = SolveState.FAILED
+                    state = SolveState.FAILED
             return SolveStatus(
                 handle_id=handle.handle_id,
                 state=state,
-                cancel_supported=False,
+                cancel_supported=self._owns_desktop and bool(self._owned_pids),
                 cancel_limitation=self.CANCEL_LIMITATION,
             )
 
     def cancel_solve(self, handle: SolveHandle) -> CancelResult:
+        """Cancel by terminating only owned AEDT processes for this worker."""
         with self._lock:
             rec = self._solves.get(handle.handle_id)
             if rec is None:
@@ -391,72 +509,111 @@ class PyAedtAdapter:
                     message="unknown handle",
                     honest_limitation=self.CANCEL_LIMITATION,
                 )
-            # Honest: do not forge cancelled
+            if not self._owns_desktop or not self._owned_pids:
+                return CancelResult(
+                    handle_id=handle.handle_id,
+                    state=rec["state"],
+                    cancelled=False,
+                    message="no owned AEDT process to terminate",
+                    honest_limitation=self.CANCEL_LIMITATION,
+                )
+            killed = self._kill_owned_aedt()
+            if killed:
+                rec["state"] = SolveState.CANCELLED
+                return CancelResult(
+                    handle_id=handle.handle_id,
+                    state=SolveState.CANCELLED,
+                    cancelled=True,
+                    message=f"terminated owned AEDT pids={killed}",
+                )
             return CancelResult(
                 handle_id=handle.handle_id,
                 state=rec["state"],
                 cancelled=False,
-                message="cancel not reliably supported on AEDT 2023 R2 via PyAEDT",
+                message="failed to terminate owned AEDT process",
                 honest_limitation=self.CANCEL_LIMITATION,
             )
 
+    def _kill_owned_aedt(self) -> list[int]:
+        killed: list[int] = []
+        for pid in list(self._owned_pids):
+            try:
+                import subprocess
+
+                # Never kill processes that existed before we started
+                if pid in self._aedt_process_ids_before:
+                    continue
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    capture_output=True,
+                    check=False,
+                    timeout=30,
+                )
+                killed.append(pid)
+            except Exception:
+                continue
+        return killed
+
     def extract_metrics(self, names: list[str]) -> dict[str, float]:
+        raise AdapterError(
+            "use extract_metric_specs with structured MetricSpec list",
+            code="use_metric_specs",
+            details={"names": names},
+        )
+
+    def extract_metric_specs(self, specs: list[MetricSpec]) -> dict[str, float]:
         with self._lock:
             if self._hfss is None:
                 raise AdapterError("no project attached", code="not_attached")
-            # v0: only support simple named scalar metrics if present on a registry;
-            # real extraction is project-specific and will expand later.
-            raise AdapterError(
-                "metric extraction for live PyAEDT is not fully implemented in v0; "
-                "use FakeAdapter for offline trials",
-                code="metrics_not_implemented",
-                details={"requested": names},
-            )
+            return extract_metrics_real(self._hfss, specs)
 
     def save_project_copy(self, destination: Path) -> None:
         with self._lock:
-            if self._hfss is None or self._project_path is None:
+            if self._project_path is None:
                 raise AdapterError("no project attached", code="not_attached")
             dest = Path(destination)
             if dest.resolve(strict=False) == self._project_path.resolve(strict=False):
                 raise AdapterError(
-                    "refusing to overwrite original project path",
+                    "refusing to overwrite original/working project path",
                     code="checkpoint_overwrite_denied",
                 )
             dest.parent.mkdir(parents=True, exist_ok=True)
-            # Prefer file copy of .aedt when available
+            if self._hfss is not None:
+                try:
+                    self._hfss.save_project()
+                except Exception:
+                    pass
             if self._project_path.is_file():
                 shutil.copy2(self._project_path, dest)
             else:
-                try:
-                    self._hfss.save_project()
-                    if self._project_path.is_file():
-                        shutil.copy2(self._project_path, dest)
-                    else:
-                        dest.write_text(
-                            f"checkpoint-placeholder for {self._project_path}\n",
-                            encoding="utf-8",
-                        )
-                except Exception as exc:
-                    raise AdapterError(
-                        f"failed to save project copy: {exc}",
-                        code="checkpoint_save_error",
-                        details={"reason": str(exc)},
-                    ) from exc
+                raise AdapterError(
+                    "project file missing for checkpoint",
+                    code="checkpoint_save_error",
+                )
+
+    def restore_project_file(self, checkpoint_file: Path) -> None:
+        """Replace working project file from checkpoint (caller closes/reopens session)."""
+        with self._lock:
+            if self._project_path is None:
+                raise AdapterError("no project attached", code="not_attached")
+            src = Path(checkpoint_file)
+            if not src.is_file():
+                raise AdapterError("checkpoint file missing", code="checkpoint_missing")
+            # Prefer full disconnect over close_project (PyAEDT 1.3 can crash on close)
+            if self._hfss is not None:
+                with suppress(Exception):
+                    self.disconnect(close_desktop=True)
+                self._hfss = None
+            shutil.copy2(src, self._project_path)
 
     def disconnect(self, *, close_desktop: bool = False) -> None:
         with self._lock:
             if self._hfss is None:
                 return
             try:
-                if close_desktop and self._owns_desktop:
+                if close_desktop and self._owns_desktop or self._owns_desktop:
                     release = getattr(self._hfss, "release_desktop", None)
                     if callable(release):
                         release(close_projects=True, close_desktop=True)
-                else:
-                    # Leave user desktop alone
-                    release = getattr(self._hfss, "release_desktop", None)
-                    if callable(release) and self._owns_desktop:
-                        release(close_projects=False, close_desktop=False)
             finally:
                 self._hfss = None

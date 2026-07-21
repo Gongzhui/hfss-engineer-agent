@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from hfss_mcp.app import build_manifest_for_tests
 from hfss_mcp.domain import ParameterValue, ParameterVector
 from hfss_mcp.errors import ManifestError, PolicyError
 from hfss_mcp.manifest import TuneManifest, load_manifest
@@ -19,19 +20,8 @@ from hfss_mcp.policy import (
 
 
 def _base_manifest_dict(project: Path) -> dict:
-    return {
-        "schema_version": "1.0",
-        "project_path": str(project.resolve()),
-        "project_name": "Demo",
-        "design_name": "HFSSDesign1",
-        "allowed_setups": [{"setup": "Setup1", "sweep": "Sweep1"}],
-        "parameters": [
-            {"name": "patch_w", "unit": "mm", "min": 1.0, "max": 20.0},
-            {"name": "patch_l", "unit": "mm", "min": 1.0, "max": 20.0},
-        ],
-        "allowed_metrics": ["S11_dB"],
-        "stop_conditions": {"max_trials": 5, "max_runtime_seconds": 60.0},
-    }
+    m = build_manifest_for_tests(project, sweep="Sweep1")
+    return m.model_dump(mode="json", by_alias=True)
 
 
 def test_canonical_hash_stability(tmp_path: Path) -> None:
@@ -43,7 +33,6 @@ def test_canonical_hash_stability(tmp_path: Path) -> None:
     assert m1.manifest_id() == m2.manifest_id()
     assert len(m1.manifest_id()) == 64
 
-    # Key reorder should not change hash (canonical sorted keys)
     reordered = {
         "stop_conditions": data["stop_conditions"],
         "schema_version": data["schema_version"],
@@ -53,11 +42,12 @@ def test_canonical_hash_stability(tmp_path: Path) -> None:
         "design_name": data["design_name"],
         "allowed_setups": data["allowed_setups"],
         "allowed_metrics": data["allowed_metrics"],
+        "concurrency": data["concurrency"],
+        "checkpoint": data["checkpoint"],
     }
     m3 = load_manifest(reordered)
     assert m3.manifest_id() == m1.manifest_id()
 
-    # Notes excluded from identity
     with_notes = copy.deepcopy(data)
     with_notes["notes"] = "documentation only"
     m4 = load_manifest(with_notes)
@@ -67,11 +57,8 @@ def test_canonical_hash_stability(tmp_path: Path) -> None:
 def test_reject_relative_path(tmp_path: Path) -> None:
     data = _base_manifest_dict(tmp_path / "p.aedt")
     data["project_path"] = "relative/project.aedt"
-    with pytest.raises(ManifestError) as exc:
+    with pytest.raises(ManifestError):
         load_manifest(data)
-    assert "absolute" in str(exc.value).lower() or "absolute" in exc.value.details.get(
-        "reason", ""
-    ).lower() or True
 
 
 def test_reject_non_aedt_extension(tmp_path: Path) -> None:
@@ -151,11 +138,9 @@ def test_inf_rejected_at_vector_model() -> None:
 
 
 def test_nan_policy_path(tmp_path: Path) -> None:
-    """Policy layer also rejects non-finite if constructed bypassing model checks."""
     project = tmp_path / "p.aedt"
     project.write_text("x", encoding="utf-8")
     manifest = load_manifest(_base_manifest_dict(project))
-    # Bypass model by building via model_construct
     bad = ParameterValue.model_construct(name="patch_w", value=float("nan"), unit="mm")
     good = ParameterValue(name="patch_l", value=5.0, unit="mm")
     vector = ParameterVector.model_construct(values=[bad, good])
@@ -208,3 +193,12 @@ def test_aedtz_allowed(tmp_path: Path) -> None:
     data["project_path"] = str(project.resolve())
     m = load_manifest(data)
     assert isinstance(m, TuneManifest)
+
+
+def test_bare_string_metrics_rejected(tmp_path: Path) -> None:
+    project = tmp_path / "p.aedt"
+    project.write_text("x", encoding="utf-8")
+    data = _base_manifest_dict(project)
+    data["allowed_metrics"] = ["S11_dB"]
+    with pytest.raises(ManifestError):
+        load_manifest(data)

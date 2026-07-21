@@ -1,6 +1,6 @@
-"""Durable job store and background runner."""
+"""Durable job store, supervisor, and workers."""
 
-from hfss_mcp.jobs.runner import TrialRunner
 from hfss_mcp.jobs.store import JobStore
+from hfss_mcp.jobs.supervisor import Supervisor
 
-__all__ = ["JobStore", "TrialRunner"]
+__all__ = ["JobStore", "Supervisor"]
