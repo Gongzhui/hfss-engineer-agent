@@ -31,11 +31,16 @@ from hfss_mcp.metrics_spec import MetricSpec
 
 
 class PyAedtAdapter:
-    """Semantic adapter over PyAEDT Hfss — not shared across threads/jobs."""
+    """Semantic adapter over PyAEDT Hfss.
+
+    Supports:
+    - **attach** to a user GUI session (``new_desktop=False``, never close user Desktop)
+    - **new** exclusive Desktop for unattended workers
+    """
 
     CANCEL_LIMITATION = (
-        "Cancel terminates only the AEDT desktop owned by this worker process "
-        "(new_desktop session recorded at start). User-owned AEDT is never closed."
+        "Cancel only terminates AEDT processes owned by this adapter when it launched "
+        "them (new_desktop). User GUI sessions are never closed."
     )
 
     def __init__(
@@ -45,23 +50,34 @@ class PyAedtAdapter:
         non_graphical: bool = True,
         new_desktop: bool = True,
         close_on_exit: bool = True,
+        aedt_process_id: int | None = None,
+        grpc_port: int | None = None,
+        machine: str = "localhost",
         hfss: Any | None = None,
         owned_pids: list[int] | None = None,
     ) -> None:
         self._version = version
         self._non_graphical = non_graphical
         self._new_desktop = new_desktop
+        # Never close desktop when attaching to an external process
+        if aedt_process_id is not None or (not new_desktop and hfss is None):
+            close_on_exit = False
+            non_graphical = False if non_graphical and aedt_process_id else non_graphical
         self._close_on_exit = close_on_exit
+        self._aedt_process_id = aedt_process_id
+        self._grpc_port = grpc_port
+        self._machine = machine
         self._hfss = hfss
-        self._owns_desktop = hfss is None and new_desktop
+        self._owns_desktop = hfss is None and new_desktop and aedt_process_id is None
         self._lock = threading.RLock()
         self._revision = "uninitialized"
         self._solves: dict[str, dict[str, Any]] = {}
         self._project_path: Path | None = None
         self._mutation_count = 0
-        self._desktop_pid: int | None = None
+        self._desktop_pid: int | None = aedt_process_id
         self._owned_pids: set[int] = set(owned_pids or [])
         self._aedt_process_ids_before: set[int] = set()
+        self._attached_to_user = bool(aedt_process_id is not None or not new_desktop)
 
     def inspect_environment(self) -> EnvironmentStatus:
         return inspect_environment()
@@ -94,6 +110,8 @@ class PyAedtAdapter:
 
     def _ensure_hfss(self, project_path: Path, design_name: str) -> Any:
         if self._hfss is not None:
+            # Switch active project/design if needed
+            self._activate_project_design(project_path, design_name)
             return self._hfss
         import importlib
 
@@ -114,42 +132,99 @@ class PyAedtAdapter:
             )
         before = self._list_ansysedt_pids()
         self._aedt_process_ids_before = before
+
+        attach = self._aedt_process_id is not None or not self._new_desktop
+        kwargs: dict[str, Any] = {
+            "project": str(project_path) if project_path else None,
+            "design": design_name or None,
+            "version": self._version,
+            "non_graphical": False if attach else self._non_graphical,
+            "new_desktop": False if attach else self._new_desktop,
+            "close_on_exit": False if attach else self._close_on_exit,
+        }
+        if self._aedt_process_id is not None:
+            kwargs["aedt_process_id"] = int(self._aedt_process_id)
+            kwargs["new_desktop"] = False
+            kwargs["close_on_exit"] = False
+            kwargs["non_graphical"] = False
+        if self._grpc_port is not None and self._grpc_port > 0:
+            kwargs["port"] = int(self._grpc_port)
+            kwargs["machine"] = self._machine
+            kwargs["new_desktop"] = False
+            kwargs["close_on_exit"] = False
+
+        # Drop None values PyAEDT may not like
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
         try:
-            self._hfss = hfss_cls(
-                project=str(project_path),
-                design=design_name,
-                version=self._version,
-                non_graphical=self._non_graphical,
-                new_desktop=self._new_desktop,
-                close_on_exit=self._close_on_exit,
+            self._hfss = hfss_cls(**kwargs)
+            self._owns_desktop = bool(kwargs.get("new_desktop", False)) and (
+                self._aedt_process_id is None
             )
-            self._owns_desktop = bool(self._new_desktop)
+            self._attached_to_user = not self._owns_desktop
         except Exception as exc:
             raise AdapterError(
-                f"failed to start/open AEDT session: {exc}",
+                f"failed to attach/open AEDT session: {exc}",
                 code="aedt_session_error",
-                details={"reason": str(exc), "project": str(project_path)},
+                details={
+                    "reason": str(exc),
+                    "project": str(project_path),
+                    "attach_pid": self._aedt_process_id,
+                    "port": self._grpc_port,
+                    "new_desktop": kwargs.get("new_desktop"),
+                },
             ) from exc
+
         after = self._list_ansysedt_pids()
-        new_pids = after - before
-        self._owned_pids |= new_pids
-        # Also try desktop.aedt_process_id if present
+        if self._owns_desktop:
+            self._owned_pids |= after - before
+        # Record process id for diagnostics (never kill user PID on cancel)
         try:
-            desk = getattr(self._hfss, "desktop_class", None) or getattr(
-                self._hfss, "odesktop", None
-            )
             pid = getattr(self._hfss, "aedt_process_id", None)
             if pid:
-                self._owned_pids.add(int(pid))
                 self._desktop_pid = int(pid)
-            elif desk is not None:
-                pid2 = getattr(desk, "aedt_process_id", None) or getattr(desk, "process_id", None)
+                if self._owns_desktop:
+                    self._owned_pids.add(int(pid))
+            desk = getattr(self._hfss, "desktop_class", None)
+            if desk is not None:
+                pid2 = getattr(desk, "aedt_process_id", None)
                 if pid2:
-                    self._owned_pids.add(int(pid2))
                     self._desktop_pid = int(pid2)
+                    if self._owns_desktop:
+                        self._owned_pids.add(int(pid2))
         except Exception:
             pass
+        self._activate_project_design(project_path, design_name)
         return self._hfss
+
+    def _activate_project_design(self, project_path: Path, design_name: str) -> None:
+        if self._hfss is None:
+            return
+        # Prefer matching already-open project by path/name
+        try:
+            target_name = project_path.stem if project_path else None
+            proj_list = list(getattr(self._hfss, "project_list", None) or [])
+            if target_name and proj_list:
+                # load_project if path exists and not open
+                open_names = {str(p) for p in proj_list}
+                if target_name not in open_names and project_path.is_file():
+                    loader = getattr(self._hfss, "load_project", None)
+                    if callable(loader):
+                        with suppress(Exception):
+                            loader(str(project_path), set_active=True)
+                set_active = getattr(self._hfss, "set_active_project", None)
+                if callable(set_active) and target_name in (
+                    open_names | {target_name}
+                ):
+                    with suppress(Exception):
+                        set_active(target_name)
+            if design_name:
+                set_design = getattr(self._hfss, "set_active_design", None)
+                if callable(set_design):
+                    with suppress(Exception):
+                        set_design(design_name)
+        except Exception:
+            pass
 
     def owned_aedt_pids(self) -> list[int]:
         return sorted(self._owned_pids)
@@ -224,7 +299,14 @@ class PyAedtAdapter:
     def attach_project(self, project_path: Path, design_name: str) -> DesignSnapshot:
         with self._lock:
             path = Path(project_path)
-            if not path.is_file() and self._hfss is None:
+            # Attach mode may target a project already open in GUI even if path
+            # resolution is imperfect; only require the file when starting a new Desktop.
+            if (
+                not path.is_file()
+                and self._hfss is None
+                and self._new_desktop
+                and self._aedt_process_id is None
+            ):
                 raise AdapterError(
                     f"project file not found: {path}",
                     code="project_not_found",
@@ -611,9 +693,26 @@ class PyAedtAdapter:
             if self._hfss is None:
                 return
             try:
-                if close_desktop and self._owns_desktop or self._owns_desktop:
-                    release = getattr(self._hfss, "release_desktop", None)
-                    if callable(release):
-                        release(close_projects=True, close_desktop=True)
+                release = getattr(self._hfss, "release_desktop", None)
+                if not callable(release):
+                    return
+                if self._attached_to_user or not self._owns_desktop:
+                    # Leave the user's GUI and projects running
+                    with suppress(Exception):
+                        release(close_projects=False, close_desktop=False)
+                elif self._owns_desktop:
+                    with suppress(Exception):
+                        release(
+                            close_projects=True,
+                            close_desktop=bool(close_desktop) or True,
+                        )
             finally:
                 self._hfss = None
+
+    @property
+    def is_attached_to_user(self) -> bool:
+        return self._attached_to_user
+
+    @property
+    def desktop_pid(self) -> int | None:
+        return self._desktop_pid

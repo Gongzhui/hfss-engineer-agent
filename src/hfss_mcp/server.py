@@ -14,6 +14,7 @@ from hfss_mcp.environment import discover_aedt_installations_legacy
 PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "health",
     "environment_status",
+    "session_list",
     "manifest_validate",
     "design_snapshot",
     "trial_start",
@@ -79,9 +80,21 @@ def health() -> dict[str, Any]:
 
 @mcp.tool()
 def environment_status() -> dict[str, Any]:
-    """Discover AEDT installs without starting AEDT; report adapter readiness honestly."""
+    """Discover AEDT installs and GUI sessions without launching a new Desktop."""
     try:
         return get_app().environment_status()
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def session_list() -> dict[str, Any]:
+    """List running AEDT sessions and open projects/designs (COM/gRPC discovery).
+
+    Default session_mode=auto attaches trials to a matching GUI-open project.
+    """
+    try:
+        return get_app().session_list()
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 

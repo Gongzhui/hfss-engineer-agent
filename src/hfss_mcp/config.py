@@ -10,6 +10,7 @@ from typing import Literal
 from hfss_mcp.environment import inspect_environment
 
 AdapterName = Literal["pyaedt", "fake"]
+SessionMode = Literal["auto", "attach", "new"]
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,9 @@ class RuntimeConfig:
     inline_trials: bool  # only allowed for fake/tests
     max_worker_processes: int
     demo_mode: bool
+    session_mode: SessionMode
+    # When True (default for attach/auto+GUI), mutate the live GUI project after checkpoint
+    attach_live_project: bool
 
     @property
     def is_production_real(self) -> bool:
@@ -46,14 +50,26 @@ def resolve_adapter_name(
     raw = (env.get("HFSS_MCP_ADAPTER") or "").strip().lower()
     if raw in {"pyaedt", "fake"}:
         return raw  # type: ignore[return-value]
-    # Explicit demo force
     if (env.get("HFSS_MCP_DEMO") or "").strip().lower() in {"1", "true", "yes"}:
         return "fake"
-    # Production default: prefer real AEDT when discoverable
     status = inspect_environment()
     if status.preferred is not None and status.preferred.exe_exists:
         return "pyaedt"
     return "fake"
+
+
+def resolve_session_mode(
+    *,
+    explicit: SessionMode | None = None,
+    environ: dict[str, str] | None = None,
+) -> SessionMode:
+    env = environ if environ is not None else dict(os.environ)
+    if explicit is not None:
+        return explicit
+    raw = (env.get("HFSS_MCP_SESSION_MODE") or "auto").strip().lower()
+    if raw in {"auto", "attach", "new"}:
+        return raw  # type: ignore[return-value]
+    return "auto"
 
 
 def load_runtime_config(
@@ -61,12 +77,12 @@ def load_runtime_config(
     adapter: AdapterName | None = None,
     data_dir: Path | None = None,
     force_inline: bool | None = None,
+    session_mode: SessionMode | None = None,
 ) -> RuntimeConfig:
     env = dict(os.environ)
     name = resolve_adapter_name(explicit=adapter, environ=env)
     demo = (env.get("HFSS_MCP_DEMO") or "").strip().lower() in {"1", "true", "yes"}
     if name == "fake" and not demo and adapter is None and not env.get("HFSS_MCP_ADAPTER"):
-        # Resolved to fake only because AEDT missing — still not demo
         demo = False
     inline_env = (env.get("HFSS_MCP_INLINE_TRIALS") or "").strip().lower()
     if force_inline is not None:
@@ -76,21 +92,35 @@ def load_runtime_config(
     elif inline_env in {"0", "false", "no"}:
         inline = False
     else:
-        # Fake may use inline for unit tests; pyaedt never blocks MCP on inline by default
         inline = name == "fake"
 
-    # Safety: never inline real AEDT in the MCP process
-    if name == "pyaedt":
-        inline = False
+    # Real AEDT: allow inline when attaching to GUI (shared session); never block with multi-desktop
+    sess = resolve_session_mode(explicit=session_mode, environ=env)
 
     version = (env.get("HFSS_MCP_AEDT_VERSION") or "2023.2").strip()
-    non_graphical = (env.get("HFSS_MCP_NON_GRAPHICAL") or "1").strip().lower() not in {
+    # Graphical default when attaching; non-graphical for pure new-desktop workers
+    non_graphical_env = env.get("HFSS_MCP_NON_GRAPHICAL")
+    if non_graphical_env is None or non_graphical_env.strip() == "":
+        non_graphical = sess == "new"
+    else:
+        non_graphical = non_graphical_env.strip().lower() not in {"0", "false", "no"}
+
+    max_workers = int(env.get("HFSS_MCP_MAX_WORKERS") or "1")
+    max_workers = max(1, min(max_workers, 4))
+
+    attach_live = (env.get("HFSS_MCP_ATTACH_LIVE") or "1").strip().lower() not in {
         "0",
         "false",
         "no",
     }
-    max_workers = int(env.get("HFSS_MCP_MAX_WORKERS") or "1")
-    max_workers = max(1, min(max_workers, 4))
+
+    # In attach/auto mode, prefer single-process execution so we do not fight the GUI session
+    if name == "pyaedt" and sess in {"attach", "auto"} and force_inline is None:
+        # Supervisor still used for "new" fallback; attach path uses process-local runner
+        pass
+
+    if name == "pyaedt" and sess == "new" and force_inline is None:
+        inline = False
 
     return RuntimeConfig(
         adapter=name,
@@ -100,4 +130,6 @@ def load_runtime_config(
         inline_trials=inline,
         max_worker_processes=max_workers,
         demo_mode=demo or name == "fake",
+        session_mode=sess,
+        attach_live_project=attach_live,
     )

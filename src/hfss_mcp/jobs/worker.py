@@ -70,12 +70,26 @@ def run_worker(
         else:
             from hfss_mcp.adapter.pyaedt_adapter import PyAedtAdapter
 
-            adapter = PyAedtAdapter(
-                version=aedt_version,
-                non_graphical=non_graphical,
-                new_desktop=True,
-                close_on_exit=True,
-            )
+            payload = job.input_payload
+            attach_mode = bool(payload.get("attach_mode"))
+            attach_pid = payload.get("aedt_process_id")
+            attach_port = payload.get("grpc_port")
+            if attach_mode and attach_pid:
+                adapter = PyAedtAdapter(
+                    version=aedt_version,
+                    non_graphical=False,
+                    new_desktop=False,
+                    close_on_exit=False,
+                    aedt_process_id=int(attach_pid),
+                    grpc_port=int(attach_port) if attach_port else None,
+                )
+            else:
+                adapter = PyAedtAdapter(
+                    version=aedt_version,
+                    non_graphical=non_graphical,
+                    new_desktop=True,
+                    close_on_exit=True,
+                )
 
         ckpt_dir = workspace_root / "checkpoints"
         if manifest.checkpoint.directory:
