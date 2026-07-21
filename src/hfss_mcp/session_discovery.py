@@ -527,18 +527,43 @@ def find_open_project(
     discovery: SessionDiscoveryResult,
     project_path: str | Path,
 ) -> tuple[RunningSessionInfo, OpenProjectInfo] | None:
-    """Match an absolute project path against open sessions."""
+    """Match an absolute project path against open sessions.
+
+    Prefer exact path equality. Same project *name* only matches when the open
+    entry has no path, or lives in the same directory (avoids binding a copy
+    of Example1.aedt to another folder's Example1).
+    """
     target = _normalize_path(str(project_path))
     if not target:
         return None
     target_l = target.lower()
-    target_stem = Path(target).stem.lower()
+    target_path = Path(target)
+    target_stem = target_path.stem.lower()
+    try:
+        target_parent = str(target_path.parent.resolve(strict=False)).lower()
+    except Exception:
+        target_parent = str(target_path.parent).lower()
     for sess in discovery.sessions:
         for proj in sess.projects:
             p = _normalize_path(proj.project_path)
             if p and p.lower() == target_l:
                 return sess, proj
-            if proj.project_name.lower() == target_stem:
+            # COM may report directory + name separately
+            if p and proj.project_name:
+                combined = str((Path(p) / f"{proj.project_name}.aedt").resolve(strict=False)).lower()
+                if combined == target_l:
+                    return sess, proj
+            if proj.project_name.lower() != target_stem:
+                continue
+            if not p:
+                return sess, proj
+            try:
+                open_parent = str(Path(p).resolve(strict=False)).lower()
+                if Path(p).suffix.lower() == ".aedt":
+                    open_parent = str(Path(p).parent.resolve(strict=False)).lower()
+            except Exception:
+                open_parent = str(Path(p).parent if Path(p).suffix else Path(p)).lower()
+            if open_parent == target_parent:
                 return sess, proj
     return None
 

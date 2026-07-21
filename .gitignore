@@ -15,3 +15,7 @@ references/
 *.aedt.lock
 .pytest-hfss-mcp-tmp/
 *.sqlite3
+
+.tmp_e2e_gui/
+batch.log
+

@@ -220,12 +220,33 @@ class PyAedtAdapter:
         """Attach without reopening the locked .aedt file."""
         import importlib
 
+        errors: list[str] = []
+
+        # Strategy 0: COM Desktop by PID (hfss-cli style) — proves process is reachable
+        if self._aedt_process_id is not None:
+            try:
+                from hfss_mcp.com_session import get_desktop
+
+                com_desk = get_desktop(
+                    version=self._version,
+                    process_id=int(self._aedt_process_id),
+                    create_if_missing=False,
+                )
+                self._user_desktop = com_desk
+            except Exception as com_exc:
+                errors.append(f"com:{com_exc}")
+
         # Strategy 1: Hfss without project= (session only)
         try:
-            hfss = hfss_cls(**base_kwargs)
+            # Never pass lock-file ListenPort as gRPC — only explicit grpc_port
+            kwargs = dict(base_kwargs)
+            if "port" in kwargs and self._grpc_port is None:
+                kwargs.pop("port", None)
+            hfss = hfss_cls(**kwargs)
             self._activate_on_app(hfss, project_path, design_name)
             return hfss
         except Exception as first_exc:
+            errors.append(f"hfss:{first_exc}")
             last: Exception = first_exc
 
         # Strategy 2: Desktop attach then Hfss(specified_desktop / existing)
@@ -244,7 +265,8 @@ class PyAedtAdapter:
             desk_kwargs = {
                 k: v
                 for k, v in base_kwargs.items()
-                if k in {
+                if k
+                in {
                     "version",
                     "non_graphical",
                     "new_desktop",
@@ -254,8 +276,9 @@ class PyAedtAdapter:
                     "machine",
                 }
             }
+            if self._grpc_port is None:
+                desk_kwargs.pop("port", None)
             desktop = desktop_cls(**desk_kwargs)
-            # Construct Hfss bound to this desktop if supported
             try:
                 hfss = hfss_cls(
                     project=None,
@@ -264,20 +287,20 @@ class PyAedtAdapter:
                     new_desktop=False,
                     close_on_exit=False,
                     non_graphical=False,
+                    aedt_process_id=self._aedt_process_id,
                 )
             except TypeError:
-                hfss = hfss_cls(**base_kwargs)
+                hfss = hfss_cls(**{k: v for k, v in base_kwargs.items() if k != "port" or self._grpc_port})
             self._activate_on_app(hfss, project_path, design_name)
-            # Keep desktop reference so GC does not release user session
-            self._user_desktop = desktop  # type: ignore[attr-defined]
+            self._user_desktop = desktop
             return hfss
         except Exception as second_exc:
+            errors.append(f"desktop:{second_exc}")
             raise AdapterError(
                 f"GUI attach failed: {second_exc}",
                 code="aedt_attach_failed",
                 details={
-                    "first": str(last),
-                    "second": str(second_exc),
+                    "errors": errors,
                     "pid": self._aedt_process_id,
                     "port": self._grpc_port,
                 },

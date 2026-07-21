@@ -97,8 +97,10 @@ class AppContext:
         if mode == "new":
             return "worker_process_exclusive_desktop"
         if mode == "attach":
-            return "attach_gui_session"
-        # auto
+            return "ensure_graphical_gui_session"
+        # auto: interactive GUI session (open/attach); workers only for pure new mode
+        if self.config.adapter == "pyaedt":
+            return "ensure_graphical_gui_session"
         if discovery.any_gui_session:
             return "attach_gui_session"
         return "worker_process_exclusive_desktop"
@@ -207,16 +209,18 @@ class AppContext:
             details={"manifest_id": manifest_id},
         )
 
-    def _should_attach_gui(self, discovery: SessionDiscoveryResult | None = None) -> bool:
+    def _should_use_gui_session(self, discovery: SessionDiscoveryResult | None = None) -> bool:
+        """Use a long-lived graphical Desktop (open or attach)."""
         if self.config.adapter != "pyaedt":
             return False
         if self.config.session_mode == "new":
             return False
-        if self.config.session_mode == "attach":
-            return True
-        # auto
-        disc = discovery or self.discover_sessions()
-        return bool(disc.any_gui_session)
+        # attach + auto: ensure COM-registered GUI with project open
+        return True
+
+    # Backward-compatible name used by older call sites / tests
+    def _should_attach_gui(self, discovery: SessionDiscoveryResult | None = None) -> bool:
+        return self._should_use_gui_session(discovery)
 
     def _get_or_attach_gui(
         self,
@@ -226,36 +230,69 @@ class AppContext:
         process_id: int | None = None,
         grpc_port: int | None = None,
     ) -> Any:
+        """Ensure project is open in a graphical COM Desktop and return adapter."""
         from hfss_mcp.adapter.pyaedt_adapter import PyAedtAdapter
+        from hfss_mcp.com_session import ensure_graphical_project
 
-        if (
-            self._gui_adapter is not None
-            and self._gui_pid is not None
-            and (process_id is None or process_id == self._gui_pid)
-        ):
-            self._gui_adapter.attach_project(project_path, design_name)
-            return self._gui_adapter
+        path = Path(project_path)
+        # Reuse existing adapter when still bound to the same Desktop
+        if self._gui_adapter is not None and self._gui_pid is not None:
+            if process_id is None or process_id == self._gui_pid:
+                try:
+                    self._gui_adapter.attach_project(path, design_name)
+                    return self._gui_adapter
+                except Exception:
+                    with suppress_exc():
+                        self._gui_adapter.disconnect(close_desktop=False)
+                    self._gui_adapter = None
+                    self._gui_pid = None
 
         if self._gui_adapter is not None:
             with suppress_exc():
                 self._gui_adapter.disconnect(close_desktop=False)
             self._gui_adapter = None
+            self._gui_pid = None
+
+        # COM ensure: open project in graphical Desktop (creates one if needed)
+        session = ensure_graphical_project(
+            project_path=path,
+            design_name=design_name,
+            version=self.config.aedt_version,
+            process_id=process_id,
+        )
+        pid = int(session.get("process_id") or 0) or None
+        # Only pass real gRPC ports — lock-file ListenPort is not public gRPC
+        port = grpc_port if grpc_port and grpc_port > 0 else None
 
         adapter = PyAedtAdapter(
             version=self.config.aedt_version,
             non_graphical=False,
             new_desktop=False,
             close_on_exit=False,
-            aedt_process_id=process_id,
-            grpc_port=grpc_port,
+            aedt_process_id=pid,
+            grpc_port=port,
         )
-        adapter.attach_project(project_path, design_name)
+        try:
+            adapter.attach_project(path, design_name)
+        except Exception:
+            # Fallback: bind via fresh graphical desktop owned by PyAEDT
+            # (still close_on_exit=False so the user keeps the GUI).
+            with suppress_exc():
+                adapter.disconnect(close_desktop=False)
+            adapter = PyAedtAdapter(
+                version=self.config.aedt_version,
+                non_graphical=False,
+                new_desktop=True,
+                close_on_exit=False,
+            )
+            adapter.attach_project(path, design_name)
+
         self._gui_adapter = adapter
-        self._gui_pid = adapter.desktop_pid or process_id
+        self._gui_pid = adapter.desktop_pid or pid
         return adapter
 
     def design_snapshot(self, manifest_id: str) -> dict[str, Any]:
-        """Snapshot design: prefer attaching to GUI-open project when available."""
+        """Snapshot design via graphical Desktop (ensure-open + attach)."""
         manifest = self.get_manifest(manifest_id)
         discovery = self.discover_sessions()
         match = find_open_project(discovery, manifest.project_path)
@@ -294,34 +331,45 @@ class AppContext:
             finally:
                 with suppress_exc():
                     adapter.disconnect(close_desktop=False)
-        elif self._should_attach_gui(discovery) and match is not None:
-            sess, proj = match
-            path = Path(proj.project_path or manifest.project_path)
+        elif self._should_use_gui_session(discovery):
+            # Ensure project is open in a COM-registered graphical Desktop, then attach.
+            path = Path(manifest.project_path)
             design = manifest.design_name
-            # Prefer active design if names align
-            if proj.designs:
-                active = next((d for d in proj.designs if d.is_active), None)
-                if active and (
-                    active.design_name == design
-                    or design in {d.design_name for d in proj.designs}
-                ):
-                    design = (
-                        design
-                        if design in {d.design_name for d in proj.designs}
-                        else active.design_name
-                    )
+            prefer_pid: int | None = None
+            prefer_port: int | None = None
+            if match is not None:
+                sess, proj = match
+                path = Path(proj.project_path or manifest.project_path)
+                if not path.suffix:
+                    # project_path may be directory from COM; prefer manifest file
+                    path = Path(manifest.project_path)
+                if proj.project_path and Path(proj.project_path).suffix.lower() == ".aedt":
+                    path = Path(proj.project_path)
+                elif proj.project_path:
+                    candidate = Path(proj.project_path) / f"{proj.project_name}.aedt"
+                    if candidate.is_file():
+                        path = candidate
+                prefer_pid = sess.process_id
+                # lock ListenPort is not gRPC — only use real grpc transport
+                if sess.transport == "grpc" and sess.grpc_port:
+                    prefer_port = sess.grpc_port
             adapter = self._get_or_attach_gui(
                 project_path=path,
                 design_name=design,
-                process_id=sess.process_id,
-                grpc_port=sess.grpc_port,
+                process_id=prefer_pid,
+                grpc_port=prefer_port,
             )
             snap = adapter.snapshot()
             attached = True
+            ws_meta = {
+                "mode": "live_gui",
+                "process_id": self._gui_pid,
+                "project_path": str(path),
+            }
             if path.is_file():
                 original_sha = file_sha256(path)
         else:
-            # Fallback: workspace copy + new desktop
+            # session_mode=new: workspace copy + exclusive desktop
             from hfss_mcp.adapter.pyaedt_adapter import PyAedtAdapter
 
             run_id = new_id("snap_")
@@ -404,26 +452,35 @@ class AppContext:
         discovery = self.discover_sessions()
         match = find_open_project(discovery, manifest.project_path)
         use_gui = (
-            self._should_attach_gui(discovery)
-            and match is not None
+            self._should_use_gui_session(discovery)
             and self.config.attach_live_project
             and self.config.adapter == "pyaedt"
         )
 
         # Checkpoint target / working path
         if use_gui:
-            sess, proj = match  # type: ignore[misc]
-            live_path = Path(proj.project_path or manifest.project_path)
+            live_path = Path(manifest.project_path)
+            attach_pid: int | None = None
+            attach_port: int | None = None
+            if match is not None:
+                sess, proj = match
+                if proj.project_path and Path(proj.project_path).suffix.lower() == ".aedt":
+                    live_path = Path(proj.project_path)
+                elif proj.project_path:
+                    candidate = Path(proj.project_path) / f"{proj.project_name}.aedt"
+                    if candidate.is_file():
+                        live_path = candidate
+                attach_pid = sess.process_id
+                if sess.transport == "grpc" and sess.grpc_port:
+                    attach_port = sess.grpc_port
             original_path = live_path
             working_path = live_path
             original_sha = file_sha256(live_path) if live_path.is_file() else ""
             ws_meta = {
                 "mode": "live_gui",
-                "process_id": sess.process_id,
+                "process_id": attach_pid,
                 "project_path": str(live_path),
             }
-            attach_pid: int | None = sess.process_id
-            attach_port: int | None = sess.grpc_port
         else:
             ws = self.workspaces.create_run_workspace(
                 run_id=rid,

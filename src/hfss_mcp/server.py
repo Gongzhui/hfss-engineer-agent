@@ -91,7 +91,8 @@ def environment_status() -> dict[str, Any]:
 def session_list() -> dict[str, Any]:
     """List running AEDT sessions and open projects/designs (COM/gRPC discovery).
 
-    Default session_mode=auto attaches trials to a matching GUI-open project.
+    Default session_mode=auto ensures a graphical COM Desktop with the project
+    open (or attaches when already COM-reachable), then runs live trials there.
     """
     try:
         return get_app().session_list()
