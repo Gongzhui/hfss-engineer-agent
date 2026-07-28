@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.1",
+  "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\examples\\golden_patch.aedt",
+  "project_name": "golden_patch",
+  "design_name": "HFSSDesign1",
+  "allowed_setups": [
+    {
+      "setup": "Setup1",
+      "sweep": "Sweep1"
+    }
+  ],
+  "parameters": [
+    {
+      "name": "gap",
+      "unit": "mm",
+      "min": 0.5,
+      "max": 3.0
+    }
+  ],
+  "allowed_metrics": [
+    {
+      "name": "S11_min_dB",
+      "kind": "s11_min_in_band",
+      "setup": "Setup1",
+      "sweep": "Sweep1",
+      "port": "1",
+      "f_min_ghz": 1.0,
+      "f_max_ghz": 3.0,
+      "unit": "dB"
+    },
+    {
+      "name": "S11_min_freq_GHz",
+      "kind": "s11_min_freq",
+      "setup": "Setup1",
+      "sweep": "Sweep1",
+      "port": "1",
+      "f_min_ghz": 1.0,
+      "f_max_ghz": 3.0,
+      "unit": "GHz"
+    },
+    {
+      "name": "S11_at_target_dB",
+      "kind": "s11_at_freq",
+      "setup": "Setup1",
+      "sweep": "Sweep1",
+      "port": "1",
+      "f_target_ghz": 2.4,
+      "unit": "dB"
+    }
+  ],
+  "stop_conditions": {
+    "max_trials": 8,
+    "max_runtime_seconds": 1200.0,
+    "metric_targets": {}
+  },
+  "concurrency": {
+    "mode": "serial",
+    "max_concurrent": 1
+  },
+  "checkpoint": {
+    "mode": "every_trial"
+  }
+}

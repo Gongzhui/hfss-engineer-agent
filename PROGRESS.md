@@ -50,8 +50,13 @@
 - 全量：**61 passed in 62.17s**；ruff **All checks passed**；mypy **0 errors**。
 - 测试后 ansysedt.exe 残留：**0**（自有 desktop 均正确释放）。
 
-## 任务 2/3/4 · 待办
+## 任务 2 · 完成（2026-07-29）
 
-- examples/build_golden.py + golden_patch.aedt + manifest json（复用 real_project.create_minimal_patch_project）。
+- `examples/build_golden.py`（可重跑，固定产物路径）→ `golden_patch.aedt` + `golden_manifest.json`。
+- 白名单变量：`gap`（mm，0.5–3.0）；metrics：S11_min_dB / S11_min_freq_GHz / S11_at_target_dB（目标 2.4 GHz）。
+- 实测：`uv run python examples/build_golden.py` 退出码 0，产物存在；manifest 通过 `validate_manifest_dict`；构建后 ansysedt 残留 0。
+
+## 任务 3/4 · 待办
+
 - examples/run_demo.py：stdio MCP client → server 子进程，≥6 trial，S11 表，results.json，自清理 ansysedt。
 - README 25 工具表 + 演示节；STATUS.md 更正过时结论。
