@@ -87,3 +87,14 @@
   默认 auto 路径有两个失败模式，已修）；写入 2026-07-29 实测（61 passed / ruff 0 /
   mypy 0 / 演示 6 trial 改善 0.1185 dB / 哈希不变 / 零残留）；Known limits 增加
   6–9（attach_live、COM attach 限制、prewarm、TMP 重定向）。
+
+## 最终验收（2026-07-29，四次提交之后重跑）
+
+- 全量 pytest：**61 passed in 58.86s**（EXIT=0）；ruff **All checks passed**；mypy **0 errors**。
+- 演示正式跑：EXIT=0，6 trial 单调改善（-0.1166 → -0.2351 dB @2.4GHz），
+  GOLDEN_SHA256 前后一致（89379846…48c2cc），NO_AEDT_RESIDUE: True。
+- 反向验证：manifest 指向缺失工程 → DEMO FAILED（original_missing），退出码 1；还原后全绿。
+- `git diff --stat 414fd68..HEAD -- tests/`：仅 test_setup_ops.py 一行特许 `# noqa: B017`。
+- 提交：846fe41（任务1）bdbbc6d（任务2）ba1ce07（任务3）8369a2a（任务4）。
+- 未提交的运行产物（可再生）：`.tmp_pytest/`、`examples/demo_output/`、
+  `examples/golden_patch.aedtresults/`。
