@@ -448,7 +448,26 @@ def list_registered_tool_names() -> list[str]:
     return sorted(PUBLIC_TOOL_NAMES)
 
 
+def _prewarm_imports() -> None:
+    """Import lock-prone heavy modules on the main thread before serving.
+
+    Tool handlers run in worker threads; a first-time lazy import there can
+    deadlock on importlib module locks — observed: a stdio subprocess server
+    hanging in ``numpy._core.multiarray`` import on the first ``health`` call
+    while the main thread held another module lock. Import everything heavy
+    up front so worker threads only ever hit ``sys.modules``.
+    """
+    import importlib
+
+    for name in ("numpy", "win32com.client", "pythoncom", "ansys.aedt.core"):
+        try:
+            importlib.import_module(name)
+        except Exception:
+            pass
+
+
 def main() -> None:
+    _prewarm_imports()
     mcp.run(transport="stdio")
 
 

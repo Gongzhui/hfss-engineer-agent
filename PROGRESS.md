@@ -56,7 +56,34 @@
 - 白名单变量：`gap`（mm，0.5–3.0）；metrics：S11_min_dB / S11_min_freq_GHz / S11_at_target_dB（目标 2.4 GHz）。
 - 实测：`uv run python examples/build_golden.py` 退出码 0，产物存在；manifest 通过 `validate_manifest_dict`；构建后 ansysedt 残留 0。
 
-## 任务 3/4 · 待办
+## 任务 3 · 完成（2026-07-29）
 
-- examples/run_demo.py：stdio MCP client → server 子进程，≥6 trial，S11 表，results.json，自清理 ansysedt。
-- README 25 工具表 + 演示节；STATUS.md 更正过时结论。
+- `examples/run_demo.py`：stdio 起 `hfss_mcp.server` 子进程 + `mcp.client.stdio` 调工具
+  （manifest_validate → trial_start/status/result ×6）→ Touchstone 重解析出表 → results.json →
+  自清理 spawn 的 ansysedt。未走降级（协议层全程走通）。
+- **排障记录（stdio 专有死锁）**：server 子进程里首个 `health` 调用挂死。faulthandler
+  注入定位：FastMCP 工具线程内首次惰性 import `numpy._core.multiarray`（经
+  pyaedt/win32com 链），与主线程持有的 import 锁成环——CPython import-lock 死锁经典款。
+  同进程/内存传输不复现，只有 stdio 子进程命中。
+  修法：`server.main()` 在 `mcp.run()` 前 `_prewarm_imports()`（numpy、win32com.client、
+  pythoncom、ansys.aedt.core），主线程完成全部重 import，工具线程只命中 sys.modules。
+  修复后 stdio 探针 health 0.87s 返回。ruff/mypy/60 非 real 测试回归全绿。
+- `examples/.gitattributes`：`*.aedt -text`，防 git CRLF 改写黄金工程字节。
+- 反向验证：manifest 指向不存在工程 → `DEMO FAILED: ... "code": "original_missing"`，
+  退出码 1，NO_AEDT_RESIDUE: True；还原 manifest 后全绿。
+- 正式跑（绿）：EXIT=0；6 trial，S11@2.4GHz 从 -0.1166（gap=1.0 基线）单调改善到
+  -0.2351（gap=2.5），IMPROVEMENT 0.1185 dB；GOLDEN_SHA256 前后一致
+  （89379846…48c2cc）；NO_AEDT_RESIDUE: True；results.json 含每个 trial 的
+  Touchstone 文件名+mtime（非手写）。
+- 另一个小修：anyio ExceptionGroup 会把 DemoFailure 包装逃逸——main() 现在解包取
+  叶子错误，保证失败时打印一行清晰错误并以 1 退出。
+
+## 任务 4 · 完成（2026-07-29）
+
+- README：工具表补全为 25 行（每工具一行）；新增「Demo: one-command real closed loop」
+  一节（环境前提 + 两条命令）；health 的 connection_mode 描述更正为 auto 语义；
+  Safety model 增加 attach_live opt-in 说明。
+- docs/STATUS.md：更正 2026-07-21「PASSED」结论（当时实为 session_mode=new 路径；
+  默认 auto 路径有两个失败模式，已修）；写入 2026-07-29 实测（61 passed / ruff 0 /
+  mypy 0 / 演示 6 trial 改善 0.1185 dB / 哈希不变 / 零残留）；Known limits 增加
+  6–9（attach_live、COM attach 限制、prewarm、TMP 重定向）。
