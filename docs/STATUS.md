@@ -1,6 +1,6 @@
 # Implementation status (v0 real AEDT)
 
-Last updated: 2026-07-21
+Last updated: 2026-07-29
 
 ## Done (code-enforced + verified)
 
@@ -17,6 +17,8 @@ Last updated: 2026-07-21
 - [x] Per-project locks; atomic job claim; SQLite durability; restart marks leftover running as interrupted
 - [x] Multi-trial run orchestrator: `run_start/status/result/cancel/resume` with seeded random search; enforces max_trials / max_runtime / metric_targets / serial concurrency
 - [x] Offline tests (FakeAdapter) + **real AEDT 2023 R2 e2e** (`pytest -m real_aedt`)
+- [x] One-command demo (`examples/run_demo.py`): stdio MCP client → 6 whitelist trials → Touchstone-backed S11 table → `results.json`; golden project hash verified unchanged; self-cleans spawned AEDT processes
+- [x] Reproducible golden project (`examples/build_golden.py` → `golden_patch.aedt` + `golden_manifest.json`)
 
 ## Known limits (honest)
 
@@ -25,6 +27,10 @@ Last updated: 2026-07-21
 3. **Interrupted jobs** are marked, not auto-replayed; `run_resume` continues multi-trial runs without redoing completed trials.
 4. **Optimizer** is seeded random only (interface ready for Bayesian/AI later).
 5. Smoke geometry is a minimal modal network fixture for CI-speed solves, not a production antenna.
+6. **Live-GUI tuning is opt-in**: `HFSS_MCP_ATTACH_LIVE=1` mutates (and saves) the original project — interactive use only; default trials always work on a workspace copy.
+7. **GUI attach to a user's existing COM session** is best-effort: PyAEDT 1.3 cannot attach-by-PID to COM-created Desktops (`grpc_plugin`), and a fallback new Desktop cannot open a file locked by that session. With no running AEDT, hfss-mcp opens its own PyAEDT-owned GUI Desktop instead (clean-machine default).
+8. **Stdio server startup**: `main()` pre-imports numpy/win32com/pyaedt before `mcp.run()`; without this, the first tool call in a stdio subprocess can deadlock in importlib locks.
+9. **On this machine** tests need a redirected temp dir (`TMP/TEMP/TMPDIR` → repo-local, e.g. `.tmp_pytest`); the pywin32 `gen_py` cache created there is scanned by ruff — delete `.tmp_pytest/gen_py` before linting (or see BLOCKED.md).
 
 ## Real AEDT acceptance (this machine)
 
@@ -34,7 +40,28 @@ Command:
 uv run pytest -m real_aedt -v
 ```
 
-Result on 2026-07-21: **PASSED** (~44–50s including Desktop start).
+Result on 2026-07-21: **PASSED** (~44–50s including Desktop start) — later found to
+have been run with `HFSS_MCP_SESSION_MODE=new`; the *default* (auto) path was broken.
+
+**Correction on 2026-07-29**: on the default path the same test **failed** two ways —
+(a) from a clean machine, `design_snapshot` could not attach (COM-created session is
+not attachable by PyAEDT 1.3 `grpc_plugin`; fallback new Desktop hit the COM-held
+file lock), and (b) trials ran against the *live* original project
+(`attach_live_project` default on), so the original `.aedt` hash changed.
+Fixed without touching tests: trials now always solve a workspace copy in an
+exclusive worker Desktop (`attach_live_project` is opt-in via
+`HFSS_MCP_ATTACH_LIVE=1`); clean-machine GUI attach opens a PyAEDT-owned Desktop
+instead of COM-ensure; the stdio server pre-warms heavy imports to avoid an
+import-lock deadlock in tool threads.
+
+Verified 2026-07-29 (clean machine, no pre-running ansysedt.exe):
+
+| Check | Result |
+|---|---|
+| `pytest` (full, incl. real_aedt) | **61 passed** (~62 s) |
+| `ruff check .` | **0 errors** |
+| `mypy` | **0 errors** |
+| `python examples/run_demo.py` | **exit 0**: 6 trials on `gap`, S11@2.4 GHz −0.1166 → −0.2351 dB, golden SHA-256 unchanged, zero ansysedt.exe residue |
 
 Evidence sample (see also scratch `real_aedt_evidence.json`):
 
@@ -63,6 +90,10 @@ uv run pytest
 uv run pytest -m real_aedt
 uv run ruff check .
 uv run mypy
+
+# Demo (real closed loop, ~6 min)
+uv run python examples/build_golden.py
+uv run python examples/run_demo.py
 ```
 
 Data directory: `HFSS_MCP_DATA_DIR` (default `~/.hfss-mcp`).

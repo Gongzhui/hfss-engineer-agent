@@ -22,7 +22,18 @@ uv run hfss-mcp
 
 - `adapter`: `pyaedt`
 - `real_hfss_ready`: `true` when `ansysedt.exe` is present
-- `connection_mode`: `worker_process_exclusive_desktop`
+- `connection_mode`: `ensure_graphical_gui_session` in auto session mode (GUI attach serves snapshot/setup tools; trials still run in exclusive worker Desktops — see Safety model)
+
+## Demo: one-command real closed loop
+
+Requires AEDT 2023 R2 (`C:\Program Files\AnsysEM\v232\Win64\ansysedt.exe`) and `uv sync`.
+
+```powershell
+uv run python examples/build_golden.py   # builds examples/golden_patch.aedt + golden_manifest.json
+uv run python examples/run_demo.py       # the live demo (several minutes, 6 real solves)
+```
+
+`run_demo.py` spawns the MCP server as a stdio subprocess and drives the whole loop through MCP tools only. It prints the golden project SHA-256 before/after, runs 6 whitelist trials on the `gap` variable (each solved in an exclusive worker Desktop on a workspace copy), re-parses the persisted Touchstone exports into a trial/S11 table, and writes `examples/demo_output/results.json`. Exit code 0 requires all of: best S11 beats the baseline, golden hash unchanged, and no leftover `ansysedt.exe`.
 
 Fake mode (tests/demo only):
 
@@ -55,12 +66,31 @@ uv run hfss-mcp
 |---|---|---|
 | `health` | read | Adapter + real readiness (honest) |
 | `environment_status` | read | Install discovery, no launch |
+| `session_list` | read | Running AEDT sessions + open projects |
 | `manifest_validate` | read | Schema 1.1 + structured metrics; persists for workers |
-| `design_snapshot` | open workspace copy | Checks project_name + design_name |
+| `design_snapshot` | attach | Variables, setups, revision; identity-checked |
+| `setup_schema` | read | Setup/sweep types + property aliases |
+| `setup_list` | read | Setups with full property bag |
+| `setup_get` | read | One setup by name |
+| `setup_create` | mutate | New setup (+ optional sweeps) |
+| `setup_update` | mutate | Any native property key; optional rename |
+| `setup_delete` | mutate | Remove setup |
+| `setup_sweep_create` | mutate | Add frequency sweep |
+| `setup_sweep_update` | mutate | Edit sweep properties |
+| `setup_sweep_delete` | mutate | Remove sweep |
 | `trial_start` | enqueue | Returns job_id quickly; worker runs AEDT |
-| `trial_status` / `trial_result` / `trial_cancel` | job control | Durable SQLite |
-| `checkpoint_list` / `checkpoint_restore` | recovery | Restore only inside run workspace |
-| `run_start` / `run_status` / `run_result` / `run_cancel` / `run_resume` | multi-trial | Seeded random search; enforces budgets |
+| `trial_status` | job control | Poll durable job state |
+| `trial_result` | job control | Metrics + checkpoint + apply diff |
+| `trial_cancel` | job control | Kills only worker-owned AEDT PIDs |
+| `checkpoint_list` | recovery | Per-run checkpoint records |
+| `checkpoint_restore` | recovery | Restore only inside run workspace |
+| `run_start` | multi-trial | Seeded random search over whitelist |
+| `run_status` | multi-trial | Run-level progress |
+| `run_result` | multi-trial | Best-so-far and trial history |
+| `run_cancel` | multi-trial | Stop scheduling, cancel active trial |
+| `run_resume` | multi-trial | Continue without redoing finished trials |
+
+25 tools, all narrow and typed.
 
 **Not registered:** `run_python_code`, `run_python_script`, `exec`, generic invoke.
 
@@ -77,7 +107,8 @@ Candidates must be **full parameter vectors**. Idempotency keys store a **payloa
 ## Safety model
 
 - User original projects are **copied** into a run workspace; originals are never written.
-- Each real trial runs in a **worker process** with its own Desktop (`new_desktop=True`).
+- Each real trial runs in a **worker process** with its own Desktop (`new_desktop=True`), solving the workspace copy.
+- Mutating the *live* GUI project is opt-in only (`HFSS_MCP_ATTACH_LIVE=1`); it rewrites the original `.aedt` and is meant for interactive sessions, not automation.
 - Only worker-owned `ansysedt` PIDs are killed on cancel.
 - Policy rejections happen in code before mutation.
 
