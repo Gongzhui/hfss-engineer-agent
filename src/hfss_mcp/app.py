@@ -213,10 +213,8 @@ class AppContext:
         """Use a long-lived graphical Desktop (open or attach)."""
         if self.config.adapter != "pyaedt":
             return False
-        if self.config.session_mode == "new":
-            return False
         # attach + auto: ensure COM-registered GUI with project open
-        return True
+        return self.config.session_mode != "new"
 
     # Backward-compatible name used by older call sites / tests
     def _should_attach_gui(self, discovery: SessionDiscoveryResult | None = None) -> bool:
@@ -252,6 +250,28 @@ class AppContext:
                 self._gui_adapter.disconnect(close_desktop=False)
             self._gui_adapter = None
             self._gui_pid = None
+
+        # Clean-machine fast path: with no live AEDT session to attach to, a
+        # freshly COM-launched Desktop breaks PyAEDT 1.3 attach-by-PID
+        # ('Desktop' object has no attribute 'grpc_plugin'), and the fallback
+        # new Desktop then hits "Project is locked" on the COM-held file.
+        # Skip COM entirely and open the project in a PyAEDT-owned Desktop.
+        if process_id is None:
+            try:
+                has_live_session = bool(self.discover_sessions().sessions)
+            except Exception:
+                has_live_session = True  # unsure → keep legacy COM-first behavior
+            if not has_live_session:
+                owned = PyAedtAdapter(
+                    version=self.config.aedt_version,
+                    non_graphical=False,
+                    new_desktop=True,
+                    close_on_exit=False,
+                )
+                owned.attach_project(path, design_name)
+                self._gui_adapter = owned
+                self._gui_pid = owned.desktop_pid
+                return owned
 
         # COM ensure: open project in graphical Desktop (creates one if needed)
         session = ensure_graphical_project(
@@ -654,7 +674,7 @@ class AppContext:
         if self.config.adapter == "fake":
             from hfss_mcp.domain import ParameterValue
 
-            adapter = FakeAdapter(
+            adapter: Any = FakeAdapter(
                 project_path=path,
                 project_name=path.stem,
                 design_name=design_name,

@@ -359,15 +359,15 @@ def ensure_graphical_project(
 
 def _ironpython_runner_script(request_path: Path, result_path: Path) -> str:
     """IronPython 2.7-compatible runner (same strategy as hfss-cli)."""
-    request_literal = "json.loads(%r)" % json.dumps(str(request_path), ensure_ascii=True)
-    result_literal = "json.loads(%r)" % json.dumps(str(result_path), ensure_ascii=True)
+    request_literal = f"json.loads({json.dumps(str(request_path), ensure_ascii=True)!r})"
+    result_literal = f"json.loads({json.dumps(str(result_path), ensure_ascii=True)!r})"
     return "\n".join(
         [
             "import json",
             "import traceback",
             "",
-            "request_path = %s" % request_literal,
-            "result_path = %s" % result_literal,
+            f"request_path = {request_literal}",
+            f"result_path = {result_literal}",
             "result = {}",
             "output = {}",
             "previous_project_name = None",

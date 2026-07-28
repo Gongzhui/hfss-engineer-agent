@@ -290,7 +290,13 @@ class PyAedtAdapter:
                     aedt_process_id=self._aedt_process_id,
                 )
             except TypeError:
-                hfss = hfss_cls(**{k: v for k, v in base_kwargs.items() if k != "port" or self._grpc_port})
+                hfss = hfss_cls(
+                    **{
+                        k: v
+                        for k, v in base_kwargs.items()
+                        if k != "port" or self._grpc_port
+                    }
+                )
             self._activate_on_app(hfss, project_path, design_name)
             self._user_desktop = desktop
             return hfss
@@ -758,7 +764,7 @@ class PyAedtAdapter:
                 )
             target = new_name or name
             try:
-                if hasattr(self._hfss, "save_project"):
+                if self._hfss is not None and hasattr(self._hfss, "save_project"):
                     self._hfss.save_project()
             except Exception:
                 pass
@@ -932,7 +938,7 @@ class PyAedtAdapter:
                     sp = getattr(sw_obj, "props", None)
                     if isinstance(sp, dict) or hasattr(sp, "__setitem__"):
                         for k, v in props_extra.items():
-                            sp[k] = v
+                            sp[k] = v  # type: ignore[index]
                     updater = getattr(sw_obj, "update", None)
                     if callable(updater):
                         updater()

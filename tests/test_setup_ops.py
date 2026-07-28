@@ -28,7 +28,7 @@ def test_setup_schema_public() -> None:
 
 
 def test_setup_config_requires_points_for_linear_count() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         SetupConfig.model_validate(
             {
                 "name": "S1",

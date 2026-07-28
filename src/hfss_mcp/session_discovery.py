@@ -550,7 +550,9 @@ def find_open_project(
                 return sess, proj
             # COM may report directory + name separately
             if p and proj.project_name:
-                combined = str((Path(p) / f"{proj.project_name}.aedt").resolve(strict=False)).lower()
+                combined = str(
+                    (Path(p) / f"{proj.project_name}.aedt").resolve(strict=False)
+                ).lower()
                 if combined == target_l:
                     return sess, proj
             if proj.project_name.lower() != target_stem:

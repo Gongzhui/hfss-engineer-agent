@@ -23,7 +23,8 @@ class RuntimeConfig:
     max_worker_processes: int
     demo_mode: bool
     session_mode: SessionMode
-    # When True (default for attach/auto+GUI), mutate the live GUI project after checkpoint
+    # When True (opt-in via HFSS_MCP_ATTACH_LIVE=1; default False), mutate the
+    # live GUI project after checkpoint — rewrites the original .aedt, unsafe.
     attach_live_project: bool
 
     @property
@@ -101,17 +102,22 @@ def load_runtime_config(
     # Graphical default when attaching; non-graphical for pure new-desktop workers
     non_graphical_env = env.get("HFSS_MCP_NON_GRAPHICAL")
     if non_graphical_env is None or non_graphical_env.strip() == "":
-        non_graphical = sess == "new"
+        # Headless by default: trials run in exclusive worker desktops; GUI
+        # attach paths select graphical mode explicitly where needed.
+        non_graphical = True
     else:
         non_graphical = non_graphical_env.strip().lower() not in {"0", "false", "no"}
 
     max_workers = int(env.get("HFSS_MCP_MAX_WORKERS") or "1")
     max_workers = max(1, min(max_workers, 4))
 
-    attach_live = (env.get("HFSS_MCP_ATTACH_LIVE") or "1").strip().lower() not in {
-        "0",
-        "false",
-        "no",
+    # Default off: mutating the live GUI project would rewrite the original
+    # .aedt, breaking the byte-invariance safety invariant. Opt in explicitly
+    # with HFSS_MCP_ATTACH_LIVE=1 (interactive use only).
+    attach_live = (env.get("HFSS_MCP_ATTACH_LIVE") or "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
     }
 
     # In attach/auto mode, prefer single-process execution so we do not fight the GUI session

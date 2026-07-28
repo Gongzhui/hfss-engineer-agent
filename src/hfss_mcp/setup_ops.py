@@ -61,7 +61,7 @@ def json_safe(value: Any) -> Any:
     # SetupProps / nested AEDT objects
     try:
         if hasattr(value, "items"):
-            return {str(k): json_safe(v) for k, v in value.items()}  # type: ignore[arg-type]
+            return {str(k): json_safe(v) for k, v in value.items()}
     except Exception:
         pass
     return str(value)
@@ -252,7 +252,8 @@ def setup_schema_public() -> dict[str, Any]:
         "range_types": list(RANGE_TYPES),
         "property_aliases": dict(SETUP_PROP_ALIASES),
         "notes": [
-            "Pass any native AEDT setup key under properties={...}; aliases are optional shortcuts.",
+            "Pass any native AEDT setup key under properties={...}; "
+            "aliases are optional shortcuts.",
             "Common Driven keys: Frequency, MaximumPasses, MaxDeltaS, MinimumPasses, "
             "MinimumConvergedPasses, PercentRefinement, BasisOrder, DoLambdaRefine, LambdaTarget.",
             "Sweeps: use setup_sweep_create / setup_sweep_update or nested sweeps on setup_create.",

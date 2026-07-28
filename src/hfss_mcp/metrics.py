@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import math
+import os
+import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -188,6 +191,14 @@ def fetch_s11_curve(hfss: Any, spec: MetricSpec) -> tuple[list[float], list[floa
         dest = Path(tmp) / "sparams.s1p"
         try:
             ts = _export_touchstone(hfss, spec.setup, spec.sweep, dest)
+            # Optional artifact hook: keep a copy of the real Touchstone export
+            # (demo/audit trail; file mtime proves when it was produced).
+            keep = os.environ.get("HFSS_MCP_TOUCHSTONE_KEEP_DIR")
+            if keep:
+                keep_dir = Path(keep)
+                keep_dir.mkdir(parents=True, exist_ok=True)
+                stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%f")
+                shutil.copy2(ts, keep_dir / f"sparams_{stamp}.s1p")
             return parse_touchstone_s11_db(ts)
         except Exception as touch_exc:
             # Fallback: get_solution_data if fixed in future
