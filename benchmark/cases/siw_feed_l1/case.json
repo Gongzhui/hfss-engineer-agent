@@ -1,0 +1,40 @@
+{
+  "case_id": "siw_feed_l1",
+  "version": 1,
+  "description": "L1 smoke case: 5G_SIW_Aperture_Antenna 'SIW Feed Structure' (Driven Modal, 2 wave ports, Setup1@60GHz, Sweep 56-67GHz). Sandbox perturbs the 5 feed variables; a policy must recover S11 at 60GHz within 6 trials.",
+  "source": {
+    "project_path": "C:\\Program Files\\AnsysEM\\v232\\Win64\\Examples\\HFSS\\Antennas\\5G_SIW_Aperture_Antenna.aedt",
+    "design_name": "SIW Feed Structure",
+    "setup": "Setup1",
+    "sweep": "Sweep",
+    "port": "1",
+    "sibling_designs": [
+      "5G Aperture Element",
+      "SIW Feed Structure + 3Dcomp"
+    ]
+  },
+  "variables": [
+    {"name": "fl", "unit": "mm", "min": 0.195, "max": 0.435},
+    {"name": "fw", "unit": "mm", "min": 0.65, "max": 1.45},
+    {"name": "fx", "unit": "mm", "min": 2.015, "max": 4.495},
+    {"name": "fy", "unit": "mm", "min": 1.755, "max": 3.915},
+    {"name": "t1", "unit": "mm", "min": 0.208, "max": 0.464}
+  ],
+  "perturbation": {
+    "seed": 42,
+    "min_pct": 10.0,
+    "max_pct": 30.0
+  },
+  "metrics": {
+    "band_ghz": [56.0, 67.0],
+    "target_ghz": 60.0,
+    "primary": "S11_at_target_dB",
+    "thresholds": {
+      "S11_at_target_dB": -12.0
+    }
+  },
+  "budget": {
+    "max_trials": 6,
+    "max_runtime_seconds": 3600.0
+  }
+}

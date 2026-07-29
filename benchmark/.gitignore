@@ -1,0 +1,7 @@
+# regenerable intermediates & AEDT byproducts
+cases/*/build/
+*.aedtresults/
+*.lock
+__pycache__/
+# run evidence is committed, but not the per-run app data
+cases/*/runs/*/app_data/
