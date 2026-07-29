@@ -109,3 +109,18 @@
   还原阈值后 case.json 与 v3 PASS 所用一致（PASS 输出即「还原后」证据）。
 - 至此任务 4 验收全过：退出码 0、末态 S11 优于 broken 基线、数字与 Touchstone 原件一致
   （每个 trial 独立重解析比对，1e-6 容差）、无 ansysedt 残留、反向验证红→绿。
+
+## 最终验收（2026-07-29，全部完成后重跑）
+
+- 回归线：`pytest -p no:cacheprovider` → **61 passed, 0 skipped**（64.17s）；
+  `ruff check .` → **0**（先删可再生 .tmp_pytest/gen_py）；`mypy` → **0**（30 files）。
+- 零改动证明：`git diff --stat 7068d1f..HEAD -- src tests docs pyproject.toml uv.lock` → **空**；
+  `git status --short` 同范围 → **空**。
+- 三个 CLI 终验：`build_case.py --help` EXIT=0；`verify_case.py --case siw_feed_l1`
+  → **LEAK-FREE** EXIT=0；`run_case.py --policy probe`（v3）→ **STATUS: PASS** EXIT=0。
+- 反向验证两份：verify 注入标称值+Report2D → EXIT=1 四条发现，恢复 → LEAK-FREE；
+  runner 不可能阈值真跑 → STATUS: FAIL EXIT=1，还原阈值（与 PASS 跑所用一致）。
+- `tasklist //FI "IMAGENAME eq ansysedt.exe"` → 无残留。
+- 提交：9a96af7（任务1）6c04a86（任务2）c2074b8（任务3）c0f7b8d（任务4）+ 本次最终提交。
+- 未提交的运行产物（可再生）：`.tmp_pytest/`、`examples/demo_output/`、
+  `examples/golden_patch.aedtresults/`、`benchmark/cases/*/build/`、`runs/*/app_data/`。
