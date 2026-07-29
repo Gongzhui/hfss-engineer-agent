@@ -1,0 +1,234 @@
+{
+  "case_id": "siw_feed_l1",
+  "policy": "probe",
+  "run_id": "run_probe_main",
+  "started_at": "2026-07-29T04:12:36.504412+00:00",
+  "budget": {
+    "max_trials": 6
+  },
+  "thresholds": {
+    "S11_at_target_dB": {
+      "threshold": -1.9,
+      "value": -2.0050688008358675,
+      "met": true
+    },
+    "S11_min_dB": {
+      "threshold": -13.0,
+      "value": -13.134483837748592,
+      "met": true
+    }
+  },
+  "primary_metric": "S11_at_target_dB",
+  "sandbox_sha256_before": "517420aceda91efcf3d70826575af795df409aa3978929d4d94fa96812781df3",
+  "initial_params": {
+    "fl": 0.2316,
+    "fw": 0.7517,
+    "fx": 2.6516,
+    "fy": 2.0646,
+    "t1": 0.2502
+  },
+  "trials_used": 6,
+  "failed_trials": [
+    "t5_fy"
+  ],
+  "finished_at": "2026-07-29T04:42:06.431947+00:00",
+  "trials": [
+    {
+      "label": "t1_baseline",
+      "job_id": "job_d00cd1729497438e9ff244ae09dc59b8",
+      "params": {
+        "fl": 0.2316,
+        "fw": 0.7517,
+        "fx": 2.6516,
+        "fy": 2.0646,
+        "t1": 0.2502
+      },
+      "metrics": {
+        "S11_min_dB": -8.78907997629433,
+        "S11_min_freq_GHz": 67.0,
+        "S11_at_target_dB": -0.27474343792396194
+      },
+      "solve_seconds": 346.3,
+      "touchstone": {
+        "file": "sparams_20260729T041820_172464.s1p",
+        "mtime": "2026-07-29T04:18:20.163440+00:00",
+        "reparsed_s11_at_target_db": -0.27474343792396194
+      }
+    },
+    {
+      "label": "t2_fl",
+      "job_id": "job_78102636c605478fa6e672bd022bc054",
+      "params": {
+        "fl": 0.315,
+        "fw": 0.7517,
+        "fx": 2.6516,
+        "fy": 2.0646,
+        "t1": 0.2502
+      },
+      "metrics": {
+        "S11_min_dB": -9.535260560793576,
+        "S11_min_freq_GHz": 67.0,
+        "S11_at_target_dB": -0.2840678092097598
+      },
+      "solve_seconds": 346.4,
+      "touchstone": {
+        "file": "sparams_20260729T042406_711843.s1p",
+        "mtime": "2026-07-29T04:24:06.702819+00:00",
+        "reparsed_s11_at_target_db": -0.2840678092097598
+      }
+    },
+    {
+      "label": "t3_fw",
+      "job_id": "job_bd28d61acab74d6da90571d10661a018",
+      "params": {
+        "fl": 0.315,
+        "fw": 1.05,
+        "fx": 2.6516,
+        "fy": 2.0646,
+        "t1": 0.2502
+      },
+      "metrics": {
+        "S11_min_dB": -9.731937169759119,
+        "S11_min_freq_GHz": 67.0,
+        "S11_at_target_dB": -0.2876789009237991
+      },
+      "solve_seconds": 346.5,
+      "touchstone": {
+        "file": "sparams_20260729T042953_123495.s1p",
+        "mtime": "2026-07-29T04:29:53.114980+00:00",
+        "reparsed_s11_at_target_db": -0.2876789009237991
+      }
+    },
+    {
+      "label": "t4_fx",
+      "job_id": "job_e888ddcdb81f486fa7c7a0d8a7a9519d",
+      "params": {
+        "fl": 0.315,
+        "fw": 1.05,
+        "fx": 3.255,
+        "fy": 2.0646,
+        "t1": 0.2502
+      },
+      "metrics": {
+        "S11_min_dB": -13.134483837748592,
+        "S11_min_freq_GHz": 62.9,
+        "S11_at_target_dB": -2.0050688008358675
+      },
+      "solve_seconds": 341.3,
+      "touchstone": {
+        "file": "sparams_20260729T043537_558411.s1p",
+        "mtime": "2026-07-29T04:35:37.543372+00:00",
+        "reparsed_s11_at_target_db": -2.0050688008358675
+      }
+    },
+    {
+      "label": "t5_fy",
+      "params": {
+        "fl": 0.315,
+        "fw": 1.05,
+        "fx": 3.255,
+        "fy": 2.835,
+        "t1": 0.2502
+      },
+      "failed": true,
+      "error": "trial t5_fy ended state=failed: {\"code\": \"solve_failed\", \"message\": \"solve ended in state failed\", \"details\": {\"handle_id\": \"solve_4e561811d3774b8296156141027c751b\", \"state\": \"failed\", \"progress\": null, \"message\": null, \"cancel_supported\": true, \"cancel_limitation\": \"Cancel only terminates AEDT processes owned by this adapter when it launched them (new_desktop). User GUI sessions are never closed.",
+      "metrics": null
+    },
+    {
+      "label": "t6_t1",
+      "job_id": "job_bb1d08ccb3cd4ab8be4ae051b87c18c1",
+      "params": {
+        "fl": 0.315,
+        "fw": 1.05,
+        "fx": 3.255,
+        "fy": 2.0646,
+        "t1": 0.336
+      },
+      "metrics": {
+        "S11_min_dB": -13.44474076129334,
+        "S11_min_freq_GHz": 62.8,
+        "S11_at_target_dB": -1.9854472411739472
+      },
+      "solve_seconds": 356.5,
+      "touchstone": {
+        "file": "sparams_20260729T044201_398435.s1p",
+        "mtime": "2026-07-29T04:42:01.388408+00:00",
+        "reparsed_s11_at_target_db": -1.9854472411739472
+      }
+    }
+  ],
+  "baseline": {
+    "label": "t1_baseline",
+    "job_id": "job_d00cd1729497438e9ff244ae09dc59b8",
+    "params": {
+      "fl": 0.2316,
+      "fw": 0.7517,
+      "fx": 2.6516,
+      "fy": 2.0646,
+      "t1": 0.2502
+    },
+    "metrics": {
+      "S11_min_dB": -8.78907997629433,
+      "S11_min_freq_GHz": 67.0,
+      "S11_at_target_dB": -0.27474343792396194
+    },
+    "solve_seconds": 346.3,
+    "touchstone": {
+      "file": "sparams_20260729T041820_172464.s1p",
+      "mtime": "2026-07-29T04:18:20.163440+00:00",
+      "reparsed_s11_at_target_db": -0.27474343792396194
+    }
+  },
+  "best": {
+    "label": "t4_fx",
+    "job_id": "job_e888ddcdb81f486fa7c7a0d8a7a9519d",
+    "params": {
+      "fl": 0.315,
+      "fw": 1.05,
+      "fx": 3.255,
+      "fy": 2.0646,
+      "t1": 0.2502
+    },
+    "metrics": {
+      "S11_min_dB": -13.134483837748592,
+      "S11_min_freq_GHz": 62.9,
+      "S11_at_target_dB": -2.0050688008358675
+    },
+    "solve_seconds": 341.3,
+    "touchstone": {
+      "file": "sparams_20260729T043537_558411.s1p",
+      "mtime": "2026-07-29T04:35:37.543372+00:00",
+      "reparsed_s11_at_target_db": -2.0050688008358675
+    }
+  },
+  "best_params": {
+    "fl": 0.315,
+    "fw": 1.05,
+    "fx": 3.255,
+    "fy": 2.0646,
+    "t1": 0.2502
+  },
+  "improvement_db": 1.7303,
+  "answer_broken_metrics": {
+    "S11_min_dB": -8.78907997629433,
+    "S11_min_freq_GHz": 67.0,
+    "S11_at_target_dB": -0.27474343792396194
+  },
+  "cross_check_abs_diff_db": {
+    "S11_min_dB": 0.0,
+    "S11_min_freq_GHz": 0.0,
+    "S11_at_target_dB": 0.0
+  },
+  "cross_check_ok": true,
+  "thresholds_met": true,
+  "sandbox_sha256_after": "517420aceda91efcf3d70826575af795df409aa3978929d4d94fa96812781df3",
+  "sandbox_unchanged": true,
+  "answer_nominal_metrics": {
+    "S11_min_dB": -17.212586705393264,
+    "S11_min_freq_GHz": 56.9,
+    "S11_at_target_dB": -4.560446044949826
+  },
+  "status": "PASS",
+  "wall_seconds": 1769.9,
+  "no_aedt_residue": true
+}

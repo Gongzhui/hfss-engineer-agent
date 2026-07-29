@@ -1,0 +1,131 @@
+{
+  "case_id": "siw_feed_l1",
+  "policy": "probe",
+  "run_id": "run_probe_failcheck",
+  "started_at": "2026-07-29T04:48:41.940432+00:00",
+  "budget": {
+    "max_trials": 1
+  },
+  "thresholds": {
+    "S11_at_target_dB": {
+      "threshold": -50.0,
+      "value": -0.27474343792396194,
+      "met": false
+    },
+    "S11_min_dB": {
+      "threshold": -50.0,
+      "value": -8.78907997629433,
+      "met": false
+    }
+  },
+  "primary_metric": "S11_at_target_dB",
+  "sandbox_sha256_before": "517420aceda91efcf3d70826575af795df409aa3978929d4d94fa96812781df3",
+  "initial_params": {
+    "fl": 0.2316,
+    "fw": 0.7517,
+    "fx": 2.6516,
+    "fy": 2.0646,
+    "t1": 0.2502
+  },
+  "trials_used": 1,
+  "failed_trials": [],
+  "finished_at": "2026-07-29T04:54:30.576486+00:00",
+  "trials": [
+    {
+      "label": "t1_baseline",
+      "job_id": "job_e319e524cf9944928c727c7fe35c3f76",
+      "params": {
+        "fl": 0.2316,
+        "fw": 0.7517,
+        "fx": 2.6516,
+        "fy": 2.0646,
+        "t1": 0.2502
+      },
+      "metrics": {
+        "S11_min_dB": -8.78907997629433,
+        "S11_min_freq_GHz": 67.0,
+        "S11_at_target_dB": -0.27474343792396194
+      },
+      "solve_seconds": 346.3,
+      "touchstone": {
+        "file": "sparams_20260729T045425_801393.s1p",
+        "mtime": "2026-07-29T04:54:25.791329+00:00",
+        "reparsed_s11_at_target_db": -0.27474343792396194
+      }
+    }
+  ],
+  "baseline": {
+    "label": "t1_baseline",
+    "job_id": "job_e319e524cf9944928c727c7fe35c3f76",
+    "params": {
+      "fl": 0.2316,
+      "fw": 0.7517,
+      "fx": 2.6516,
+      "fy": 2.0646,
+      "t1": 0.2502
+    },
+    "metrics": {
+      "S11_min_dB": -8.78907997629433,
+      "S11_min_freq_GHz": 67.0,
+      "S11_at_target_dB": -0.27474343792396194
+    },
+    "solve_seconds": 346.3,
+    "touchstone": {
+      "file": "sparams_20260729T045425_801393.s1p",
+      "mtime": "2026-07-29T04:54:25.791329+00:00",
+      "reparsed_s11_at_target_db": -0.27474343792396194
+    }
+  },
+  "best": {
+    "label": "t1_baseline",
+    "job_id": "job_e319e524cf9944928c727c7fe35c3f76",
+    "params": {
+      "fl": 0.2316,
+      "fw": 0.7517,
+      "fx": 2.6516,
+      "fy": 2.0646,
+      "t1": 0.2502
+    },
+    "metrics": {
+      "S11_min_dB": -8.78907997629433,
+      "S11_min_freq_GHz": 67.0,
+      "S11_at_target_dB": -0.27474343792396194
+    },
+    "solve_seconds": 346.3,
+    "touchstone": {
+      "file": "sparams_20260729T045425_801393.s1p",
+      "mtime": "2026-07-29T04:54:25.791329+00:00",
+      "reparsed_s11_at_target_db": -0.27474343792396194
+    }
+  },
+  "best_params": {
+    "fl": 0.2316,
+    "fw": 0.7517,
+    "fx": 2.6516,
+    "fy": 2.0646,
+    "t1": 0.2502
+  },
+  "improvement_db": 0.0,
+  "answer_broken_metrics": {
+    "S11_min_dB": -8.78907997629433,
+    "S11_min_freq_GHz": 67.0,
+    "S11_at_target_dB": -0.27474343792396194
+  },
+  "cross_check_abs_diff_db": {
+    "S11_min_dB": 0.0,
+    "S11_min_freq_GHz": 0.0,
+    "S11_at_target_dB": 0.0
+  },
+  "cross_check_ok": true,
+  "thresholds_met": false,
+  "sandbox_sha256_after": "517420aceda91efcf3d70826575af795df409aa3978929d4d94fa96812781df3",
+  "sandbox_unchanged": true,
+  "answer_nominal_metrics": {
+    "S11_min_dB": -17.212586705393264,
+    "S11_min_freq_GHz": 56.9,
+    "S11_at_target_dB": -4.560446044949826
+  },
+  "status": "FAIL",
+  "wall_seconds": 348.6,
+  "no_aedt_residue": true
+}

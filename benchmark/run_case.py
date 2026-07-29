@@ -12,6 +12,8 @@ Policy ``probe`` (deterministic scripted baseline):
   t2..tN   — coordinate descent: per whitelisted variable, in case order,
              try the range midpoint on top of the best-so-far vector;
              keep the move iff the primary metric improves.
+  A candidate whose solve fails counts against the budget and is reverted
+  (unsolvable regions are policy data, not runner errors).
 
 PASS = final best primary metric beats the broken baseline AND all
 case.json thresholds hold. Exit 0 on PASS, 1 on FAIL, 2 on preflight.
@@ -51,6 +53,16 @@ def _utc_now() -> str:
 
 class RunFailure(RuntimeError):
     pass
+
+
+class TrialFailedError(RunFailure):
+    """One candidate vector failed to solve — policy data, not infrastructure failure."""
+
+    def __init__(self, label: str, state: str, error: Any) -> None:
+        super().__init__(f"trial {label} ended state={state}: {error}")
+        self.label = label
+        self.state = state
+        self.error = error
 
 
 async def call_tool(session: Any, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -157,7 +169,7 @@ class TrialDriver:
         result = await call_tool(self.session, "trial_result", {"job_id": job_id})
         if result["state"] != "completed":
             err = json.dumps(result.get("error"), ensure_ascii=False)
-            raise RunFailure(f"trial {label} ended state={result['state']}: {err}")
+            raise TrialFailedError(label, result["state"], err)
         ts = self._harvest(mark, label)
         row = {
             "label": label,
@@ -246,7 +258,21 @@ async def run_case(case: Case, run_dir: Path, max_trials: int) -> dict[str, Any]
             candidate = dict(best_params)
             candidate[name] = mid_value
             label = f"t{driver.trials_used + 1}_{name}"
-            row = await driver.run_trial(label, candidate)
+            try:
+                row = await driver.run_trial(label, candidate)
+            except TrialFailedError as exc:
+                # candidate region is unsolvable — counts against budget, reverted
+                log(f"  {label}: SOLVE FAILED ({exc.state}) — move reverted, budget consumed")
+                trials.append(
+                    {
+                        "label": label,
+                        "params": dict(candidate),
+                        "failed": True,
+                        "error": str(exc)[:400],
+                        "metrics": None,
+                    }
+                )
+                continue
             trials.append(row)
             if row["metrics"][primary] < best_row["metrics"][primary]:
                 best_row = row
@@ -255,6 +281,7 @@ async def run_case(case: Case, run_dir: Path, max_trials: int) -> dict[str, Any]
             else:
                 log("  -> not better; coordinate move reverted")
         report["trials_used"] = driver.trials_used
+        report["failed_trials"] = [t["label"] for t in trials if t.get("failed")]
 
     baseline = trials[0]
     improvement = baseline["metrics"][primary] - best_row["metrics"][primary]
