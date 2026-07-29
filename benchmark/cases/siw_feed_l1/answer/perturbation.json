@@ -1,0 +1,37 @@
+{
+  "seed": 42,
+  "min_pct": 10.0,
+  "max_pct": 30.0,
+  "variables": {
+    "fl": {
+      "unit": "mm",
+      "nominal": 0.3,
+      "perturbed": 0.2316,
+      "pct": -22.8
+    },
+    "fw": {
+      "unit": "mm",
+      "nominal": 1.0,
+      "perturbed": 0.7517,
+      "pct": -24.83
+    },
+    "fx": {
+      "unit": "mm",
+      "nominal": 3.1,
+      "perturbed": 2.6516,
+      "pct": -14.46
+    },
+    "fy": {
+      "unit": "mm",
+      "nominal": 2.7,
+      "perturbed": 2.0646,
+      "pct": -23.53
+    },
+    "t1": {
+      "unit": "mm",
+      "nominal": 0.32,
+      "perturbed": 0.2502,
+      "pct": -21.81
+    }
+  }
+}

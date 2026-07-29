@@ -36,3 +36,23 @@
 - 修掉一个解析 bug：.aedt 含同行 `$begin_cdata$ $end_cdata$`，深度计数需按出现次数算，
   否则变量表串到下一个 HFSSModel 块（实测串出 30 变量的假表）。
 - 扰动（seed=42 实算）：fl -22.8%、fw -24.8%、fx -14.5%、fy -23.5%、t1 -21.8%，全部在区间内。
+
+## 任务 2 · 完成（2026-07-29，真实求解）
+
+- 走通**仓库自有 manifest/trial 机制**（in-process `AppContext` + supervisor worker +
+  workspace 副本），无需 PyAEDT 直连降级——`build_case.py --stage answer` 全程 551.9s、
+  2 trial 全 completed、退出码 0。第一条发现：产品机制可直接吃 1.8MB 真实范例（2 波端口、
+  Interpolating 扫频），无缺口。
+- 答案册 `benchmark/cases/siw_feed_l1/answer/`：`nominal_values.json`（19 变量标称表）、
+  `perturbation.json`（seed=42 实算扰动表）、`metrics.json`（含 Touchstone sha256/mtime/工时）、
+  `nominal.s1p` + `broken.s1p`（HFSS 真导出，头部含 workspace 副本路径佐证）。
+- 实测指标（真实求解，非手写）：
+  - nominal：S11_min = **-17.2126 dB @ 56.9 GHz**，S11@60GHz = **-4.5604 dB**
+  - broken（fl/fw/fx/fy/t1 全部 -14%~-25%）：S11_min = **-8.7891 dB @ 67.0 GHz**，
+    S11@60GHz = **-0.2747 dB** —— 失配求解成功 = 扰动后几何合法（任务书拍板项达成）
+- 物理判读：该范例 60GHz 本就不是匹配最优频点（标称 -4.56 dB），最优在 56.9GHz；
+  扰动把全频段匹配打烂（min -8.8dB 且 min 频点漂到 67GHz 带沿）。
+  据此把 case.json 阈值从占位值改为数据驱动值：S11@60GHz ≤ **-3.5**、S11_min ≤ **-14.0**
+  （两侧余量：broken -0.27 / nominal -4.56 与 broken -8.79 / nominal -17.21）。
+- `procs.kill_spawned` 加等待重试：trial 报 completed 时 worker 桌面仍在退出，
+  立即重查会误报残留（首次 answer 构建误报 PID 57544，数秒后自查为零）。

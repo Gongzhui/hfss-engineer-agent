@@ -169,7 +169,7 @@ def _harvest_touchstone(keep_dir: Path, since: float, dest_stem: Path) -> Path:
 
 
 def stage_answer(case: Case) -> int:
-    from hfss_mcp.app import HfssMcpApp
+    from hfss_mcp.app import AppContext
     from hfss_mcp.ids import file_sha256
 
     src = Path(case.source.project_path)
@@ -230,7 +230,7 @@ def stage_answer(case: Case) -> int:
     os.environ["HFSS_MCP_TOUCHSTONE_KEEP_DIR"] = str(ts_keep)
 
     pre_pids = ansysedt_pids()
-    app = HfssMcpApp(data_dir=work / "app_data", adapter_name="pyaedt")
+    app = AppContext(data_dir=work / "app_data", adapter_name="pyaedt")
     evidence: dict[str, Any] = {}
     try:
         reg = app.register_manifest(manifest)
@@ -271,7 +271,7 @@ def stage_answer(case: Case) -> int:
                 "case_id": case.case_id,
                 "generated_at": _utc_now(),
                 "generator": "build_case.py --stage answer via hfss-mcp trial mechanism "
-                "(in-process HfssMcpApp, supervisor worker, workspace copy)",
+                "(in-process AppContext, supervisor worker, workspace copy)",
                 "source_project": str(src),
                 "nominal_variable_count": len(nominal_all),
                 "results": evidence,

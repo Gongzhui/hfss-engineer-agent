@@ -27,13 +27,25 @@ def ansysedt_pids() -> set[int]:
     return pids
 
 
-def kill_spawned(pre: set[int]) -> set[int]:
-    """Kill ansysedt PIDs that appeared after snapshot ``pre``; return leftovers."""
-    spawned = ansysedt_pids() - pre
-    for pid in sorted(spawned):
-        subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T", "/F"],
-            capture_output=True,
-            timeout=30,
-        )
+def kill_spawned(pre: set[int], settle_s: float = 5.0, retries: int = 3) -> set[int]:
+    """Kill ansysedt PIDs that appeared after snapshot ``pre``; return leftovers.
+
+    Workers may still be shutting down when the job reports completion, so we
+    wait briefly and retry before declaring a residue.
+    """
+    import time
+
+    for attempt in range(retries + 1):
+        spawned = ansysedt_pids() - pre
+        if not spawned:
+            return set()
+        if attempt < retries:
+            time.sleep(settle_s)
+            spawned = ansysedt_pids() - pre
+            for pid in sorted(spawned):
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    capture_output=True,
+                    timeout=30,
+                )
     return ansysedt_pids() - pre

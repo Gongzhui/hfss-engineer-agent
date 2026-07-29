@@ -30,7 +30,8 @@
     "target_ghz": 60.0,
     "primary": "S11_at_target_dB",
     "thresholds": {
-      "S11_at_target_dB": -12.0
+      "S11_at_target_dB": -3.5,
+      "S11_min_dB": -14.0
     }
   },
   "budget": {

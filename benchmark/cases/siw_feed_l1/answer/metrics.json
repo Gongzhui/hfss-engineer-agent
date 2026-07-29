@@ -1,0 +1,57 @@
+{
+  "case_id": "siw_feed_l1",
+  "generated_at": "2026-07-29T02:42:31.075410+00:00",
+  "generator": "build_case.py --stage answer via hfss-mcp trial mechanism (in-process AppContext, supervisor worker, workspace copy)",
+  "source_project": "C:\\Program Files\\AnsysEM\\v232\\Win64\\Examples\\HFSS\\Antennas\\5G_SIW_Aperture_Antenna.aedt",
+  "nominal_variable_count": 19,
+  "results": {
+    "nominal": {
+      "variables": {
+        "fl": 0.3,
+        "fw": 1.0,
+        "fx": 3.1,
+        "fy": 2.7,
+        "t1": 0.32
+      },
+      "metrics": {
+        "S11_min_dB": -17.212586705393264,
+        "S11_min_freq_GHz": 56.9,
+        "S11_at_target_dB": -4.560446044949826
+      },
+      "solve_seconds": 251.0,
+      "touchstone": {
+        "file": "nominal.s1p",
+        "sha256": "7d41716bd676c42e2556d37ff4cb0e0ba9c72b86640a3b0a1c18eea7060627d4",
+        "mtime": "2026-07-29T02:37:29.990529+00:00"
+      },
+      "job": {
+        "trial_id": "nominal",
+        "job_id": "job_96a54f3758124d72b3d6056d24b3e4bd"
+      }
+    },
+    "broken": {
+      "variables": {
+        "fl": 0.2316,
+        "fw": 0.7517,
+        "fx": 2.6516,
+        "fy": 2.0646,
+        "t1": 0.2502
+      },
+      "metrics": {
+        "S11_min_dB": -8.78907997629433,
+        "S11_min_freq_GHz": 67.0,
+        "S11_at_target_dB": -0.27474343792396194
+      },
+      "solve_seconds": 300.4,
+      "touchstone": {
+        "file": "broken.s1p",
+        "sha256": "15ffba164970aaa2ec37121f0e117766aa2d77a0c539414966e0991d80a03ae0",
+        "mtime": "2026-07-29T02:42:30.466130+00:00"
+      },
+      "job": {
+        "trial_id": "broken",
+        "job_id": "job_0c16eeedca734807965b2827e01d8cf3"
+      }
+    }
+  }
+}
