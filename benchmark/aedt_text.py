@@ -17,8 +17,9 @@ SOLN_RE = re.compile(r"^\s*Soln\(")
 _BEGIN_RE = re.compile(r"\$begin '([^']+)'")
 
 
-def strip_aedt_text(path: Path) -> dict[str, int]:
+def strip_aedt_text(path: Path, block_names: tuple[str, ...] | None = None) -> dict[str, int]:
     """Remove leak-bearing blocks/lines in place. Returns removal counts."""
+    names = block_names if block_names is not None else STRIP_BLOCK_NAMES
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
     out: list[str] = []
     counts: dict[str, int] = {"Soln": 0}
@@ -30,7 +31,7 @@ def strip_aedt_text(path: Path) -> dict[str, int]:
             i += 1
             continue
         m = _BEGIN_RE.search(line)
-        if m and m.group(1) in STRIP_BLOCK_NAMES:
+        if m and m.group(1) in names:
             name = m.group(1)
             depth = 0
             j = i

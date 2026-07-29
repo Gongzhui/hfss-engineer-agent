@@ -287,6 +287,32 @@ def stage_answer(case: Case) -> int:
 # --------------------------------------------------------------------------
 # stage: sandbox
 # --------------------------------------------------------------------------
+def _strip_variable_metadata(case: Case, sandbox: Path, perturbed: dict[str, float]) -> None:
+    """Rewrite whitelisted VariableProp lines to the plain 4-arg form.
+
+    AEDT 2023 saves ``VariableProp('fl', 'UD', '', '0.2316mm', oa(...), sa(...), ta(...))``
+    where the tuning metadata is centered on the *nominal* value — that leaks the
+    answer. The plain form (as in the 2018 original) reopens cleanly.
+    """
+    lines = sandbox.read_text(encoding="utf-8").splitlines(keepends=True)
+    rewritten = 0
+    for i, line in enumerate(lines):
+        for var in case.variables:
+            if f"VariableProp('{var.name}'," in line and ", oa(" in line:
+                indent = line[: len(line) - len(line.lstrip())]
+                lines[i] = (
+                    f"{indent}VariableProp('{var.name}', 'UD', '', "
+                    f"'{perturbed[var.name]}{var.unit}')\n"
+                )
+                rewritten += 1
+    if rewritten != len(case.variables):
+        raise RuntimeError(
+            f"expected to rewrite {len(case.variables)} VariableProp lines, did {rewritten}"
+        )
+    sandbox.write_text("".join(lines), encoding="utf-8")
+    log(f"stripped oa/sa/ta tuning metadata on {rewritten} whitelisted VariableProp lines")
+
+
 def stage_sandbox(case: Case) -> int:
     src = Path(case.source.project_path)
     if not src.is_file():
@@ -296,32 +322,33 @@ def stage_sandbox(case: Case) -> int:
     perturbed = compute_perturbation(case, nominal)
     log(f"perturbed values to apply: {perturbed}")
 
-    strip_work = case.build_dir / "strip_work"
-    if strip_work.exists():
-        shutil.rmtree(strip_work, ignore_errors=True)
-    strip_work.mkdir(parents=True, exist_ok=True)
     case.sandbox_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. pre-strip a fresh copy (also drops the ~1.4MB base64 preview → faster open)
-    pre = strip_work / f"{case.case_id}_prestrip.aedt"
-    shutil.copy2(src, pre)
-    counts = strip_aedt_text(pre)
-    log(f"pre-strip removals: {counts}")
+    # 1. fresh copy at the final sandbox path; drop only the giant base64 preview
+    #    (pure speed: the preview is ~80% of the file and AEDT does not need it).
+    #    Reports/solutions are handled via API below; full text-strip comes last.
+    sandbox = case.sandbox_project
+    shutil.copy2(src, sandbox)
+    stale_lock = sandbox.with_suffix(".aedt.lock")
+    if stale_lock.exists():
+        stale_lock.unlink()
+    counts = strip_aedt_text(sandbox, block_names=("ProjectPreview",))
+    log(f"pre-strip (preview only) removals: {counts}")
 
-    # 2. AEDT: delete sibling designs, set perturbed values, save to sandbox path
+    # 2. AEDT on the intact project: delete sibling designs, delete all reports
+    #    via the ReportSetup COM module, set perturbed values, save.
     from ansys.aedt.core import Hfss
 
-    sandbox = case.sandbox_project
-    shutil.copy2(pre, sandbox)
     pre_pids = ansysedt_pids()
-    hfss = Hfss(
-        project=str(sandbox),
-        design=case.source.design_name,
-        non_graphical=True,
-        new_desktop=True,
-        close_on_exit=False,
-    )
+    hfss = None
     try:
+        hfss = Hfss(
+            project=str(sandbox),
+            design=case.source.design_name,
+            non_graphical=True,
+            new_desktop=True,
+            close_on_exit=False,
+        )
         log(f"designs before strip: {hfss.design_list}")
         for sibling in case.source.sibling_designs:
             ok = hfss.delete_design(sibling, fallback_design=case.source.design_name)
@@ -329,6 +356,12 @@ def stage_sandbox(case: Case) -> int:
             if not ok:
                 raise RuntimeError(f"failed to delete sibling design {sibling!r}")
         hfss.set_active_design(case.source.design_name)
+        # Direct COM module — pyaedt's post layer chokes enumerating plots here.
+        report_mod = hfss.odesign.GetModule("ReportSetup")
+        reports = list(report_mod.GetAllReportNames())
+        log(f"reports to delete: {reports}")
+        if reports:
+            report_mod.DeleteReports(reports)
         for var in case.variables:
             new_value = f"{perturbed[var.name]}{var.unit}"
             hfss[var.name] = new_value
@@ -336,34 +369,48 @@ def stage_sandbox(case: Case) -> int:
         hfss.save_project()
         log(f"saved: {sandbox}")
     finally:
-        try:
-            hfss.release_desktop(close_projects=True, close_desktop=True)
-        except Exception as exc:  # noqa: BLE001 — release must not mask earlier errors
-            log(f"release_desktop warning: {exc}")
+        if hfss is not None:
+            try:
+                hfss.release_desktop(close_projects=True, close_desktop=True)
+            except Exception as exc:  # noqa: BLE001 — release must not mask errors
+                log(f"release_desktop warning: {exc}")
         kill_spawned(pre_pids)
 
-    # 3. post-strip whatever the save regenerated; drop any results dir
+    # 3. text-strip whatever remains (Soln records, report shells, Documentation,
+    #    regenerated preview); drop any results dir
     counts = strip_aedt_text(sandbox)
     log(f"post-strip removals: {counts}")
     for results_dir in case.sandbox_dir.glob("*.aedtresults"):
         shutil.rmtree(results_dir, ignore_errors=True)
         log(f"removed results dir: {results_dir.name}")
 
-    # 4. validate: reopen read-only, check design list + perturbed values stuck
+    # 3b. AEDT 2023 re-save attaches oa()/sa()/ta() tuning metadata to every
+    #     VariableProp line; for whitelisted vars it is centered on the NOMINAL
+    #     value ((Min+Max)/2 == nominal) — a leak. Rewrite those lines to the
+    #     plain 4-argument form with the perturbed value.
+    _strip_variable_metadata(case, sandbox, perturbed)
+
+    # 4. validate: reopen read-only, check design list + perturbed values stuck.
+    #    This also proves the trial worker (pyaedt) can open the stripped sandbox.
     pre_pids = ansysedt_pids()
-    hfss = Hfss(
-        project=str(sandbox),
-        design=case.source.design_name,
-        non_graphical=True,
-        new_desktop=True,
-        close_on_exit=False,
-    )
+    hfss = None
     try:
+        hfss = Hfss(
+            project=str(sandbox),
+            design=case.source.design_name,
+            non_graphical=True,
+            new_desktop=True,
+            close_on_exit=False,
+        )
         designs = list(hfss.design_list)
         log(f"designs after strip: {designs}")
         if designs != [case.source.design_name]:
             raise RuntimeError(f"sandbox still holds designs {designs}")
         hfss.set_active_design(case.source.design_name)
+        report_mod = hfss.odesign.GetModule("ReportSetup")
+        remaining = list(report_mod.GetAllReportNames())
+        if remaining:
+            raise RuntimeError(f"sandbox still holds reports after strip: {remaining}")
         for var in case.variables:
             raw = str(hfss.variable_manager[var.name].expression)
             got = float(raw.removesuffix(var.unit))
@@ -372,11 +419,21 @@ def stage_sandbox(case: Case) -> int:
                 raise RuntimeError(f"{var.name}: readback {got} != perturbed {want}")
         log("variable readback matches perturbation table")
     finally:
-        try:
-            hfss.release_desktop(close_projects=True, close_desktop=True)
-        except Exception as exc:  # noqa: BLE001
-            log(f"release_desktop warning: {exc}")
+        if hfss is not None:
+            try:
+                hfss.release_desktop(close_projects=True, close_desktop=True)
+            except Exception as exc:  # noqa: BLE001
+                log(f"release_desktop warning: {exc}")
         kill_spawned(pre_pids)
+
+    # 4b. the validate reopen recreates AEDT sidecar dirs; leave the tree clean
+    for junk in case.sandbox_dir.glob("*.aedtresults"):
+        shutil.rmtree(junk, ignore_errors=True)
+    for junk in case.sandbox_dir.glob("*.pyaedt"):
+        shutil.rmtree(junk, ignore_errors=True)
+    stale = sandbox.with_suffix(".aedt.lock")
+    if stale.exists():
+        stale.unlink()
 
     # 5. manifest locked to the sandbox project
     from hfss_mcp.manifest import load_manifest

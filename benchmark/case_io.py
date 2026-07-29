@@ -25,7 +25,9 @@ BENCHMARK_ROOT = Path(__file__).resolve().parent
 CASES_ROOT = BENCHMARK_ROOT / "cases"
 
 _NUM_UNIT_RE = re.compile(r"^\s*([-+0-9.eE]+)\s*([a-zA-Z]*)\s*$")
-_VARPROP_RE = re.compile(r"VariableProp\('([^']+)', '[^']*', '[^']*', '([^']*)'\)")
+# NOTE: AEDT ≥2023 saves extra oa()/sa()/ta() tuning metadata after the value,
+# so the value group must not require a closing paren right after it.
+_VARPROP_RE = re.compile(r"VariableProp\('([^']+)', '[^']*', '[^']*', '([^']*)'")
 
 
 class WhitelistVar(BaseModel):

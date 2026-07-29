@@ -56,3 +56,22 @@
   （两侧余量：broken -0.27 / nominal -4.56 与 broken -8.79 / nominal -17.21）。
 - `procs.kill_spawned` 加等待重试：trial 报 completed 时 worker 桌面仍在退出，
   立即重查会误报残留（首次 answer 构建误报 PID 57544，数秒后自查为零）。
+
+## 任务 3 · 完成（2026-07-29）
+
+- 沙箱 `sandbox/siw_feed_l1_sandbox.aedt`：API 先行（删 2 兄弟 design、COM `ReportSetup.
+  DeleteReports` 删 4 报告、写 5 个扰动值、保存）→ 文本剥离殿后（Soln 6+12、
+  ReportManager、Documentation、ProjectPreview ×2）→ 重开校验（单 design、零报告、
+  变量回读=扰动表）→ `manifest.json` 锁定沙箱（id=e18f2b55741250df…，经产品 loader 验证）。
+- **新发现一处隐蔽泄露**（任务书未列）：AEDT 2023 重存会给每个 VariableProp 附加
+  `oa()/sa()/ta()` 调优元数据，白名单变量的 (Min+Max)/2 == 标称值（如 fl: 0.15/0.45 → 0.3）。
+  构建时把 5 个白名单行重写为纯 4 参数形式；verify 增加「白名单行不得含标称值字符串」检查。
+- verify_case.py 八项检查全过：`LEAK-FREE` EXIT=0 ✓
+- 反向验证：备份后注入 ① fl 标称值 0.3mm ② Report2D 块 → verify **EXIT=1，4 条发现**
+  （行号、变量值、标称值、泄露行全中）→ 恢复备份 → **LEAK-FREE EXIT=0** ✓
+- 排障记录（详见 FINDINGS.md）：① .aedt 先全剥离再开会让 pyaedt 初始化拿不到
+  active design（`'NoneType'.GetName`）——必须 API 先行；② pyaedt 1.3 `hfss.post`
+  层在该工程上枚举 plots 即崩（variables.GetObjType），删报告须走 COM 直调；
+  ③ pyaedt 崩溃残留 `.lock`/`.aedtresults`，重开报 Project is locked——构建脚本自带清理。
+- 插曲：本人注入脚本被 bash `$var` 展开坑了一次（双引号内 `$end`/`$begin` 未转义），
+  注入位置跑到第 1 行——但 verify 报告的行号恰好证明它定位准确；备份恢复即净。

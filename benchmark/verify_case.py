@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -88,26 +87,29 @@ def audit(case: Case) -> list[str]:
     except ValueError as exc:
         findings.append(f"cannot parse sandbox variables: {exc}")
 
-    # 5. exact nominal VariableProp lines must be gone
+    # 5. the whitelisted variable's own VariableProp line must not carry the
+    #    nominal value — neither as the value nor inside oa/sa/ta metadata
     src_vars = read_design_variables(src, case.source.design_name)
     for var in case.variables:
         nominal_str = f"{src_vars[var.name][0]}{var.unit}"
-        pattern = re.compile(
-            r"VariableProp\('" + re.escape(var.name) + r"', '[^']*', '[^']*', '"
-            + re.escape(nominal_str) + r"'\)"
-        )
-        if pattern.search(text):
-            findings.append(f"nominal VariableProp line for {var.name} ({nominal_str}) present")
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if f"VariableProp('{var.name}'," in line and nominal_str in line:
+                findings.append(
+                    f"line {lineno}: nominal value {nominal_str} leaks on {var.name} "
+                    "VariableProp line (value slot or oa/sa/ta metadata)"
+                )
 
     # 6. answer-book path references
     for token in (str(case.answer_dir), "/answer/", "\\answer\\"):
         if token in text:
             findings.append(f"answer-book reference in sandbox text: {token!r}")
 
-    # 7. results dirs inside sandbox tree
+    # 7. results / pyaedt sidecar dirs inside sandbox tree
     if case.sandbox_dir.is_dir():
         for results in case.sandbox_dir.glob("*.aedtresults"):
             findings.append(f"results directory inside sandbox: {results.name}")
+        for sidecar in case.sandbox_dir.glob("*.pyaedt"):
+            findings.append(f"pyaedt sidecar directory inside sandbox: {sidecar.name}")
 
     # 8. manifest locks onto the sandbox with exactly the case whitelist
     if not case.manifest_path.is_file():
