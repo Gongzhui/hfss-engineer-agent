@@ -14,8 +14,9 @@
 
 ## B · 顺手活（按任务书一律不做，列此待裁决）
 
-1. 旧运行产物 `.tmp_pytest/`、`examples/demo_output/`、`examples/golden_patch.aedtresults/`
-   （前目标遗留，可再生）——清理不属本目标，未动。
+1. ~~旧运行产物 `.tmp_pytest/`、`examples/demo_output/`、`examples/golden_patch.aedtresults/`~~
+   **已处置（2026-08-11）**：三个目录及 benchmark 游离时间戳 run 目录已删除（可再生），
+   并补入 `.gitignore`；正式验收证据 `run_probe_main`/`run_probe_failcheck` 早已入库未动。
 2. 产品无「删除 design / 删除报告 / 剥除存解记录」原语（benchmark authoring 需要，
    运行期不需要）——按规矩未改产品，记录于 `benchmark/FINDINGS.md` F4。
 3. pyaedt 1.3 两处缺陷：post 层对含历史报告的工程初始化即崩；异常退出残留
