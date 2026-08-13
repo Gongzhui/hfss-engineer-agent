@@ -1,10 +1,22 @@
 # HFSS MCP
 
-Constrained MCP bridge for AI-assisted HFSS antenna tuning on **Ansys Electronics Desktop**.
+Constrained MCP bridge for AI-assisted HFSS antenna tuning on **Ansys Electronics Desktop**. Arbitrary script execution is **not** exposed.
 
-v0 delivers a **real closed loop** on AEDT 2023 R2: workspace copy → allowlisted parameter apply with read-back → exclusive worker Desktop → solve → Touchstone S11 metrics → durable SQLite jobs → checkpoint / recovery. Arbitrary script execution is **not** exposed.
+**Live design:** `docs/ADR-002-ENGINEER-SESSION-MODEL.md` — attach the user's already-open AEDT; Host Agent thinks like an engineer (hypothesize → 1–2 variables → solve once → inspect the plot the hypothesis needs); curves as CSV, fields as images; no autosave. **Not implemented in code yet.**
 
-Architecture: `docs/ADR-001-AUTONOMY-EXECUTION-MODEL.md`, `docs/ARCHITECTURE_V0.md`, `docs/STATUS.md`.
+**Shipped code (v0, 2026-07-29):** workspace copy → allowlisted apply → exclusive worker Desktop → bundled `trial_*` (solve + Touchstone S11 scalars) → SQLite jobs → checkpoint. See `docs/ARCHITECTURE_V0.md` and `docs/STATUS.md`. V0 decision record (superseded): `docs/ADR-001-AUTONOMY-EXECUTION-MODEL.md`.
+
+## Documents
+
+| File | Role |
+|---|---|
+| `docs/ADR-002-ENGINEER-SESSION-MODEL.md` | Current constitution |
+| `docs/ADR-001-AUTONOMY-EXECUTION-MODEL.md` | Superseded V0 decision (kept) |
+| `docs/ARCHITECTURE_V0.md` / `docs/STATUS.md` | What the running package actually does |
+| `docs/COMMUNITY_HFSS_MCP_REVIEW.md` | 2026-07-20 review of public HFSS MCPs |
+| `docs/MIGRATION_FROM_HFSS_CLI.md` | Relation to frozen `hfss-cli` |
+| `SOURCE_SNAPSHOTS.md` | Pinned third-party clones |
+| `docs/archive/LLM-TUNING-RESEARCH.md` | Archived 2023–25 LLM-as-optimizer survey; does not govern V1 |
 
 ## Production start (this machine)
 
@@ -106,11 +118,15 @@ Candidates must be **full parameter vectors**. Idempotency keys store a **payloa
 
 ## Safety model
 
+v0 (current code):
+
 - User original projects are **copied** into a run workspace; originals are never written.
 - Each real trial runs in a **worker process** with its own Desktop (`new_desktop=True`), solving the workspace copy.
 - Mutating the *live* GUI project is opt-in only (`HFSS_MCP_ATTACH_LIVE=1`); it rewrites the original `.aedt` and is meant for interactive sessions, not automation.
 - Only worker-owned `ansysedt` PIDs are killed on cancel.
 - Policy rejections happen in code before mutation.
+
+ADR-002 target: live attach is the **default** interactive path; no autosave; Save / Save As is the agent's decision (prefer Save As, version +1, after clear progress). Unattended worker copies remain a separate mode.
 
 ## Development / tests
 
@@ -122,14 +138,16 @@ uv run ruff check .
 uv run mypy
 ```
 
+## Agent Skill
+
+Procedural tuning knowledge lives in `skills/tune-hfss-antenna/` (not inside the Python package). On this machine it is linked from `~/.agents/skills/tune-hfss-antenna` so Cursor and other hosts can discover it without a `.cursor/` folder in the repo.
+
+The current Skill is **V0-shaped** (trial loop, `siw_feed_l1`). Rewrite it to the ADR-002 engineer loop after the MCP tools change.
+
 ## Package layout
 
 ```
-src/hfss_mcp/
-  server.py app.py config.py
-  manifest.py policy.py metrics_spec.py metrics.py
-  workspace.py checkpoint.py real_project.py
-  adapter/   # Protocol, Fake, PyAEDT
-  jobs/      # SQLite store, supervisor, worker, trial_exec
-  run_optimizer.py
+src/hfss_mcp/          # MCP server
+skills/tune-hfss-antenna/   # Host Agent skill + plot script
+benchmark/             # leak-free cases and eval runner
 ```

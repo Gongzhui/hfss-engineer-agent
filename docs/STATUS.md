@@ -1,6 +1,13 @@
 # Implementation status (v0 real AEDT)
 
-Last updated: 2026-07-29
+> **Historical snapshot of the code shipped 2026-07-29.** The checklist below is what the current Python package actually does.
+>
+> Live design: `ADR-002-ENGINEER-SESSION-MODEL.md` (not implemented in code yet).
+> V0 decision record (superseded): `ADR-001-AUTONOMY-EXECUTION-MODEL.md`.
+>
+> Known V0/V1 gaps vs ADR-002: bundled `trial_*` (apply+solve+S11); no report create/export tools; live GUI attach is opt-in (`HFSS_MCP_ATTACH_LIVE=1`) and saves the original; no agent-controlled Save / Save As; `run_*` seeded random is registered (Skill already forbids it).
+
+Last updated: 2026-07-29 (banner added 2026-08-13; body not rewritten)
 
 ## Done (code-enforced + verified)
 

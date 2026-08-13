@@ -23,6 +23,8 @@ Port selectively from `hfss-cli`:
 - Result extraction, reproducibility fixtures, protocol guardrails, and applicable unit tests.
 - Evidence-driven optimization concepts from the companion Skill: durable artifacts, parameter groups, staged hypotheses, and verification gates.
 
+Current product constitution is `ADR-002-ENGINEER-SESSION-MODEL.md` (engineer session, live attach). This migration note is otherwise unchanged: `hfss-cli` stays frozen; port selectively; do not expose `run-script`.
+
 Rewrite for the MCP architecture:
 
 - Replace the large CLI parser and command dispatcher with small, typed MCP tools and an internal AEDT adapter.

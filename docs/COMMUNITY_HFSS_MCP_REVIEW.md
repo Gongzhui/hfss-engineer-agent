@@ -6,7 +6,7 @@ Reviewed on 2026-07-20 from full Git clones pinned in `SOURCE_SNAPSHOTS.md`.
 
 Several projects meet the basic Blender-MCP-level bar: they implement a real MCP transport, keep an AEDT/HFSS connection alive, and expose structured tools that can drive the host. None meets the full EDA-Agent-level bar required by this project: a constrained tool surface, durable asynchronous jobs, checkpoint and recovery semantics, auditable runs, tool maturity metadata, and layered automated verification.
 
-The official `ansys/pyaedt-mcp` has the strongest repository engineering and should remain the primary implementation reference. It is not a drop-in foundation for this product because arbitrary Python and script execution are first-class tools, and its non-blocking solve options do not provide a durable `start/status/result/cancel` job protocol. A second review against the project's accepted autonomy philosophy reached the stronger decision not to deploy, fork, or wrap it as the product runtime; see `ADR-001-AUTONOMY-EXECUTION-MODEL.md`. The current `hfss-mcp` rewrite remains justified.
+The official `ansys/pyaedt-mcp` has the strongest repository engineering and should remain the primary implementation reference. It is not a drop-in foundation for this product because arbitrary Python and script execution are first-class tools, and its non-blocking solve options do not provide a durable `start/status/result/cancel` job protocol. A second review reached the stronger decision not to deploy, fork, or wrap it as the product runtime; that clause remains in force under `ADR-002-ENGINEER-SESSION-MODEL.md` (original write-up: `ADR-001-AUTONOMY-EXECUTION-MODEL.md`). The current `hfss-mcp` rewrite remains justified.
 
 ## Evaluation bar
 

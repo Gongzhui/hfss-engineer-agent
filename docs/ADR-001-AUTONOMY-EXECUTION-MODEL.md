@@ -1,8 +1,31 @@
 # ADR-001: Autonomy execution model
 
-- Status: Accepted
+- Status: **Superseded**
 - Date: 2026-07-20
+- Superseded on: 2026-08-13
+- Superseded by: `ADR-002-ENGINEER-SESSION-MODEL.md`
 - Scope: HFSS antenna tuning and later autonomous design workflows
+
+This file is kept as the V0 decision record. Do not treat it as the live product constitution.
+
+## What remains in force (carried into ADR-002)
+
+- No arbitrary `exec` / `run_python_code` / unrestricted host-process execution on the default MCP surface.
+- Typed, narrow tools; a new capability needs a schema, authorization, postcondition, and audit before it ships.
+- Do not deploy, fork, or wrap `ansys/pyaedt-mcp` as the product runtime (see the re-evaluation below).
+- Allowlisted parameter mutation with unit/range checks and project/design identity.
+- Expensive solves are asynchronous jobs with durable `start/status/result/cancel`.
+- PyAEDT is the supported AEDT execution library; the official repo remains an engineering reference.
+
+## What is superseded
+
+- A numerical optimizer owns the inner candidate-selection loop.
+- Extract only pre-approved scalar metrics; no agent-created reports.
+- Default path never writes the user's original `.aedt`; live GUI attach is a dangerous opt-in that saves the original.
+- The tune loop is bundled as apply-full-vector + solve + S11 scalars (`trial_*`).
+- GUI automation is only a declared fallback, not the primary session model.
+
+The original accepted text follows unchanged.
 
 ## Decision
 
