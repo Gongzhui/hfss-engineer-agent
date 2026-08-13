@@ -22,12 +22,7 @@ def test_env_override_fake(monkeypatch) -> None:
 
 
 def test_health_fake_not_real(tmp_path: Path) -> None:
-    ctx = AppContext(
-        data_dir=tmp_path / "d",
-        use_fake=True,
-        inline_trials=True,
-        start_supervisor=False,
-    )
+    ctx = AppContext(data_dir=tmp_path / "d", use_fake=True)
     try:
         h = ctx.health()
         assert h["adapter"] == "fake"

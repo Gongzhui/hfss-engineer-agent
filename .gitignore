@@ -18,6 +18,7 @@ references/
 
 .tmp_e2e_gui/
 batch.log
+scratch/
 
 
 # Regenerable run artifacts (BLOCKED B1, 2026-08-11)

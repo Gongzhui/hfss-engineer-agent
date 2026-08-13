@@ -1,11 +1,9 @@
 # hfss-mcp v0 architecture (real AEDT)
 
-> **Historical snapshot of the code shipped 2026-07-29.** This document describes the running MCP, not the live product constitution.
+> **Historical snapshot of the V0 code shipped 2026-07-29.** Not the running MCP.
 >
-> Live design: `ADR-002-ENGINEER-SESSION-MODEL.md`.
+> Running package: `docs/STATUS.md`. Live constitution: `ADR-002-ENGINEER-SESSION-MODEL.md`.
 > V0 decision record (superseded): `ADR-001-AUTONOMY-EXECUTION-MODEL.md`.
->
-> Replace this file with a V1 architecture note only after the code changes (split trial, report tools, live attach as default, Save / Save As).
 
 Aligns with `ADR-001-AUTONOMY-EXECUTION-MODEL.md` (the decision V0 implemented).
 

@@ -21,7 +21,6 @@ Prints LEAK-FREE and exits 0 when all checks pass.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -116,22 +115,19 @@ def audit(case: Case) -> list[str]:
         findings.append(f"manifest missing: {case.manifest_path}")
     else:
         try:
-            from hfss_mcp.manifest import load_manifest
+            from hfss_mcp.allowlist import load_allowlist_file
 
-            manifest = load_manifest(json.loads(case.manifest_path.read_text(encoding="utf-8")))
-            if Path(manifest.project_path) != sandbox.resolve():
+            loaded = load_allowlist_file(case.manifest_path)
+            if loaded.project_path and Path(loaded.project_path) != sandbox.resolve():
                 findings.append(
-                    f"manifest project_path {manifest.project_path} != sandbox {sandbox.resolve()}"
+                    f"allowlist project_path {loaded.project_path} != sandbox {sandbox.resolve()}"
                 )
-            if manifest.design_name != case.source.design_name:
-                findings.append(f"manifest design {manifest.design_name!r} != case design")
-            got_names = sorted(p.name for p in manifest.parameters)
+            if loaded.design_name != case.source.design_name:
+                findings.append(f"allowlist design {loaded.design_name!r} != case design")
+            got_names = sorted(loaded.names())
             want_names = sorted(v.name for v in case.variables)
             if got_names != want_names:
-                findings.append(f"manifest whitelist {got_names} != case {want_names}")
-            setups = {(s.setup, s.sweep) for s in manifest.allowed_setups}
-            if (case.source.setup, case.source.sweep) not in setups:
-                findings.append("manifest allowed_setups miss the case setup/sweep")
+                findings.append(f"allowlist whitelist {got_names} != case {want_names}")
         except Exception as exc:  # noqa: BLE001 — audit must report, not crash
             findings.append(f"manifest rejected by product loader: {exc}")
     return findings

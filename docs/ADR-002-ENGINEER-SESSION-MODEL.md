@@ -4,7 +4,7 @@
 - Date: 2026-08-13
 - Supersedes: `ADR-001-AUTONOMY-EXECUTION-MODEL.md` (partial; remaining clauses listed there)
 - Scope: The default Host-Agent path for AI-assisted HFSS antenna tuning
-- Code status: **Target design.** Shipped MCP (2026-07-29) still implements ADR-001 / `ARCHITECTURE_V0.md`. Do not read V0 docs as this decision.
+- Code status: **Implemented (interactive path, 2026-08-13).** Live COM attach, split Analyze vs reports, `view_capture` / `variable_map`, explicit Save / Save As. V0 optimizer tools are not registered. See `docs/STATUS.md`.
 
 ## Context
 
@@ -87,7 +87,8 @@ The Skill must not tell the agent to call `run_start` / seeded random search. Se
 
 ## Consequences
 
-- Next code milestone (V1) must split `trial_*`, add report create/export (CSV vs image), make live attach the default, and add explicit Save / Save As. Until then, V0 tools and the current Skill remain the runnable surface.
-- README, `ARCHITECTURE_V0.md`, and `STATUS.md` describe **what shipped**, not this decision.
+- V1 MCP surface is the 15 engineer-session tools in `STATUS.md`. `trial_*` / `run_*` / setup CRUD are not registered.
+- `modal_s` and `terminal_z` export via `ExportNetworkData` (CSV). `farfield_2d` uses ReportSetup on an infinite sphere. `field_face` plots Mag_E (fallback Mag_Jsurf) on the named face/object at the given frequency and exports an image. Missing solution data is a typed error, not a silent stub.
+- V0 optimizer modules (`jobs/`, checkpoint, `run_optimizer`, PyAEDT worker adapter) are removed from the package.
 - Benchmark `siw_feed_l1` stays the demo case; the demo is a Host Agent session, not a scripted optimizer probe.
 - Adding a report type is a Skill catalog + allowlist change, not a new MCP tool per quantity.

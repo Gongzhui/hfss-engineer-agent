@@ -104,26 +104,13 @@ class AdapterError(HfssMcpError):
 
 
 class JobError(HfssMcpError):
-    """Durable job store or runner failure."""
+    """Analyze job lookup or state failure."""
 
     def __init__(
         self,
         message: str,
         *,
         code: str = "job_error",
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message, code=code, details=details)
-
-
-class CheckpointError(HfssMcpError):
-    """Checkpoint creation or integrity failure."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        code: str = "checkpoint_error",
         details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message, code=code, details=details)

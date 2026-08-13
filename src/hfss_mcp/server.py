@@ -7,36 +7,25 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from hfss_mcp import __version__
 from hfss_mcp.app import AppContext, error_envelope
 from hfss_mcp.environment import discover_aedt_installations_legacy
 
 PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "health",
-    "environment_status",
     "session_list",
-    "manifest_validate",
-    "design_snapshot",
-    "setup_schema",
-    "setup_list",
-    "setup_get",
-    "setup_create",
-    "setup_update",
-    "setup_delete",
-    "setup_sweep_create",
-    "setup_sweep_update",
-    "setup_sweep_delete",
-    "trial_start",
-    "trial_status",
-    "trial_result",
-    "trial_cancel",
-    "checkpoint_list",
-    "checkpoint_restore",
-    "run_start",
-    "run_status",
-    "run_result",
-    "run_cancel",
-    "run_resume",
+    "allowlist_load",
+    "snapshot",
+    "variables_set",
+    "analyze_start",
+    "analyze_status",
+    "analyze_cancel",
+    "report_types",
+    "report_list",
+    "report_create",
+    "report_export",
+    "view_capture",
+    "variable_map",
+    "project_save",
 )
 
 FORBIDDEN_TOOL_NAMES: frozenset[str] = frozenset(
@@ -51,6 +40,8 @@ FORBIDDEN_TOOL_NAMES: frozenset[str] = frozenset(
         "generic_invoke",
         "run_script",
         "eval",
+        "trial_start",
+        "run_start",
     }
 )
 
@@ -61,8 +52,7 @@ _app: AppContext | None = None
 def get_app() -> AppContext:
     global _app
     if _app is None:
-        # Production default: pyaedt when AEDT present (see config.resolve_adapter_name)
-        _app = AppContext(start_supervisor=True)
+        _app = AppContext()
     return _app
 
 
@@ -77,32 +67,16 @@ def discover_aedt_installations(program_files: Path | None = None) -> list[dict[
 
 @mcp.tool()
 def health() -> dict[str, Any]:
-    """Bridge health: adapter mode, AEDT readiness, connection model (no AEDT launch)."""
+    """Bridge health and COM-visible AEDT sessions. Does not launch AEDT."""
     try:
-        h = get_app().health()
-        h["tools"] = list(PUBLIC_TOOL_NAMES)
-        h["package_version"] = __version__
-        return h
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def environment_status() -> dict[str, Any]:
-    """Discover AEDT installs and GUI sessions without launching a new Desktop."""
-    try:
-        return get_app().environment_status()
+        return get_app().health()
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
 def session_list() -> dict[str, Any]:
-    """List running AEDT sessions and open projects/designs (COM/gRPC discovery).
-
-    Default session_mode=auto ensures a graphical COM Desktop with the project
-    open (or attaches when already COM-reachable), then runs live trials there.
-    """
+    """List COM-visible Electronics Desktop sessions and open projects."""
     try:
         return get_app().session_list()
     except Exception as exc:  # noqa: BLE001
@@ -110,331 +84,136 @@ def session_list() -> dict[str, Any]:
 
 
 @mcp.tool()
-def manifest_validate(manifest: dict[str, Any]) -> dict[str, Any]:
-    """Validate tune-only manifest (structured metrics), compute ID, persist for workers."""
-    try:
-        return get_app().register_manifest(manifest)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def design_snapshot(manifest_id: str) -> dict[str, Any]:
-    """Snapshot via workspace copy; checks project_name and design_name identity."""
-    try:
-        return get_app().design_snapshot(manifest_id)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def setup_schema() -> dict[str, Any]:
-    """Document setup types, sweep types, and property aliases for agents."""
-    try:
-        return get_app().setup_schema()
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def setup_list(
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
+def allowlist_load(
+    path: str | None = None,
+    allowlist: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """List solution setups and their frequency sweeps (props included)."""
+    """Load writable variable bounds. Accepts slim JSON, old manifest 1.1, or case.json."""
     try:
-        return get_app().setup_list(
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().allowlist_load(path=path, allowlist=allowlist)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_get(
-    name: str,
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Get one setup with full property bag and sweeps."""
+def snapshot() -> dict[str, Any]:
+    """JSON snapshot of the attached live design: variables, setups, identity. No screenshot."""
     try:
-        return get_app().setup_get(
-            name=name,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().snapshot()
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_create(
-    config: dict[str, Any],
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Create a solution setup.
-
-    ``config`` fields:
-    - name (required), setup_type (HFSSDriven/HFSSDrivenAuto/HFSSEigen/…)
-    - convenience: frequency, max_passes, max_delta_s, minimum_passes, basis_order, …
-    - properties: dict of any native AEDT setup keys
-    - sweep / sweeps: optional frequency sweep config(s)
-    Target: manifest_id **or** project_path + design_name.
-    """
+def variables_set(parameters: list[dict[str, Any]]) -> dict[str, Any]:
+    """Set one or more allowlisted variables. Partial update. Does not solve or save."""
     try:
-        return get_app().setup_create(
-            config=config,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().variables_set(parameters)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_update(
-    config: dict[str, Any],
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Update an existing setup (any property via aliases or properties dict).
-
-    ``config`` requires ``name``; optional ``new_name`` to rename; same property
-    fields as setup_create.
-    """
+def analyze_start(setup: str | None = None) -> dict[str, Any]:
+    """Start Analyze on the live design (async job). Does not extract metrics."""
     try:
-        return get_app().setup_update(
-            config=config,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().analyze_start(setup=setup)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_delete(
-    name: str,
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Delete a solution setup by name."""
+def analyze_status(job_id: str) -> dict[str, Any]:
     try:
-        return get_app().setup_delete(
-            name=name,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().analyze_status(job_id)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_sweep_create(
-    setup_name: str,
-    sweep: dict[str, Any],
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Create a frequency sweep on a setup.
-
-    ``sweep`` fields: name, unit, start, stop, points|step, range_type
-    (LinearCount/LinearStep/SinglePoint/LogScale), sweep_type
-    (Discrete/Interpolating/Fast), save_fields, save_rad_fields, properties.
-    """
+def analyze_cancel(job_id: str) -> dict[str, Any]:
+    """Best-effort cancel. Will not kill the user's AEDT process."""
     try:
-        return get_app().setup_sweep_create(
-            setup_name=setup_name,
-            sweep=sweep,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().analyze_cancel(job_id)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_sweep_update(
-    setup_name: str,
-    sweep_name: str,
-    properties: dict[str, Any],
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Update sweep properties (aliases start/stop/points/step/type or native keys)."""
+def report_types() -> dict[str, Any]:
+    """Finite HFSS report-type catalog (details live in the Skill)."""
     try:
-        return get_app().setup_sweep_update(
-            setup_name=setup_name,
-            sweep_name=sweep_name,
-            properties=properties,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().report_types()
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def setup_sweep_delete(
-    setup_name: str,
-    sweep_name: str,
-    manifest_id: str | None = None,
-    project_path: str | None = None,
-    design_name: str | None = None,
-) -> dict[str, Any]:
-    """Delete a frequency sweep from a setup."""
+def report_list() -> dict[str, Any]:
     try:
-        return get_app().setup_sweep_delete(
-            setup_name=setup_name,
-            sweep_name=sweep_name,
-            manifest_id=manifest_id,
-            project_path=project_path,
-            design_name=design_name,
-        )
+        return get_app().report_list()
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def trial_start(
-    manifest_id: str,
-    idempotency_key: str,
-    setup: str,
-    parameters: list[dict[str, Any]],
-    sweep: str | None = None,
-    run_id: str | None = None,
-    trial_id: str | None = None,
-    expected_revision: str | None = None,
-) -> dict[str, Any]:
-    """Enqueue durable trial; returns job_id quickly (worker process executes)."""
-    try:
-        return get_app().trial_start(
-            manifest_id=manifest_id,
-            run_id=run_id,
-            trial_id=trial_id,
-            idempotency_key=idempotency_key,
-            setup=setup,
-            sweep=sweep,
-            parameters={"values": parameters},
-            expected_revision=expected_revision,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def trial_status(job_id: str) -> dict[str, Any]:
-    try:
-        return get_app().trial_status(job_id)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def trial_result(job_id: str) -> dict[str, Any]:
-    try:
-        return get_app().trial_result(job_id)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def trial_cancel(job_id: str) -> dict[str, Any]:
-    """Request cancel; supervisor terminates only owned worker/AEDT processes."""
-    try:
-        return get_app().trial_cancel(job_id)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def checkpoint_list(
-    run_id: str | None = None,
-    manifest_id: str | None = None,
-) -> dict[str, Any]:
-    try:
-        return get_app().checkpoint_list(run_id=run_id, manifest_id=manifest_id)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def checkpoint_restore(checkpoint_id: str, run_id: str) -> dict[str, Any]:
-    """Restore working copy from checkpoint (restricted to run workspace)."""
-    try:
-        return get_app().checkpoint_restore(checkpoint_id=checkpoint_id, run_id=run_id)
-    except Exception as exc:  # noqa: BLE001
-        return error_envelope(exc)
-
-
-@mcp.tool()
-def run_start(
-    manifest_id: str,
-    idempotency_key: str,
-    strategy: str = "seeded_random",
-    seed: int = 0,
+def report_create(
+    report_type: str,
+    name: str | None = None,
     setup: str | None = None,
     sweep: str | None = None,
+    face: str | None = None,
+    frequency: str | None = None,
 ) -> dict[str, Any]:
-    """Start unattended multi-trial optimization run (seeded random v0)."""
+    """Create a report handle. Export separately (CSV for curves, image for fields)."""
     try:
-        return get_app().run_start(
-            manifest_id=manifest_id,
-            idempotency_key=idempotency_key,
-            strategy=strategy,
-            seed=seed,
+        return get_app().report_create(
+            report_type,
+            name=name,
             setup=setup,
             sweep=sweep,
+            face=face,
+            frequency=frequency,
         )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def run_status(run_id: str) -> dict[str, Any]:
+def report_export(report_id: str) -> dict[str, Any]:
+    """Export a created report. Curves → CSV path; field_face needs face+frequency."""
     try:
-        return get_app().run_status(run_id)
+        return get_app().report_export(report_id)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def run_result(run_id: str) -> dict[str, Any]:
+def view_capture(
+    orientation: str = "isometric",
+    isolate: list[str] | None = None,
+) -> dict[str, Any]:
+    """Screenshot the live 3D modeler view. Optional isolate object names."""
     try:
-        return get_app().run_result(run_id)
+        return get_app().view_capture(orientation=orientation, isolate=isolate)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def run_cancel(run_id: str) -> dict[str, Any]:
+def variable_map(names: list[str] | None = None) -> dict[str, Any]:
+    """Find-references: which objects/expressions use which variables."""
     try:
-        return get_app().run_cancel(run_id)
+        return get_app().variable_map(names=names)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
 
 @mcp.tool()
-def run_resume(run_id: str) -> dict[str, Any]:
-    """Resume an interrupted optimization run without redoing completed trials."""
+def project_save(mode: str = "save_as", path: str | None = None) -> dict[str, Any]:
+    """Save or Save As. Never automatic. Prefer save_as to a new versioned file."""
     try:
-        return get_app().run_resume(run_id)
+        return get_app().project_save(mode=mode, path=path)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
@@ -449,17 +228,9 @@ def list_registered_tool_names() -> list[str]:
 
 
 def _prewarm_imports() -> None:
-    """Import lock-prone heavy modules on the main thread before serving.
-
-    Tool handlers run in worker threads; a first-time lazy import there can
-    deadlock on importlib module locks — observed: a stdio subprocess server
-    hanging in ``numpy._core.multiarray`` import on the first ``health`` call
-    while the main thread held another module lock. Import everything heavy
-    up front so worker threads only ever hit ``sys.modules``.
-    """
     import importlib
 
-    for name in ("numpy", "win32com.client", "pythoncom", "ansys.aedt.core"):
+    for name in ("numpy", "win32com.client", "pythoncom"):
         try:
             importlib.import_module(name)
         except Exception:
