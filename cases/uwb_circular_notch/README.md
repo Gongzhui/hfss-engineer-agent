@@ -23,7 +23,7 @@ uv run python cases/uwb_circular_notch/setup_solve.py
 ## Open
 
 - Example (do not detune): `nominal/uwb_circular_notch.aedt`, design `CircularMonopole`
-- Host Agent session: `sandbox/uwb_circular_notch.aedt`. Exams: `eval/exams/uwb_circular_notch/` or `eval/exams/uwb_circular_notch_wlan58/` (same sandbox, different GOAL).
+- Host Agent session: `sandbox/uwb_circular_notch.aedt`. Exam: `eval/exams/uwb_circular_notch/`.
 
 Rebuild (separate non-graphical AEDT; will not close a GUI session):
 

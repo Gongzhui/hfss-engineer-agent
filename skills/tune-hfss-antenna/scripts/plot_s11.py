@@ -159,28 +159,10 @@ def _polyline(
     return " ".join(pts)
 
 
-def strongest_s11_peak(
-    freqs: list[float], dbs: list[float]
-) -> tuple[float, float] | None:
-    """Interior local maximum of S11 (bump toward 0 dB)."""
-    peaks: list[tuple[float, float]] = []
-    for i in range(1, len(dbs) - 1):
-        if dbs[i] >= dbs[i - 1] and dbs[i] >= dbs[i + 1] and (
-            dbs[i] > dbs[i - 1] or dbs[i] > dbs[i + 1]
-        ):
-            peaks.append((freqs[i], dbs[i]))
-    if not peaks:
-        return None
-    return max(peaks, key=lambda item: item[1])
-
-
 def write_svg(
     series: list[tuple[str, list[float], list[float], str]],
     out: Path,
     mark_ghz: float | None,
-    *,
-    mark_peaks: bool = False,
-    thr_db: float = -10.0,
 ) -> None:
     all_f = [f for _, fs, _, _ in series for f in fs]
     all_db = [v for _, _, vs, _ in series for v in vs]
@@ -220,15 +202,6 @@ def write_svg(
             f'<text x="{x:.1f}" y="{y0 - 4:.1f}" text-anchor="middle" font-size="10" '
             f'font-family="sans-serif" fill="#dc2626">{mark_ghz:g} GHz</text>'
         )
-    if dbmin < thr_db < dbmax:
-        y_thr = y0 + (dbmax - thr_db) / max(dbmax - dbmin, 1e-9) * h
-        parts.append(
-            f'<line x1="{x0}" y1="{y_thr:.1f}" x2="{x0 + w}" y2="{y_thr:.1f}" '
-            f'stroke="#64748b" stroke-dasharray="5 4"/>'
-        )
-    peak_xy: list[tuple[str, float, float]] = []
-    span_f = max(fmax - fmin, 1e-9)
-    span_db = max(dbmax - dbmin, 1e-9)
     for i, (label, freqs, dbs, _) in enumerate(series):
         color = colors[i % len(colors)]
         pts = _polyline(freqs, dbs, fmin, fmax, dbmin, dbmax, x0, y0, w, h)
@@ -238,18 +211,6 @@ def write_svg(
         parts.append(
             f'<text x="{x0 + 8:.1f}" y="{y0 + 16 + i * 14:.1f}" font-size="11" '
             f'font-family="sans-serif" fill="{color}">{label}</text>'
-        )
-        if mark_peaks:
-            peak = strongest_s11_peak(freqs, dbs)
-            if peak is not None:
-                pf, pdb = peak
-                px = x0 + (pf - fmin) / span_f * w
-                py = y0 + (dbmax - pdb) / span_db * h
-                peak_xy.append((color, px, py))
-    for color, px, py in peak_xy:
-        parts.append(
-            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3.2" fill="{color}" '
-            f'stroke="#fff" stroke-width="0.8"/>'
         )
     parts.append("</svg>")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -261,11 +222,6 @@ def main() -> None:
     parser.add_argument("curve", type=Path, help="primary freq_ghz,s11_db CSV (or leftover .s1p)")
     parser.add_argument("--overlay", type=Path, action="append", default=[], help="extra traces")
     parser.add_argument("--mark-ghz", type=float, default=None, help="vertical marker")
-    parser.add_argument(
-        "--mark-peaks",
-        action="store_true",
-        help="mark the strongest interior S11 bump on each trace",
-    )
     parser.add_argument("--out", type=Path, default=None, help="output .svg")
     args = parser.parse_args()
     series: list[tuple[str, list[float], list[float], str]] = []
@@ -275,13 +231,8 @@ def main() -> None:
             series.append((label, freqs, dbs, str(path)))
             min_i = min(range(len(dbs)), key=lambda i: dbs[i])
             print(f"{label}: min {dbs[min_i]:.3f} dB @ {freqs[min_i]:.3f} GHz")
-            peak = strongest_s11_peak(freqs, dbs)
-            if peak is None:
-                print(f"{label}: no interior peak")
-            else:
-                print(f"{label}: peak {peak[1]:.3f} dB @ {peak[0]:.3f} GHz")
     out = args.out or args.curve.with_suffix(".svg")
-    write_svg(series, out, args.mark_ghz, mark_peaks=args.mark_peaks)
+    write_svg(series, out, args.mark_ghz)
     print(f"wrote {out}")
 
 

@@ -28,5 +28,5 @@ cases/<id>/
 
 | id | Status | Open |
 |---|---|---|
-| `uwb_circular_notch` | Ported nominal solved; sandbox detuned (9 params, `lw` included) | Host Agent exams: `eval/exams/uwb_circular_notch/` (any mid-band notch) or `eval/exams/uwb_circular_notch_wlan58/` (5.8 GHz WLAN notch + width + relative BW). Keep `nominal/` + `answer/` closed |
+| `uwb_circular_notch` | Ported nominal solved; sandbox detuned (9 params, `lw` included) | Host Agent exam: `eval/exams/uwb_circular_notch/` (impedance BW + a clear mid-band notch). Keep `nominal/` + `answer/` closed |
 | `siw_feed_l1` | Still under `benchmark/cases/siw_feed_l1/` (vendor example) | sandbox there |

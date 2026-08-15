@@ -53,7 +53,7 @@ uv run pytest -m real_aedt -v
 
 That attaches the already-open Desktop over COM, snapshots, sets `gap`, captures a view, and asserts AEDT is still alive. It does not Save the golden file.
 
-Antenna cases live in `cases/` (see `cases/README.md`). Current first-party geometry: `cases/uwb_circular_notch/` (ported, solved nominal; sandbox is the exam). Host Agent exams: open Cursor on `eval/exams/<id>/` with AEDT on the sandbox (`uwb_circular_notch` for a free mid-band notch, `uwb_circular_notch_wlan58` for a 5.8 GHz WLAN notch). The older Skill demo `siw_feed_l1` remains under `benchmark/cases/`.
+Antenna cases live in `cases/` (see `cases/README.md`). Current first-party geometry: `cases/uwb_circular_notch/` (ported, solved nominal; sandbox is the exam). Host Agent exam: open Cursor on `eval/exams/uwb_circular_notch/` with AEDT on the sandbox. The older Skill demo `siw_feed_l1` remains under `benchmark/cases/`.
 
 Fake mode (tests/demo only):
 

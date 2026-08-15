@@ -16,11 +16,10 @@ V0 architecture snapshot (not the running MCP): `ARCHITECTURE_V0.md`.
 - [x] Reports: `report_list` = Results + Field Overlays; `report_create` adds a visible HFSS plot (optional `families` / `parametric` so a parametric family appears as traces); `field_face` quantity is a finite set (`Mag_E` default, `Mag_Jsurf`). `report_export` = `ExportToFile` / `ExportFieldPlot`. Family CSV is `freq_ghz,variation,s11_db`. No Touchstone bypass, no hidden `hfss_mcp_*` plots.
 - [x] Optimetrics Parametric: `optimetrics_list` / `parametric_create` / `parametric_start` / `parametric_export_table`. Real `OptiParametric` node; `parametric_start` is **SolveSetup**, not `oDesign.Analyze`. Same name **edits** the node. Cap **256** points. `analyze_status` returns Message Manager lines.
 - [x] V0 optimizer package removed (`jobs/`, checkpoint, workspace, `run_optimizer`, `adapter/pyaedt_adapter.py`).
-- [x] Skill `skills/tune-hfss-antenna/` matches the V1 loop: joint Optimetrics Parametric whose grouping/density the agent must justify; not OFAT `variables_set` + Analyze; no baked default N. Diagnose forbids lexicographic subgoals, treating a threshold as “the mechanism is absent”, and pinning a cell that deletes a remaining GOAL feature. Field overlays are optional evidence; if fields are missing, fall back to tracking extrema on the family.
+- [x] Skill `skills/tune-hfss-antenna/` matches the V1 loop: joint Optimetrics Parametric whose grouping/density the agent must justify; not OFAT `variables_set` + Analyze; no baked default N.
 - [x] Offline FakeAdapter tests + **real AEDT 2023 R2** live attach.
 - [x] `cases/` tree: `uwb_circular_notch` nominal is ported and solved; sandbox is Save As + 9-param detune including `lw`. Do not rebuild with `build.py` (wipes the port).
 - [x] Exam pack `eval/exams/uwb_circular_notch/`: isolated Cursor workspace, log-only agent output, hidden `eval/score_run.py` + `eval/keys/`. Inner loop is joint matrices, not a fixed round count.
-- [x] Second exam `eval/exams/uwb_circular_notch_wlan58/`: same sandbox, GOAL is China 5.8 GHz WLAN stopband (center/width/relative BW). Thesis ~6.6 GHz curve is not the pass key.
 
 ## Known limits (honest)
 

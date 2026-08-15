@@ -55,7 +55,7 @@ HFSS already has a finite set of report types (Modal S Parameter, Terminal Z, fa
 ### 5. Artifacts: curves vs fields
 
 - **Curves** (S11, Z, 2D pattern cuts, and similar 1-D / 2-D traces): export **CSV** from the report that exists under **Results**. If the plot is not in Results, the agent cannot see it — same as a human. `report_create` adds a real HFSS report; `report_export` is `ExportToFile` on that name.
-- **Fields / surface current**: do **not** dump a whole-field CSV. Export a **visual** (color plot / image) on a **specified face + frequency**. `quantity` is a finite set (`Mag_E`, `Mag_Jsurf`); the Skill says when to use which. The overlay must remain visible in the GUI.
+- **Fields / surface current**: do **not** dump a whole-field CSV. Export a **visual** (color plot / image) on a **specified face + frequency**. `quantity` is a finite set (`Mag_E`, `Mag_Jsurf`). The overlay must remain visible in the GUI.
 - Touchstone / `ExportNetworkData` is **not** an agent-visible S11 channel. It can disagree with Modal `dB(S(1,1))` on a wave port.
 
 ### 6. Save: agent decides, no autosave
