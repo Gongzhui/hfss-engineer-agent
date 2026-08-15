@@ -11,5 +11,7 @@ def test_setup_crud_removed_from_mcp() -> None:
         "setup_create",
         "trial_start",
         "run_start",
+        "opti_optimization",
+        "sensitivity_create",
     ):
         assert name not in PUBLIC_TOOL_NAMES

@@ -13,9 +13,15 @@ from hfss_mcp.server import (
     analyze_status,
     health,
     list_registered_tool_names,
+    optimetrics_list,
+    optimetrics_types,
+    parametric_create,
+    parametric_export_table,
+    parametric_start,
     project_save,
     report_create,
     report_export,
+    report_list,
     report_types,
     session_list,
     set_app,
@@ -83,7 +89,17 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
 
         types = report_types()
         assert any(item["id"] == "modal_s" for item in types["types"])
+        listed_empty = report_list()
+        assert listed_empty["ok"] is True
+        assert listed_empty["reports"] == []
+        missing = report_export("S11")
+        assert missing["ok"] is False
+        assert missing["error"]["code"] == "report_not_in_results"
         created = report_create(report_type="modal_s", setup="Setup1")
+        assert created["report"]["name"] == "S11"
+        assert created["report"]["in_results"] is True
+        listed = report_list()
+        assert any(item["name"] == "S11" for item in listed["reports"])
         exported = report_export(created["report"]["report_id"])
         assert exported["format"] == "csv"
         assert Path(exported["path"]).is_file()
@@ -100,15 +116,163 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         ff_out = report_export(ff_rep["report"]["report_id"])
         assert ff_out["format"] == "csv"
 
+        missing_field = report_export("Field_Patch_2_4GHz")
+        assert missing_field["ok"] is False
+        assert missing_field["error"]["code"] == "report_not_in_results"
         field_rep = report_create(
             report_type="field_face",
             setup="Setup1",
             face="Patch",
             frequency="2.4GHz",
         )
+        assert field_rep["report"]["tree"] == "Field Overlays"
+        assert field_rep["report"]["quantity"] == "Mag_E"
+        listed_field = report_list()
+        assert any(item["name"] == field_rep["report"]["name"] for item in listed_field["reports"])
         field_out = report_export(field_rep["report"]["report_id"])
         assert field_out["format"] == "image"
         assert Path(field_out["path"]).is_file()
+
+        jsurf = report_create(
+            report_type="field_face",
+            setup="Setup1",
+            face="Patch",
+            frequency="2.4GHz",
+            quantity="Mag_Jsurf",
+        )
+        assert jsurf["ok"] is True
+        assert jsurf["report"]["quantity"] == "Mag_Jsurf"
+        assert jsurf["report"]["name"] != field_rep["report"]["name"]
+
+        bad_qty = report_create(
+            report_type="field_face",
+            setup="Setup1",
+            face="Patch",
+            frequency="2.4GHz",
+            quantity="Mag_H",
+        )
+        assert bad_qty["ok"] is False
+        assert bad_qty["error"]["code"] == "field_quantity_unknown"
+
+        opt_types = optimetrics_types()
+        assert [item["id"] for item in opt_types["types"]] == ["parametric"]
+        assert optimetrics_list()["setups"] == []
+        missing_para = parametric_export_table("Parametric_patch_w")
+        assert missing_para["ok"] is False
+        assert missing_para["error"]["code"] == "report_not_in_results"
+        missing_start = parametric_start("Parametric_patch_w")
+        assert missing_start["ok"] is False
+        assert missing_start["error"]["code"] == "report_not_in_results"
+        para = parametric_create(
+            sweeps=[
+                {
+                    "variable": "patch_w",
+                    "variation": "linear_step",
+                    "start": 10.0,
+                    "stop": 11.0,
+                    "step": 0.5,
+                    "unit": "mm",
+                }
+            ]
+        )
+        assert para["ok"] is True
+        assert para["setup"]["name"] == "Parametric_patch_w"
+        assert para["setup"]["tree"] == "Optimetrics"
+        assert para["setup"]["points"] == 3
+        assert any(item["name"] == "Parametric_patch_w" for item in optimetrics_list()["setups"])
+        table = parametric_export_table("Parametric_patch_w")
+        assert Path(table["path"]).is_file()
+        started = parametric_start("Parametric_patch_w")
+        assert started["ok"] is True
+        assert started["done"] is True
+        assert started["poll"] is None
+        assert started["job"]["kind"] == "parametric"
+        assert started["job"]["state"] == "completed"
+        edited = parametric_create(
+            name="Parametric_patch_w",
+            sweeps=[
+                {
+                    "variable": "patch_w",
+                    "variation": "linear_count",
+                    "start": 10.0,
+                    "stop": 12.0,
+                    "count": 5,
+                    "unit": "mm",
+                },
+                {
+                    "variable": "patch_l",
+                    "variation": "linear_count",
+                    "start": 11.0,
+                    "stop": 13.0,
+                    "count": 3,
+                    "unit": "mm",
+                },
+            ],
+        )
+        assert edited["ok"] is True
+        assert edited["setup"]["reused"] is True
+        assert edited["setup"]["edited"] is True
+        assert edited["setup"]["points"] == 15
+        family = report_create(
+            "modal_s",
+            name="Parametric_patch_w_S11",
+            parametric="Parametric_patch_w",
+        )
+        assert family["ok"] is True
+        assert family["report"]["families_applied"] is True
+        family_out = report_export(family["report"]["report_id"])
+        family_text = Path(family_out["path"]).read_text(encoding="utf-8")
+        assert family_text.splitlines()[0] == "freq_ghz,variation,s11_db"
+        joint = parametric_create(
+            name="Parametric_joint",
+            sweeps=[
+                {
+                    "variable": "patch_w",
+                    "variation": "linear_count",
+                    "start": 10.0,
+                    "stop": 12.0,
+                    "count": 9,
+                    "unit": "mm",
+                },
+                {
+                    "variable": "patch_l",
+                    "variation": "linear_count",
+                    "start": 11.0,
+                    "stop": 13.0,
+                    "count": 9,
+                    "unit": "mm",
+                },
+            ],
+        )
+        assert joint["ok"] is True
+        assert joint["setup"]["points"] == 81
+        too_wide = parametric_create(
+            sweeps=[
+                {
+                    "variable": "patch_w",
+                    "start": 1.0,
+                    "stop": 999.0,
+                    "step": 1.0,
+                    "unit": "mm",
+                }
+            ]
+        )
+        assert too_wide["ok"] is False
+        assert too_wide["error"]["code"] == "out_of_bounds"
+        too_many = parametric_create(
+            sweeps=[
+                {
+                    "variable": "patch_w",
+                    "variation": "linear_count",
+                    "start": 10.0,
+                    "stop": 11.0,
+                    "count": 257,
+                    "unit": "mm",
+                }
+            ]
+        )
+        assert too_many["ok"] is False
+        assert too_many["error"]["code"] == "parametric_too_many_points"
 
         mapped = variable_map(names=["patch_w"])
         assert mapped["ok"] is True
@@ -120,3 +284,17 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
     finally:
         set_app(None)
         ctx.close()
+
+
+def test_hfss_message_failure_is_setup_specific() -> None:
+    from hfss_mcp.live import failure_message_for_setup
+
+    messages = [
+        "Error in command execution",
+        "Report S11 has no data for export",
+        "Script macro error: Solution 'P_feed_ground' was not found.",
+    ]
+    hit = failure_message_for_setup(messages, "P_feed_ground")
+    assert hit is not None
+    assert "P_feed_ground" in hit
+    assert failure_message_for_setup(messages, "Setup1") is None

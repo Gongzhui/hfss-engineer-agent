@@ -1,13 +1,14 @@
 # hfss-mcp benchmark 设施
 
-用「故意调错的真实天线工程」给 Host Agent 当沙箱。评分用的答案册在 `answer/`，给 Agent 的失配工程在 `sandbox/`。
+评测脚本留在这里。真实天线工程（范例 + 沙箱 + 答案册）在仓库根目录 `cases/`。
 
-V1 不再用 `trial_*` 脚本跑分。演示是：打开 `sandbox/` 工程，加载 `case.json` 当 allowlist，按 Skill `tune-hfss-antenna` 调。
+V1 不再用 `trial_*` 脚本跑分。演示是：打开某个 case 的 `sandbox/`，加载 `allowlist.json` / `case.json`，按 Skill `tune-hfss-antenna` 调。
 
-- **答案册**（`answer/`）：标称值、Touchstone 与指标——只给评分/对照用。不要让 Agent 读。
-- **沙箱**（`sandbox/`）：剥掉存解后的失配工程。
+- **答案册**（`cases/<id>/answer/`）：标称值与参考曲线——只给评分/对照用。不要让 Agent 读。
+- **沙箱**（`cases/<id>/sandbox/`）：失配工程。
 - **审计**（`verify_case.py`）：确认沙箱零泄露。
 
 ## 现有 case
 
-`cases/siw_feed_l1/`：白名单 `fl fw fx fy t1`，Setup1 / Sweep，目标 60 GHz。阈值见 `case.json`。
+- `cases/uwb_circular_notch/`：论文 §3.1 圆形单极子 + U 槽。nominal 有端口并已求解；sandbox 是 Save As 后再拧 8 个参数（≤50%）。
+- `benchmark/cases/siw_feed_l1/`：厂商例题沙箱（尚未迁到 `cases/`）。白名单 `fl fw fx fy t1`，Setup1 / Sweep，目标 60 GHz。

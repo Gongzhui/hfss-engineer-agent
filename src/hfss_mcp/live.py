@@ -26,7 +26,7 @@ from hfss_mcp.com_session import (
 from hfss_mcp.domain import ParameterValue, utc_now_iso
 from hfss_mcp.errors import AdapterError
 from hfss_mcp.ids import sha256_hex
-from hfss_mcp.metrics import parse_touchstone_s11_db, parse_touchstone_z11
+from hfss_mcp.metrics import normalize_exported_report_csv
 
 _EXPR_GLUED = re.compile(
     r"^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([A-Za-z_%µμ]+)$"
@@ -44,6 +44,58 @@ REPORT_TYPES: list[dict[str, str]] = [
         "label": "Field or current on a specified face",
     },
 ]
+
+# Finite FieldsReporter names. Catalog and when-to-use live in the Skill.
+FIELD_QUANTITIES: dict[str, str] = {
+    "Mag_E": "E Field",
+    "Mag_Jsurf": "J Field",
+}
+
+DEFAULT_REPORT_NAMES = {
+    "modal_s": "S11",
+    "terminal_z": "Z11",
+    "farfield_2d": "FarField_2D",
+}
+
+OPTIMETRICS_TYPES: list[dict[str, str]] = [
+    {
+        "id": "parametric",
+        "label": "Optimetrics Parametric",
+        "tree": "Optimetrics",
+    },
+]
+# Safety rail against dumping the whole allowlist into one grid (e.g. 2**10).
+# Not a recommended sample count. A 4-variable joint sweep can fit; a 10-way factorial cannot.
+PARAMETRIC_MAX_POINTS = 256
+
+
+def failure_message_for_setup(messages: list[str], setup: str) -> str | None:
+    """Pick an HFSS Message Manager line that means this setup already failed."""
+    needle = (setup or "").strip().lower()
+    if not needle:
+        return None
+    for line in reversed(messages):
+        low = line.lower()
+        if needle not in low:
+            continue
+        if any(
+            hint in low
+            for hint in (
+                "script macro error",
+                "was not found",
+                "not found",
+                "failed",
+                "error in command",
+            )
+        ):
+            return line
+    return None
+
+
+def last_progress_line(messages: list[str]) -> str | None:
+    if not messages:
+        return None
+    return messages[-1][:240]
 
 
 def ensure_com() -> None:
@@ -116,7 +168,6 @@ class LiveDesign:
         self.project_path = project_path
         self._lock = threading.RLock()
         self._mutation_count = 0
-        self._reports: dict[str, dict[str, Any]] = {}
 
     def _desktop(self) -> Any:
         ensure_com()
@@ -289,7 +340,7 @@ class LiveDesign:
         }
 
     def analyze(self, setup: str) -> None:
-        """Blocking Analyze on the live design. Call from a worker thread."""
+        """Blocking Analyze of an HFSS Analysis Setup (Setup1, not Optimetrics)."""
         self._script(
             "\n".join(
                 [
@@ -302,319 +353,536 @@ class LiveDesign:
             timeout_seconds=7200.0,
         )
 
-    def _export_network_touchstone(
-        self, *, setup: str, sweep: str | None, dest: Path, data_type: str
-    ) -> Path:
-        dest = Path(dest)
+    def analyze_parametric(self, name: str) -> None:
+        """Blocking Optimetrics SolveSetup. oDesign.Analyze cannot see this node."""
+        self._script(
+            "\n".join(
+                [
+                    f"name = {name!r}",
+                    "opt = oDesign.GetModule('Optimetrics')",
+                    "names = []",
+                    "try:",
+                    "    names = [str(x) for x in (opt.GetSetupNames() or [])]",
+                    "except Exception:",
+                    "    names = []",
+                    "if name not in names:",
+                    "    raise Exception('Optimetrics setup ' + name + ' is not in the tree')",
+                    "opt.SolveSetup(name)",
+                    "result['setup'] = name",
+                    "result['ok'] = True",
+                ]
+            ),
+            timeout_seconds=7200.0,
+        )
+
+    def read_messages(self, *, limit: int = 24) -> list[str]:
+        """Message Manager lines via direct COM. Does not take the RunScript lock."""
+        ensure_com()
+        desktop = get_desktop(
+            version=self.version,
+            process_id=self.process_id,
+            create_if_missing=False,
+        )
+        project = self.project_name or ""
+        design = self.design_name or ""
+        raw: Any = None
+        for args in (
+            (project, design, 0),
+            (project, design, 1),
+            ("", "", 0),
+            ("", "", True),
+        ):
+            try:
+                raw = desktop.GetMessages(*args)
+                if raw is not None:
+                    break
+            except Exception:
+                continue
+        if raw is None:
+            return []
+        if isinstance(raw, str):
+            lines = [raw]
+        else:
+            try:
+                lines = [str(item) for item in raw]
+            except TypeError:
+                lines = [str(raw)]
+        cleaned = [line.strip() for line in lines if str(line).strip()]
+        return cleaned[-max(int(limit), 1) :]
+
+    def list_optimetrics(self) -> list[dict[str, Any]]:
+        """Setups currently under Optimetrics. What a human can see in that tree."""
+        raw = self._script(
+            "\n".join(
+                [
+                    "opt = oDesign.GetModule('Optimetrics')",
+                    "names = []",
+                    "try:",
+                    "    names = [str(x) for x in (opt.GetSetupNames() or [])]",
+                    "except Exception:",
+                    "    names = []",
+                    "items = []",
+                    "for name in names:",
+                    "    item = {'name': name, 'tree': 'Optimetrics'}",
+                    "    try:",
+                    "        obj = opt.GetChildObject(name)",
+                    "        props = [str(x) for x in (obj.GetPropNames() or [])]",
+                    "        item['properties'] = props",
+                    "        if 'Enabled' in props:",
+                    "            item['enabled'] = bool(obj.GetPropValue('Enabled'))",
+                    "        if 'HasResult' in props:",
+                    "            item['has_result'] = bool(obj.GetPropValue('HasResult'))",
+                    "        if 'IncludedVariables' in props:",
+                    "            item['variables'] = [str(x) for x in (obj.GetPropValue('IncludedVariables') or [])]",
+                    "            item['setup_kind'] = 'parametric'",
+                    "        else:",
+                    "            item['setup_kind'] = 'unsupported'",
+                    "    except Exception:",
+                    "        item['setup_kind'] = 'unknown'",
+                    "    items.append(item)",
+                    "result['setups'] = items",
+                ]
+            )
+        )
+        setups = raw.get("setups") or []
+        return [item for item in setups if isinstance(item, dict)]
+
+    def create_parametric(
+        self,
+        *,
+        name: str,
+        sim_setup: str,
+        sweeps: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        """Insert or edit an OptiParametric setup under Optimetrics. Never delete."""
+        existing_names = {str(item.get("name") or "") for item in self.list_optimetrics()}
+        reused = name in existing_names
+        sweep_parts = []
+        for item in sweeps:
+            sweep_parts.append(
+                "["
+                + "'NAME:SweepDefinition', "
+                + f"'Variable:=', {item['variable']!r}, "
+                + f"'Data:=', {item['data']!r}, "
+                + "'OffsetF1:=', False, 'Synchronize:=', 0"
+                + "]"
+            )
+        sweeps_literal = "[" + ", ".join(sweep_parts) + "]"
+        raw = self._script(
+            "\n".join(
+                [
+                    f"name = {name!r}",
+                    f"sim_setup = {sim_setup!r}",
+                    f"sweep_defs = {sweeps_literal}",
+                    f"reused = {reused!r}",
+                    "opt = oDesign.GetModule('Optimetrics')",
+                    "arg = [",
+                    "    'NAME:' + name,",
+                    "    'IsEnabled:=', True,",
+                    "    ['NAME:ProdOptiSetupDataV2', 'SaveFields:=', False, 'CopyMesh:=', False, 'SolveWithCopiedMeshOnly:=', True],",
+                    "    ['NAME:StartingPoint'],",
+                    "    'Sim. Setups:=', [sim_setup],",
+                    "    ['NAME:Sweeps'] + sweep_defs,",
+                    "    ['NAME:Sweep Operations'],",
+                    "    ['NAME:Goals'],",
+                    "]",
+                    "if reused:",
+                    "    opt.EditSetup(name, arg)",
+                    "else:",
+                    "    opt.InsertSetup('OptiParametric', arg)",
+                    "still = [str(x) for x in (opt.GetSetupNames() or [])]",
+                    "if name not in still:",
+                    "    raise Exception('parametric ' + name + ' is not under Optimetrics')",
+                    "result['name'] = name",
+                    "result['created'] = not reused",
+                    "result['reused'] = reused",
+                    "result['edited'] = reused",
+                ]
+            )
+        )
+        return {
+            "name": str(raw.get("name") or name),
+            "created": bool(raw.get("created")),
+            "reused": bool(raw.get("reused")),
+            "edited": bool(raw.get("edited")),
+            "tree": "Optimetrics",
+            "setup_kind": "parametric",
+            "sim_setup": sim_setup,
+            "sweeps": sweeps,
+        }
+
+    def export_parametric_table(self, name: str, dest: Path) -> Path:
+        """Export the Optimetrics parametric sweep table. Same table a human exports."""
+        existing = {str(item.get("name") or "") for item in self.list_optimetrics()}
+        if name not in existing:
+            raise AdapterError(
+                f"parametric {name!r} is not under Optimetrics; create it first",
+                code="report_not_in_results",
+                details={"name": name, "optimetrics": sorted(existing)},
+            )
+        dest = Path(dest).resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
-        suffix = ".s1p" if data_type.upper() == "S" else ".z1p"
-        ts = dest.with_suffix(suffix)
+        if dest.exists():
+            dest.unlink()
         raw = self._script(
             "\n".join(
                 [
                     "import os",
-                    f"dest = {str(ts)!r}",
-                    f"setup = {setup!r}",
-                    f"sweep = {json.dumps(sweep)}",
-                    f"data_type = {data_type!r}",
+                    f"name = {name!r}",
+                    f"dest = {str(dest)!r}",
                     "parent = os.path.dirname(dest)",
                     "if parent and not os.path.isdir(parent):",
                     "    os.makedirs(parent)",
-                    "sol = oDesign.GetModule('Solutions')",
-                    "name = (setup + ':' + sweep) if sweep else setup",
-                    "alt = (setup + ' : ' + sweep) if sweep else setup",
-                    "adaptive = setup + ' : LastAdaptive'",
-                    "last = ''",
-                    "ok = False",
-                    "for solution in (name, alt, adaptive, setup):",
-                    "    try:",
-                    "        sol.ExportNetworkData('', [solution], 3, dest, ['All'], True, 50, data_type, -1, 0, 15, True, False, False)",
-                    "        ok = True",
-                    "        break",
-                    "    except Exception as error:",
-                    "        last = str(error)",
-                    "if not ok:",
-                    "    raise Exception(last or 'ExportNetworkData failed')",
+                    "opt = oDesign.GetModule('Optimetrics')",
+                    "opt.ExportParametricSetupTable(name, dest)",
+                    "if not os.path.isfile(dest):",
+                    "    raise Exception('ExportParametricSetupTable did not write ' + dest)",
                     "result['path'] = dest",
-                    "result['exists'] = os.path.isfile(dest)",
-                ]
-            )
-        )
-        path = Path(str(raw.get("path") or ts))
-        if not path.is_file():
-            raise AdapterError("Touchstone export missing", code="touchstone_missing")
-        return path
-
-    def export_modal_s_csv(self, *, setup: str, sweep: str | None, dest: Path) -> Path:
-        dest = Path(dest)
-        ts = self._export_network_touchstone(
-            setup=setup, sweep=sweep, dest=dest, data_type="S"
-        )
-        freqs, vals = parse_touchstone_s11_db(ts)
-        dest.write_text(
-            "freq_ghz,s11_db\n"
-            + "\n".join(f"{f:.6g},{v:.6g}" for f, v in zip(freqs, vals, strict=False))
-            + "\n",
-            encoding="utf-8",
-        )
-        return dest
-
-    def export_terminal_z_csv(self, *, setup: str, sweep: str | None, dest: Path) -> Path:
-        dest = Path(dest)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            ts = self._export_network_touchstone(
-                setup=setup, sweep=sweep, dest=dest, data_type="Z"
-            )
-            freqs, reals, imags = parse_touchstone_z11(ts)
-            dest.write_text(
-                "freq_ghz,re,im\n"
-                + "\n".join(
-                    f"{f:.6g},{r:.6g},{i:.6g}"
-                    for f, r, i in zip(freqs, reals, imags, strict=False)
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            return dest
-        except AdapterError:
-            pass
-        solution = f"{setup} : {sweep}" if sweep else f"{setup} : LastAdaptive"
-        expressions = json.dumps(
-            ["re(Z(1,1))", "im(Z(1,1))", "mag(Z(1,1))", "re(Zt(1,1))", "im(Zt(1,1))"]
-        )
-        raw = self._script(
-            "\n".join(
-                [
-                    "import os",
-                    "report_name = 'hfss_mcp_terminal_z'",
-                    f"setup_solution = {solution!r}",
-                    f"output_csv = {str(dest)!r}",
-                    f"expressions = {expressions}",
-                    "parent = os.path.dirname(output_csv)",
-                    "if parent and not os.path.isdir(parent):",
-                    "    os.makedirs(parent)",
-                    "report_module = oDesign.GetModule('ReportSetup')",
-                    "try:",
-                    "    report_module.DeleteReports([report_name])",
-                    "except Exception:",
-                    "    pass",
-                    "categories = ['Terminal Solution Data', 'Modal Solution Data']",
-                    "created = False",
-                    "errors = []",
-                    "for category in categories:",
-                    "    for expression in expressions:",
-                    "        try:",
-                    "            report_module.CreateReport(report_name, category, 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], ['Freq:=', ['All']], ['X Component:=', 'Freq', 'Y Component:=', [expression]])",
-                    "            created = True",
-                    "            break",
-                    "        except Exception as error:",
-                    "            errors.append(category + ' ' + expression + ': ' + str(error))",
-                    "            try:",
-                    "                report_module.DeleteReports([report_name])",
-                    "            except Exception:",
-                    "                pass",
-                    "    if created:",
-                    "        break",
-                    "if not created:",
-                    "    raise Exception('Terminal Z report failed: ' + '; '.join(errors))",
-                    "exported = False",
-                    "for args_tuple in ((report_name, output_csv, False), (report_name, output_csv)):",
-                    "    try:",
-                    "        report_module.ExportToFile(*args_tuple)",
-                    "        if os.path.isfile(output_csv):",
-                    "            exported = True",
-                    "            break",
-                    "    except Exception:",
-                    "        pass",
-                    "try:",
-                    "    report_module.DeleteReports([report_name])",
-                    "except Exception:",
-                    "    pass",
-                    "if not exported:",
-                    "    raise Exception('Terminal Z CSV was not written')",
-                    "result['path'] = output_csv",
                 ]
             )
         )
         path = Path(str(raw.get("path") or dest))
         if not path.is_file():
-            raise AdapterError("terminal Z CSV missing", code="terminal_z_export_failed")
+            raise AdapterError(
+                f"parametric table was not written for {name!r}",
+                code="parametric_export_failed",
+            )
         return path
 
-    def export_farfield_2d_csv(
-        self,
-        *,
-        setup: str,
-        sweep: str | None,
-        dest: Path,
-        frequency: str | None = None,
-    ) -> Path:
-        dest = Path(dest)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        solution = f"{setup} : LastAdaptive"
-        if sweep:
-            solution = f"{setup} : {sweep}"
-        freq = frequency or "All"
+    def list_reports(self) -> list[dict[str, Any]]:
+        """Names currently under Results. What a human can see in the project tree."""
         raw = self._script(
             "\n".join(
                 [
-                    "import os",
-                    "report_name = 'hfss_mcp_farfield_2d'",
-                    f"preferred = {solution!r}",
-                    f"output_csv = {str(dest)!r}",
-                    f"freq = {freq!r}",
-                    "parent = os.path.dirname(output_csv)",
-                    "if parent and not os.path.isdir(parent):",
-                    "    os.makedirs(parent)",
                     "report_module = oDesign.GetModule('ReportSetup')",
-                    "spheres = []",
+                    "names = []",
                     "try:",
-                    "    rad = oDesign.GetModule('RadField')",
-                    "    for args in (('Infinite Sphere',), ()):",
+                    "    names = [str(x) for x in (report_module.GetAllReportNames() or [])]",
+                    "except Exception:",
+                    "    names = []",
+                    "items = []",
+                    "for name in names:",
+                    "    item = {'name': name, 'report_id': name, 'in_results': True, 'tree': 'Results'}",
+                    "    for method, key in (('GetReportType', 'category'), ('GetDisplayType', 'display_type')):",
                     "        try:",
-                    "            spheres = [str(x) for x in (rad.GetSetupNames(*args) or [])]",
-                    "            if spheres:",
-                    "                break",
+                    "            item[key] = str(getattr(report_module, method)(name))",
                     "        except Exception:",
                     "            pass",
-                    "except Exception:",
-                    "    spheres = []",
-                    "if not spheres:",
-                    "    raise Exception('No infinite sphere / far-field setup on this design')",
-                    "solutions = []",
+                    "    try:",
+                    "        traces = report_module.GetTraceNames(name)",
+                    "        item['traces'] = [str(t) for t in (traces or [])]",
+                    "    except Exception:",
+                    "        pass",
+                    "    items.append(item)",
                     "try:",
-                    "    solutions = [str(x) for x in (report_module.GetAvailableSolutions('Far Fields') or [])]",
+                    "    fields_mod = oDesign.GetModule('FieldsReporter')",
+                    "    field_names = [str(x) for x in (fields_mod.GetFieldPlotNames() or [])]",
                     "except Exception:",
+                    "    field_names = []",
+                    "for name in field_names:",
+                    "    items.append({'name': name, 'report_id': name, 'in_results': False, 'tree': 'Field Overlays', 'report_type': 'field_face'})",
+                    "result['reports'] = items",
+                ]
+            )
+        )
+        reports = raw.get("reports") or []
+        return [item for item in reports if isinstance(item, dict)]
+
+    def create_results_report(
+        self,
+        *,
+        report_type: str,
+        name: str,
+        setup: str,
+        sweep: str | None,
+        frequency: str | None = None,
+        family_variables: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Add a plot under Results if missing. Never delete an existing report.
+
+        family_variables become All in the variation dict so the plot shows the
+        parametric family a human would add under Results — not a hidden export.
+        """
+        if report_type not in DEFAULT_REPORT_NAMES:
+            raise AdapterError(
+                f"cannot create Results report of type {report_type!r}",
+                code="report_type_unknown",
+            )
+        preferred = f"{setup} : {sweep}" if sweep else f"{setup} : LastAdaptive"
+        freq = frequency or "All"
+        family = [str(v) for v in (family_variables or []) if str(v).strip()]
+        family_payload = json.dumps(family, ensure_ascii=True)
+        raw = self._script(
+            "\n".join(
+                [
+                    "import json",
+                    f"report_name = {name!r}",
+                    f"report_type = {report_type!r}",
+                    f"preferred = {preferred!r}",
+                    f"setup = {setup!r}",
+                    f"freq = {freq!r}",
+                    f"family_vars = json.loads({family_payload!r})",
+                    "variation = ['Freq:=', ['All']]",
+                    "for var in family_vars:",
+                    "    variation += [str(var) + ':=', ['All']]",
+                    "families_applied = bool(family_vars)",
+                    "report_module = oDesign.GetModule('ReportSetup')",
+                    "existing = []",
+                    "try:",
+                    "    existing = [str(x) for x in (report_module.GetAllReportNames() or [])]",
+                    "except Exception:",
+                    "    existing = []",
+                    "if report_name in existing:",
+                    "    result['name'] = report_name",
+                    "    result['created'] = False",
+                    "    result['reused'] = True",
+                    "    result['in_results'] = True",
+                    "    result['families_applied'] = False",
+                    "    result['family_variables'] = family_vars",
+                    "else:",
                     "    solutions = []",
-                    "setup_solution = preferred",
-                    "if solutions and preferred not in solutions:",
-                    "    adaptive = [s for s in solutions if 'LastAdaptive' in s]",
-                    "    setup_solution = adaptive[0] if adaptive else solutions[0]",
-                    "try:",
-                    "    report_module.DeleteReports([report_name])",
-                    "except Exception:",
-                    "    pass",
-                    "variation = ['Theta:=', ['All'], 'Phi:=', ['0deg'], 'Freq:=', [freq]]",
-                    "expressions = ['dB(GainTotal)', 'GainTotal', 'dB(RealizedGainTotal)']",
-                    "created = False",
-                    "errors = []",
-                    "for sphere in spheres:",
-                    "    context = ['Context:=', sphere]",
-                    "    for expression in expressions:",
-                    "        components = ['X Component:=', 'Theta', 'Y Component:=', [expression]]",
-                    "        try:",
-                    "            report_module.CreateReport(report_name, 'Far Fields', 'Rectangular Plot', setup_solution, context, variation, components)",
-                    "            created = True",
+                    "    category = 'Modal Solution Data'",
+                    "    if report_type == 'modal_s':",
+                    "        category = 'Modal Solution Data'",
+                    "    elif report_type == 'terminal_z':",
+                    "        category = 'Terminal Solution Data'",
+                    "    elif report_type == 'farfield_2d':",
+                    "        category = 'Far Fields'",
+                    "    try:",
+                    "        solutions = [str(x) for x in (report_module.GetAvailableSolutions(category) or [])]",
+                    "    except Exception:",
+                    "        solutions = []",
+                    "    candidates = [preferred, setup + ' : LastAdaptive', setup]",
+                    "    setup_solution = preferred",
+                    "    for cand in candidates:",
+                    "        if (not solutions) or (cand in solutions):",
+                    "            setup_solution = cand",
                     "            break",
+                    "    if solutions and setup_solution not in solutions:",
+                    "        setup_solution = solutions[0]",
+                    "    created = False",
+                    "    errors = []",
+                    "    if report_type == 'modal_s':",
+                    "        try:",
+                    "            report_module.CreateReport(report_name, 'Modal Solution Data', 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], variation, ['X Component:=', 'Freq', 'Y Component:=', ['dB(S(1,1))']])",
+                    "            created = True",
                     "        except Exception as error:",
                     "            errors.append(str(error))",
+                    "            if family_vars:",
+                    "                try:",
+                    "                    report_module.CreateReport(report_name, 'Modal Solution Data', 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], ['Freq:=', ['All']], ['X Component:=', 'Freq', 'Y Component:=', ['dB(S(1,1))']])",
+                    "                    created = True",
+                    "                    families_applied = False",
+                    "                except Exception as retry_error:",
+                    "                    errors.append(str(retry_error))",
+                    "    elif report_type == 'terminal_z':",
+                    "        attempts = [('Terminal Solution Data', ['re(Zt(1,1))', 'im(Zt(1,1))']), ('Terminal Solution Data', ['re(Z(1,1))', 'im(Z(1,1))']), ('Modal Solution Data', ['re(Z(1,1))', 'im(Z(1,1))'])]",
+                    "        for category, exprs in attempts:",
                     "            try:",
-                    "                report_module.DeleteReports([report_name])",
-                    "            except Exception:",
-                    "                pass",
-                    "    if created:",
-                    "        break",
-                    "if not created:",
-                    "    raise Exception('Far-field 2D report failed. Available solutions: ' + (', '.join(solutions) if solutions else '<none>') + '. ' + '; '.join(errors))",
+                    "                report_module.CreateReport(report_name, category, 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], variation, ['X Component:=', 'Freq', 'Y Component:=', exprs])",
+                    "                created = True",
+                    "                break",
+                    "            except Exception as error:",
+                    "                errors.append(str(error))",
+                    "        if (not created) and family_vars:",
+                    "            for category, exprs in attempts:",
+                    "                try:",
+                    "                    report_module.CreateReport(report_name, category, 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], ['Freq:=', ['All']], ['X Component:=', 'Freq', 'Y Component:=', exprs])",
+                    "                    created = True",
+                    "                    families_applied = False",
+                    "                    break",
+                    "                except Exception as retry_error:",
+                    "                    errors.append(str(retry_error))",
+                    "    elif report_type == 'farfield_2d':",
+                    "        spheres = []",
+                    "        try:",
+                    "            rad = oDesign.GetModule('RadField')",
+                    "            for args in (('Infinite Sphere',), ()):",
+                    "                try:",
+                    "                    spheres = [str(x) for x in (rad.GetSetupNames(*args) or [])]",
+                    "                    if spheres:",
+                    "                        break",
+                    "                except Exception:",
+                    "                    pass",
+                    "        except Exception:",
+                    "            spheres = []",
+                    "        if not spheres:",
+                    "            raise Exception('No infinite sphere / far-field setup on this design')",
+                    "        ff_solutions = []",
+                    "        try:",
+                    "            ff_solutions = [str(x) for x in (report_module.GetAvailableSolutions('Far Fields') or [])]",
+                    "        except Exception:",
+                    "            ff_solutions = []",
+                    "        ff_setup = preferred",
+                    "        if ff_solutions and preferred not in ff_solutions:",
+                    "            adaptive = [s for s in ff_solutions if 'LastAdaptive' in s]",
+                    "            ff_setup = adaptive[0] if adaptive else ff_solutions[0]",
+                    "        variation = ['Theta:=', ['All'], 'Phi:=', ['0deg'], 'Freq:=', [freq]]",
+                    "        for sphere in spheres:",
+                    "            context = ['Context:=', sphere]",
+                    "            for expression in ['dB(GainTotal)', 'GainTotal', 'dB(RealizedGainTotal)']:",
+                    "                try:",
+                    "                    report_module.CreateReport(report_name, 'Far Fields', 'Rectangular Plot', ff_setup, context, variation, ['X Component:=', 'Theta', 'Y Component:=', [expression]])",
+                    "                    created = True",
+                    "                    break",
+                    "                except Exception as error:",
+                    "                    errors.append(str(error))",
+                    "            if created:",
+                    "                break",
+                    "    if not created:",
+                    "        raise Exception('CreateReport failed for ' + report_name + ': ' + '; '.join(errors))",
+                    "    still = []",
+                    "    try:",
+                    "        still = [str(x) for x in (report_module.GetAllReportNames() or [])]",
+                    "    except Exception:",
+                    "        still = []",
+                    "    if report_name not in still:",
+                    "        raise Exception('report ' + report_name + ' was created but is not under Results')",
+                    "    result['name'] = report_name",
+                    "    result['created'] = True",
+                    "    result['reused'] = False",
+                    "    result['in_results'] = True",
+                    "    result['families_applied'] = families_applied",
+                    "    result['family_variables'] = family_vars",
+                ]
+            )
+        )
+        reused = bool(raw.get("reused"))
+        families_applied = False if reused else bool(raw.get("families_applied"))
+        return {
+            "name": str(raw.get("name") or name),
+            "report_id": str(raw.get("name") or name),
+            "report_type": report_type,
+            "created": bool(raw.get("created")),
+            "reused": reused,
+            "in_results": True,
+            "setup": setup,
+            "sweep": sweep,
+            "frequency": frequency,
+            "family_variables": family,
+            "families_applied": families_applied,
+        }
+
+    def export_results_report(
+        self,
+        name: str,
+        dest: Path,
+        *,
+        report_type: str | None = None,
+    ) -> Path:
+        """ExportToFile a report that already exists under Results. No network-data bypass."""
+        existing = {str(item.get("name") or "") for item in self.list_reports()}
+        if name not in existing:
+            raise AdapterError(
+                f"report {name!r} is not under Results; create it first",
+                code="report_not_in_results",
+                details={"name": name, "results": sorted(existing)},
+            )
+        dest = Path(dest).resolve()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists():
+            dest.unlink()
+        raw = self._script(
+            "\n".join(
+                [
+                    "import os",
+                    f"report_name = {name!r}",
+                    f"output_csv = {str(dest)!r}",
+                    "parent = os.path.dirname(output_csv)",
+                    "if parent and not os.path.isdir(parent):",
+                    "    os.makedirs(parent)",
+                    "report_module = oDesign.GetModule('ReportSetup')",
                     "exported = False",
+                    "last = ''",
                     "for args_tuple in ((report_name, output_csv, False), (report_name, output_csv)):",
                     "    try:",
                     "        report_module.ExportToFile(*args_tuple)",
                     "        if os.path.isfile(output_csv):",
                     "            exported = True",
                     "            break",
-                    "    except Exception:",
-                    "        pass",
-                    "try:",
-                    "    report_module.DeleteReports([report_name])",
-                    "except Exception:",
-                    "    pass",
+                    "    except Exception as error:",
+                    "        last = str(error)",
                     "if not exported:",
-                    "    raise Exception('Far-field CSV was not written')",
+                    "    raise Exception(last or ('ExportToFile failed for ' + report_name))",
                     "result['path'] = output_csv",
-                    "result['setup_solution'] = setup_solution",
-                    "result['spheres'] = spheres",
                 ]
             )
         )
         path = Path(str(raw.get("path") or dest))
         if not path.is_file():
-            raise AdapterError("far-field CSV missing", code="farfield_export_failed")
-        return path
+            raise AdapterError(
+                f"report CSV was not written for {name!r}",
+                code="report_export_failed",
+            )
+        return normalize_exported_report_csv(path, report_type)
 
-    def export_field_face_image(
+    def create_field_overlay(
         self,
-        dest: Path,
         *,
+        name: str,
         face: str,
         frequency: str,
         setup: str,
         sweep: str | None = None,
         quantity: str = "Mag_E",
-        width: int = 1280,
-        height: int = 800,
-    ) -> Path:
-        dest = Path(dest)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        solution = f"{setup} : LastAdaptive"
-        if sweep:
-            solution = f"{setup} : {sweep}"
+    ) -> dict[str, Any]:
+        """Create a Field Overlays plot the user can see. Reuse the name if it exists."""
+        folder = FIELD_QUANTITIES.get(quantity, "E Field")
+        preferred = f"{setup} : {sweep}" if sweep else f"{setup} : LastAdaptive"
         raw = self._script(
             "\n".join(
                 [
-                    "import os",
-                    f"file_name = {str(dest)!r}",
+                    f"plot_name = {name!r}",
                     f"face = {face!r}",
                     f"freq = {frequency!r}",
                     f"quantity = {quantity!r}",
-                    f"preferred = {solution!r}",
-                    f"width = {int(width)}",
-                    f"height = {int(height)}",
-                    "parent = os.path.dirname(file_name)",
-                    "if parent and not os.path.isdir(parent):",
-                    "    os.makedirs(parent)",
-                    "plot_name = 'hfss_mcp_field_face'",
-                    "folder = os.path.dirname(file_name)",
+                    f"plot_folder = {folder!r}",
+                    f"preferred = {preferred!r}",
                     "fields = oDesign.GetModule('FieldsReporter')",
+                    "existing = []",
                     "try:",
-                    "    fields.DeleteFieldPlot([plot_name])",
+                    "    existing = [str(x) for x in (fields.GetFieldPlotNames() or [])]",
                     "except Exception:",
-                    "    pass",
-                    "face_ids = []",
-                    "obj_name = face",
-                    "try:",
-                    "    face_ids = [int(face)]",
-                    "    obj_name = ''",
-                    "except Exception:",
+                    "    existing = []",
+                    "if plot_name in existing:",
+                    "    result['name'] = plot_name",
+                    "    result['created'] = False",
+                    "    result['reused'] = True",
+                    "else:",
                     "    face_ids = []",
+                    "    obj_name = face",
                     "    try:",
-                    "        face_ids = [int(x) for x in (oEditor.GetFaceIDs(face) or [])]",
+                    "        face_ids = [int(face)]",
+                    "        obj_name = ''",
                     "    except Exception:",
                     "        face_ids = []",
-                    "intrinsic = \"Freq='\" + freq + \"' Phase='0deg'\"",
-                    "geoms = []",
-                    "if face_ids:",
-                    "    geoms.append([1, 'Surface', 'FacesList', 1, int(face_ids[0])])",
-                    "    geoms.append([1, 'Surface', 'FacesList', len(face_ids)] + [int(x) for x in face_ids])",
-                    "if obj_name:",
-                    "    geoms.append([1, 'Surface', 'Objects', 1, obj_name])",
-                    "    geoms.append([1, 'Surface', 'Objects', [obj_name]])",
-                    "solutions = [preferred, preferred.split(' : ')[0] + ' : LastAdaptive']",
-                    "quantities = [quantity, 'Mag_E', 'Mag_Jsurf', 'Mag_H']",
-                    "created = False",
-                    "errors = []",
-                    "used_solution = preferred",
-                    "for sol in solutions:",
-                    "    for qty in quantities:",
+                    "        try:",
+                    "            face_ids = [int(x) for x in (oEditor.GetFaceIDs(face) or [])]",
+                    "        except Exception:",
+                    "            face_ids = []",
+                    "    intrinsic = \"Freq='\" + freq + \"' Phase='0deg'\"",
+                    "    geoms = []",
+                    "    if face_ids:",
+                    "        geoms.append([1, 'Surface', 'FacesList', 1, int(face_ids[0])])",
+                    "        geoms.append([1, 'Surface', 'FacesList', len(face_ids)] + [int(x) for x in face_ids])",
+                    "    if obj_name:",
+                    "        geoms.append([1, 'Surface', 'Objects', 1, obj_name])",
+                    "        geoms.append([1, 'Surface', 'Objects', [obj_name]])",
+                    "    if not geoms:",
+                    "        raise Exception('cannot resolve face/object ' + face)",
+                    "    solutions = [preferred, preferred.split(' : ')[0] + ' : LastAdaptive']",
+                    "    created = False",
+                    "    errors = []",
+                    "    used_solution = preferred",
+                    "    for sol in solutions:",
                     "        for geom in geoms:",
                     "            payload = [",
                     "                'NAME:' + plot_name,",
                     "                'SolutionName:=', sol,",
                     "                'UserSpecifyName:=', 1,",
                     "                'UserSpecifyFolder:=', 0,",
-                    "                'QuantityName:=', qty,",
-                    "                'PlotFolder:=', 'E Field',",
+                    "                'QuantityName:=', quantity,",
+                    "                'PlotFolder:=', plot_folder,",
                     "                'StreamlinePlot:=', False,",
                     "                'AdjacentSidePlot:=', False,",
                     "                'FullModelPlot:=', False,",
@@ -636,10 +904,63 @@ class LiveDesign:
                     "                    pass",
                     "        if created:",
                     "            break",
-                    "    if created:",
-                    "        break",
-                    "if not created:",
-                    "    raise Exception('Field plot on face failed. Need a solved field solution at this frequency. ' + '; '.join(errors[:6]))",
+                    "    if not created:",
+                    "        raise Exception('Field overlay ' + plot_name + ' failed. Need a solved field at this frequency. ' + '; '.join(errors[:6]))",
+                    "    still = []",
+                    "    try:",
+                    "        still = [str(x) for x in (fields.GetFieldPlotNames() or [])]",
+                    "    except Exception:",
+                    "        still = []",
+                    "    if plot_name not in still:",
+                    "        raise Exception('field overlay ' + plot_name + ' was created but is not under Field Overlays')",
+                    "    result['name'] = plot_name",
+                    "    result['created'] = True",
+                    "    result['reused'] = False",
+                    "    result['solution'] = used_solution",
+                ]
+            ),
+            timeout_seconds=120.0,
+        )
+        return {
+            "name": str(raw.get("name") or name),
+            "report_id": str(raw.get("name") or name),
+            "report_type": "field_face",
+            "created": bool(raw.get("created")),
+            "reused": bool(raw.get("reused")),
+            "in_results": False,
+            "tree": "Field Overlays",
+            "face": face,
+            "frequency": frequency,
+            "quantity": quantity,
+            "setup": setup,
+            "sweep": sweep,
+        }
+
+    def export_field_overlay(self, name: str, dest: Path) -> Path:
+        """Export an existing Field Overlays plot. No modeler-screenshot fallback."""
+        existing = {
+            str(item.get("name") or "")
+            for item in self.list_reports()
+            if item.get("tree") == "Field Overlays" or item.get("report_type") == "field_face"
+        }
+        if name not in existing:
+            raise AdapterError(
+                f"field overlay {name!r} is not under Field Overlays; create it first",
+                code="report_not_in_results",
+                details={"name": name, "overlays": sorted(existing)},
+            )
+        dest = Path(dest).resolve()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        raw = self._script(
+            "\n".join(
+                [
+                    "import os",
+                    f"plot_name = {name!r}",
+                    f"file_name = {str(dest)!r}",
+                    "folder = os.path.dirname(file_name)",
+                    "if folder and not os.path.isdir(folder):",
+                    "    os.makedirs(folder)",
+                    "fields = oDesign.GetModule('FieldsReporter')",
                     "exported = False",
                     "last = ''",
                     "try:",
@@ -657,27 +978,8 @@ class LiveDesign:
                     "except Exception as error:",
                     "    last = str(error)",
                     "if not exported:",
-                    "    try:",
-                    "        oEditor.FitAll()",
-                    "    except Exception:",
-                    "        pass",
-                    "    params = ['NAME:SaveImageParams', 'ShowAxis:=', False, 'ShowGrid:=', False, 'ShowRuler:=', False, 'ShowRegion:=', 'Default', 'Orientation:=', 'isometric']",
-                    "    for args in ((file_name, int(width), int(height), params), (file_name, int(width), int(height)), (file_name,)):",
-                    "        try:",
-                    "            oEditor.ExportModelImageToFile(*args)",
-                    "            if os.path.isfile(file_name):",
-                    "                exported = True",
-                    "                break",
-                    "        except Exception as error:",
-                    "            last = str(error)",
-                    "try:",
-                    "    fields.DeleteFieldPlot([plot_name])",
-                    "except Exception:",
-                    "    pass",
-                    "if not exported:",
-                    "    raise Exception(last or 'Field-face image was not written')",
+                    "    raise Exception(last or ('ExportFieldPlot failed for ' + plot_name + '; the overlay must be visible under Field Overlays'))",
                     "result['file'] = file_name",
-                    "result['solution'] = used_solution",
                 ]
             ),
             timeout_seconds=120.0,
@@ -685,7 +987,7 @@ class LiveDesign:
         path = Path(str(raw.get("file") or dest))
         if not path.is_file():
             raise AdapterError(
-                "field_face image was not written",
+                "field overlay image was not written",
                 code="field_face_export_failed",
             )
         return path
@@ -699,7 +1001,7 @@ class LiveDesign:
         width: int = 1280,
         height: int = 800,
     ) -> Path:
-        dest = Path(dest)
+        dest = Path(dest).resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         names = json.dumps([str(x) for x in (isolate or [])], ensure_ascii=True)
         raw = self._script(
@@ -714,6 +1016,7 @@ class LiveDesign:
                     "parent = os.path.dirname(file_name)",
                     "if parent and not os.path.isdir(parent):",
                     "    os.makedirs(parent)",
+                    "hidden = []",
                     "if isolate:",
                     "    try:",
                     "        oEditor.ShowUnclassified(False)",
@@ -726,11 +1029,11 @@ class LiveDesign:
                     "                all_names.extend([str(x) for x in (oEditor.GetObjectsInGroup(group) or [])])",
                     "            except Exception:",
                     "                pass",
-                    "        hide = [n for n in all_names if n not in isolate]",
-                    "        if hide:",
+                    "        hidden = [n for n in all_names if n not in isolate]",
+                    "        if hidden:",
                     "            oEditor.ChangeProperty([",
                     "                'NAME:AllTabs',",
-                    "                ['NAME:Geometry3DAttributeTab', ['NAME:PropServers'] + hide, ['NAME:ChangedProps', ['NAME:Show', 'Value:=', False]]],",
+                    "                ['NAME:Geometry3DAttributeTab', ['NAME:PropServers'] + hidden, ['NAME:ChangedProps', ['NAME:Show', 'Value:=', False]]],",
                     "            ])",
                     "    except Exception:",
                     "        pass",
@@ -749,11 +1052,11 @@ class LiveDesign:
                     "            break",
                     "    except Exception as error:",
                     "        last = str(error)",
-                    "if isolate:",
+                    "if hidden:",
                     "    try:",
                     "        oEditor.ChangeProperty([",
                     "            'NAME:AllTabs',",
-                    "            ['NAME:Geometry3DAttributeTab', ['NAME:PropServers'] + isolate, ['NAME:ChangedProps', ['NAME:Show', 'Value:=', True]]],",
+                    "            ['NAME:Geometry3DAttributeTab', ['NAME:PropServers'] + hidden, ['NAME:ChangedProps', ['NAME:Show', 'Value:=', True]]],",
                     "        ])",
                     "    except Exception:",
                     "        pass",

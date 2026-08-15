@@ -37,6 +37,9 @@ class FakeAdapter:
         self._setups = list(setups or ["Setup1"])
         self._mutation_count = 0
         self._revision = self._compute_revision()
+        self._results_reports: list[dict[str, Any]] = []
+        self._field_overlays: list[dict[str, Any]] = []
+        self._optimetrics: list[dict[str, Any]] = []
 
     def _compute_revision(self) -> str:
         payload = {
@@ -110,6 +113,177 @@ class FakeAdapter:
                     details={"setup": setup},
                 )
             _ = sweep
+
+    def list_reports(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [copy.deepcopy(item) for item in self._results_reports + self._field_overlays]
+
+    def create_results_report(
+        self,
+        *,
+        report_type: str,
+        name: str,
+        setup: str,
+        sweep: str | None,
+        frequency: str | None = None,
+        face: str | None = None,
+        family_variables: list[str] | None = None,
+        quantity: str | None = None,
+    ) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            if report_type == "field_face":
+                rec = {
+                    "name": name,
+                    "report_id": name,
+                    "report_type": report_type,
+                    "setup": setup,
+                    "sweep": sweep,
+                    "frequency": frequency,
+                    "face": face,
+                    "quantity": quantity,
+                    "in_results": False,
+                    "tree": "Field Overlays",
+                    "created": True,
+                    "reused": False,
+                }
+                existing = next((x for x in self._field_overlays if x["name"] == name), None)
+                if existing:
+                    out = copy.deepcopy(existing)
+                    out["created"] = False
+                    out["reused"] = True
+                    return out
+                self._field_overlays.append(rec)
+                return copy.deepcopy(rec)
+            existing = next((x for x in self._results_reports if x["name"] == name), None)
+            if existing:
+                return {
+                    **copy.deepcopy(existing),
+                    "created": False,
+                    "reused": True,
+                    "in_results": True,
+                }
+            report_rec: dict[str, Any] = {
+                "name": name,
+                "report_id": name,
+                "report_type": report_type,
+                "setup": setup,
+                "sweep": sweep,
+                "frequency": frequency,
+                "in_results": True,
+                "tree": "Results",
+                "created": True,
+                "reused": False,
+                "family_variables": list(family_variables or []),
+                "families_applied": bool(family_variables),
+            }
+            self._results_reports.append(report_rec)
+            return copy.deepcopy(report_rec)
+
+    def export_results_report(
+        self,
+        name: str,
+        dest: Path,
+        *,
+        report_type: str | None = None,
+    ) -> Path:
+        with self._lock:
+            rec = next((x for x in self._results_reports if x["name"] == name), None)
+            overlay = next((x for x in self._field_overlays if x["name"] == name), None)
+            if rec is None and overlay is None:
+                raise AdapterError(
+                    f"report {name!r} is not under Results; create it first",
+                    code="report_not_in_results",
+                    details={"name": name},
+                )
+            dest = Path(dest)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            kind = report_type or (rec or overlay or {}).get("report_type")
+            if kind == "field_face":
+                dest.write_bytes(b"\xff\xd8\xff\xd9")
+                return dest
+            families = list((rec or {}).get("family_variables") or [])
+            if kind == "terminal_z":
+                dest.write_text("freq_ghz,re,im\n1.0,40.0,12.0\n2.4,50.0,2.0\n", encoding="utf-8")
+            elif kind == "farfield_2d":
+                dest.write_text(
+                    "theta_deg,db_gain_total\n-180,-12.0\n0,5.0\n180,-12.0\n",
+                    encoding="utf-8",
+                )
+            elif families:
+                headers = ["Freq [GHz]"]
+                for var in families:
+                    headers.append(f"dB(S(1,1)) [] - {var}='lo'")
+                    headers.append(f"dB(S(1,1)) [] - {var}='hi'")
+                    break
+                if len(headers) == 1:
+                    headers.append("dB(S(1,1)) []")
+                dest.write_text(
+                    ",".join(f'"{h}"' for h in headers)
+                    + "\n1.0,-5.0,-4.0\n2.4,-12.0,-9.0\n3.0,-8.0,-7.0\n",
+                    encoding="utf-8",
+                )
+            else:
+                dest.write_text(
+                    "freq_ghz,s11_db\n1.0,-5.0\n2.4,-12.0\n3.0,-8.0\n",
+                    encoding="utf-8",
+                )
+            return dest
+
+    def list_optimetrics(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [copy.deepcopy(item) for item in self._optimetrics]
+
+    def create_parametric(
+        self,
+        *,
+        name: str,
+        sim_setup: str,
+        sweeps: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            existing = next((x for x in self._optimetrics if x["name"] == name), None)
+            rec = {
+                "name": name,
+                "tree": "Optimetrics",
+                "setup_kind": "parametric",
+                "enabled": True,
+                "has_result": False,
+                "variables": [item["variable"] for item in sweeps],
+                "sim_setup": sim_setup,
+                "sweeps": copy.deepcopy(sweeps),
+                "created": existing is None,
+                "reused": existing is not None,
+                "edited": existing is not None,
+            }
+            if existing:
+                existing.update(rec)
+                existing["created"] = False
+                existing["reused"] = True
+                existing["edited"] = True
+                return copy.deepcopy(existing)
+            self._optimetrics.append(rec)
+            return copy.deepcopy(rec)
+
+    def export_parametric_table(self, name: str, dest: Path) -> Path:
+        with self._lock:
+            rec = next((x for x in self._optimetrics if x["name"] == name), None)
+            if rec is None:
+                raise AdapterError(
+                    f"parametric {name!r} is not under Optimetrics; create it first",
+                    code="report_not_in_results",
+                    details={"name": name},
+                )
+            dest = Path(dest)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            variables = rec.get("variables") or ["var"]
+            header = "*," + ",".join(str(v) for v in variables)
+            dest.write_text(header + "\n1,1.0\n", encoding="utf-8")
+            rec["has_result"] = True
+            return dest
 
     def disconnect(self, *, close_desktop: bool = False) -> None:
         with self._lock:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,19 @@ from hfss_mcp.domain import JobState, ParameterValue, utc_now_iso
 from hfss_mcp.environment import inspect_environment
 from hfss_mcp.errors import AdapterError, HfssMcpError, JobError, PolicyError
 from hfss_mcp.ids import new_id
-from hfss_mcp.live import REPORT_TYPES, LiveDesign, attach_live, list_rot_sessions
+from hfss_mcp.live import (
+    DEFAULT_REPORT_NAMES,
+    FIELD_QUANTITIES,
+    OPTIMETRICS_TYPES,
+    PARAMETRIC_MAX_POINTS,
+    REPORT_TYPES,
+    LiveDesign,
+    attach_live,
+    failure_message_for_setup,
+    last_progress_line,
+    list_rot_sessions,
+)
+from hfss_mcp.metrics import normalize_exported_report_csv
 from hfss_mcp.session_discovery import discover_running_sessions
 
 _FAKE_JPEG = bytes.fromhex(
@@ -44,9 +57,9 @@ class AppContext:
             adapter=adapter_name,  # type: ignore[arg-type]
             data_dir=data_dir,
         )
-        self.data_dir = self.config.data_dir
+        self.data_dir = Path(self.config.data_dir).resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.artifacts_dir = self.data_dir / "artifacts"
+        self.artifacts_dir = (self.data_dir / "artifacts").resolve()
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         self._allowlist: Allowlist | None = None
         self._live: LiveDesign | None = None
@@ -265,7 +278,7 @@ class AppContext:
             self._fake.start_solve(setup_name)
             rec["state"] = JobState.COMPLETED.value
             rec["finished_at"] = utc_now_iso()
-            return {"ok": True, "job_id": job_id, "job": rec}
+            return self._job_payload(rec)
 
         def _run() -> None:
             try:
@@ -285,13 +298,50 @@ class AppContext:
 
         self._analyze_thread = threading.Thread(target=_run, name="hfss-analyze", daemon=True)
         self._analyze_thread.start()
-        return {"ok": True, "job_id": job_id, "job": rec}
+        return self._job_payload(rec)
 
     def analyze_status(self, job_id: str) -> dict[str, Any]:
         rec = self._jobs.get(job_id)
         if rec is None:
             raise JobError(f"job not found: {job_id}", code="job_not_found")
-        return {"ok": True, "job": rec}
+        return self._job_payload(rec)
+
+    def _job_payload(self, rec: dict[str, Any]) -> dict[str, Any]:
+        """ok means the tool call worked. done means HFSS finished or failed."""
+        state = str(rec.get("state") or "")
+        done = state in {JobState.COMPLETED.value, JobState.FAILED.value}
+        running = state == JobState.RUNNING.value
+        payload: dict[str, Any] = {
+            "ok": True,
+            "accepted": True,
+            "done": done,
+            "poll": "analyze_status" if running else None,
+            "job_id": rec.get("job_id"),
+            "job": rec,
+        }
+        if self.is_fake or self._live is None:
+            payload["messages"] = list(rec.get("messages") or [])
+            return payload
+        try:
+            messages = self._live.read_messages(limit=24)
+        except Exception:
+            messages = []
+        payload["messages"] = messages
+        rec["messages"] = messages[-8:]
+        progress = last_progress_line(messages)
+        if progress:
+            payload["progress"] = progress
+            rec["progress"] = progress
+        if running:
+            fail = failure_message_for_setup(messages, str(rec.get("setup") or ""))
+            if fail:
+                rec["state"] = JobState.FAILED.value
+                rec["finished_at"] = utc_now_iso()
+                rec["error"] = {"code": "hfss_message", "message": fail}
+                payload["done"] = True
+                payload["poll"] = None
+        payload["job"] = rec
+        return payload
 
     def analyze_cancel(self, job_id: str) -> dict[str, Any]:
         rec = self._jobs.get(job_id)
@@ -307,11 +357,288 @@ class AppContext:
             "message": "Analyze on the live GUI cannot be force-killed; cancel is best-effort",
         }
 
+    def optimetrics_types(self) -> dict[str, Any]:
+        return {"ok": True, "types": OPTIMETRICS_TYPES}
+
+    def optimetrics_list(self) -> dict[str, Any]:
+        self._ensure_session()
+        if self.is_fake:
+            assert self._fake is not None
+            setups = self._fake.list_optimetrics()
+        else:
+            assert self._live is not None
+            setups = self._live.list_optimetrics()
+        return {"ok": True, "setups": setups}
+
+    def _format_parametric_sweeps(
+        self, sweeps: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, str]], int]:
+        allowlist = self._require_allowlist()
+        if not sweeps:
+            raise PolicyError(
+                "parametric needs at least one sweep",
+                code="parametric_sweep_required",
+            )
+        formatted: list[dict[str, str]] = []
+        total_points = 1
+        for raw in sweeps:
+            name = str(raw.get("variable") or "").strip()
+            spec = allowlist.param_map().get(name)
+            if spec is None:
+                raise PolicyError(
+                    f"variable {name!r} is not on the allowlist",
+                    code="variable_not_allowed",
+                    details={"name": name, "allowed": sorted(allowlist.names())},
+                )
+            unit = str(raw.get("unit") or spec.unit)
+            default_variation = "values" if raw.get("values") else "linear_step"
+            variation = str(raw.get("variation") or default_variation)
+            if variation == "values":
+                values = [float(v) for v in (raw.get("values") or [])]
+                if len(values) < 2:
+                    raise PolicyError(
+                        "values sweep needs at least two points",
+                        code="parametric_sweep_invalid",
+                        details={"variable": name},
+                    )
+                for value in values:
+                    assert_writable(allowlist, name, value, unit)
+                data = " ".join(f"{value}{unit}" for value in values)
+                n_points = len(values)
+            elif variation == "linear_step":
+                if any(k not in raw for k in ("start", "stop", "step")):
+                    raise PolicyError(
+                        "linear_step needs start, stop, step",
+                        code="parametric_sweep_invalid",
+                    )
+                start = float(raw["start"])
+                stop = float(raw["stop"])
+                step = float(raw["step"])
+                if step <= 0:
+                    raise PolicyError("step must be > 0", code="parametric_sweep_invalid")
+                assert_writable(allowlist, name, start, unit)
+                assert_writable(allowlist, name, stop, unit)
+                n_points = int(round(abs(stop - start) / step)) + 1
+                lo, hi = (start, stop) if start <= stop else (stop, start)
+                data = f"LIN {lo}{unit} {hi}{unit} {step}{unit}"
+            elif variation == "linear_count":
+                if any(k not in raw for k in ("start", "stop", "count")):
+                    raise PolicyError(
+                        "linear_count needs start, stop, count",
+                        code="parametric_sweep_invalid",
+                    )
+                start = float(raw["start"])
+                stop = float(raw["stop"])
+                count = int(raw["count"])
+                if count < 2:
+                    raise PolicyError(
+                        "linear_count needs count >= 2",
+                        code="parametric_sweep_invalid",
+                    )
+                assert_writable(allowlist, name, start, unit)
+                assert_writable(allowlist, name, stop, unit)
+                n_points = count
+                lo, hi = (start, stop) if start <= stop else (stop, start)
+                data = f"LINC {lo}{unit} {hi}{unit} {count}"
+            else:
+                raise PolicyError(
+                    f"unsupported variation {variation!r}; "
+                    "use linear_step, linear_count, or values",
+                    code="parametric_variation_unsupported",
+                    details={"allowed": ["linear_step", "linear_count", "values"]},
+                )
+            total_points *= n_points
+            formatted.append({"variable": name, "data": data})
+        if total_points > PARAMETRIC_MAX_POINTS:
+            raise PolicyError(
+                f"parametric would run {total_points} points; max is {PARAMETRIC_MAX_POINTS}",
+                code="parametric_too_many_points",
+                details={"points": total_points, "max": PARAMETRIC_MAX_POINTS},
+            )
+        return formatted, total_points
+
+    def parametric_create(
+        self,
+        *,
+        name: str | None = None,
+        setup: str | None = None,
+        sweeps: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        allowlist = self._require_allowlist()
+        self._ensure_session()
+        formatted, points = self._format_parametric_sweeps(list(sweeps or []))
+        setup_name = setup or allowlist.default_setup or "Setup1"
+        report_name = name or f"Parametric_{formatted[0]['variable']}"
+        if self.is_fake:
+            assert self._fake is not None
+            rec = self._fake.create_parametric(
+                name=report_name, sim_setup=setup_name, sweeps=formatted
+            )
+        else:
+            assert self._live is not None
+            rec = self._live.create_parametric(
+                name=report_name, sim_setup=setup_name, sweeps=formatted
+            )
+        rec["sim_setup"] = setup_name
+        rec["sweeps"] = formatted
+        rec["points"] = points
+        return {"ok": True, "setup": rec}
+
+    def parametric_start(self, name: str) -> dict[str, Any]:
+        self._ensure_session()
+        if self.is_fake:
+            assert self._fake is not None
+            listed = self._fake.list_optimetrics()
+        else:
+            assert self._live is not None
+            listed = self._live.list_optimetrics()
+        match = next((item for item in listed if item.get("name") == name), None)
+        if match is None:
+            raise PolicyError(
+                f"parametric {name!r} is not under Optimetrics; create it first",
+                code="report_not_in_results",
+                details={"name": name},
+            )
+        if match.get("setup_kind") != "parametric":
+            raise PolicyError(
+                f"{name!r} is {match.get('setup_kind')}, not a parametric setup",
+                code="parametric_kind_unsupported",
+            )
+        with self._job_lock:
+            running = [j for j in self._jobs.values() if j["state"] == JobState.RUNNING.value]
+            if running:
+                raise JobError(
+                    "an analyze job is already running",
+                    code="analyze_busy",
+                    details={"job_id": running[0]["job_id"]},
+                )
+            job_id = new_id("job_")
+            rec: dict[str, Any] = {
+                "job_id": job_id,
+                "kind": "parametric",
+                "state": JobState.RUNNING.value,
+                "setup": name,
+                "created_at": utc_now_iso(),
+                "started_at": utc_now_iso(),
+                "finished_at": None,
+                "error": None,
+            }
+            self._jobs[job_id] = rec
+        if self.is_fake:
+            rec["state"] = JobState.COMPLETED.value
+            rec["finished_at"] = utc_now_iso()
+            return self._job_payload(rec)
+
+        def _run() -> None:
+            try:
+                assert self._live is not None
+                self._live.analyze_parametric(name)
+                with self._job_lock:
+                    rec["state"] = JobState.COMPLETED.value
+                    rec["finished_at"] = utc_now_iso()
+            except Exception as exc:
+                with self._job_lock:
+                    rec["state"] = JobState.FAILED.value
+                    rec["finished_at"] = utc_now_iso()
+                    rec["error"] = {
+                        "code": getattr(exc, "code", "analyze_failed"),
+                        "message": str(exc),
+                    }
+
+        self._analyze_thread = threading.Thread(target=_run, name="hfss-parametric", daemon=True)
+        self._analyze_thread.start()
+        return self._job_payload(rec)
+
+    def parametric_export_table(self, name: str) -> dict[str, Any]:
+        self._ensure_session()
+        dest = self.artifacts_dir / f"{new_id('art_')}_parametric.csv"
+        if self.is_fake:
+            assert self._fake is not None
+            dest = self._fake.export_parametric_table(name, dest)
+        else:
+            assert self._live is not None
+            dest = self._live.export_parametric_table(name, dest)
+        return {"ok": True, "name": name, "path": str(dest), "format": "csv"}
+
     def report_types(self) -> dict[str, Any]:
         return {"ok": True, "types": REPORT_TYPES}
 
+    def _default_report_name(
+        self,
+        report_type: str,
+        *,
+        name: str | None,
+        face: str | None,
+        frequency: str | None,
+        quantity: str | None = None,
+    ) -> str:
+        if name:
+            return name
+        if report_type == "field_face":
+            face_part = re.sub(r"[^\w]+", "_", str(face or "face")).strip("_") or "face"
+            freq_part = re.sub(r"[^\w]+", "_", str(frequency or "freq")).strip("_") or "freq"
+            qty_part = re.sub(r"[^\w]+", "_", str(quantity or "Mag_E")).strip("_") or "Mag_E"
+            return f"Field_{face_part}_{freq_part}_{qty_part}"
+        if report_type == "farfield_2d" and frequency:
+            freq_part = re.sub(r"[^\w]+", "_", str(frequency)).strip("_")
+            return f"{DEFAULT_REPORT_NAMES['farfield_2d']}_{freq_part}"
+        return DEFAULT_REPORT_NAMES.get(report_type, report_type)
+
     def report_list(self) -> dict[str, Any]:
-        return {"ok": True, "reports": list(self._reports.values())}
+        self._ensure_session()
+        if self.is_fake:
+            assert self._fake is not None
+            reports = self._fake.list_reports()
+        else:
+            assert self._live is not None
+            reports = self._live.list_reports()
+        return {"ok": True, "reports": reports}
+
+    def _family_variables(
+        self,
+        *,
+        families: list[str] | None,
+        parametric: str | None,
+    ) -> list[str]:
+        allowlist = self._require_allowlist()
+        if families is not None:
+            out: list[str] = []
+            for name in families:
+                key = str(name).strip()
+                if not key:
+                    continue
+                if key not in allowlist.names():
+                    raise PolicyError(
+                        f"variable {key!r} is not on the allowlist",
+                        code="variable_not_allowed",
+                        details={"name": key, "allowed": sorted(allowlist.names())},
+                    )
+                if key not in out:
+                    out.append(key)
+            return out
+        if self.is_fake:
+            assert self._fake is not None
+            listed = self._fake.list_optimetrics()
+        else:
+            assert self._live is not None
+            listed = self._live.list_optimetrics()
+        setups = [item for item in listed if item.get("setup_kind") == "parametric"]
+        if parametric:
+            match = next((item for item in setups if item.get("name") == parametric), None)
+            if match is None:
+                raise PolicyError(
+                    f"parametric {parametric!r} is not under Optimetrics",
+                    code="report_not_in_results",
+                    details={"name": parametric},
+                )
+            setups = [match]
+        seen: list[str] = []
+        for item in setups:
+            for name in item.get("variables") or []:
+                key = str(name).strip()
+                if key and key not in seen:
+                    seen.append(key)
+        return seen
 
     def report_create(
         self,
@@ -322,6 +649,9 @@ class AppContext:
         sweep: str | None = None,
         face: str | None = None,
         frequency: str | None = None,
+        families: list[str] | None = None,
+        parametric: str | None = None,
+        quantity: str | None = None,
     ) -> dict[str, Any]:
         known = {item["id"] for item in REPORT_TYPES}
         if report_type not in known:
@@ -331,87 +661,137 @@ class AppContext:
                 details={"allowed": sorted(known)},
             )
         allowlist = self._require_allowlist()
-        report_id = new_id("rpt_")
-        rec = {
-            "report_id": report_id,
-            "name": name or f"{report_type}_{report_id[-6:]}",
-            "report_type": report_type,
-            "setup": setup or allowlist.default_setup,
-            "sweep": sweep or allowlist.default_sweep,
-            "face": face,
-            "frequency": frequency,
-        }
-        if report_type == "field_face" and (not face or not frequency):
-            raise PolicyError(
-                "field_face needs face and frequency",
-                code="field_export_args",
+        field_quantity = "Mag_E"
+        if report_type == "field_face":
+            if not face or not frequency:
+                raise PolicyError(
+                    "field_face needs face and frequency",
+                    code="field_export_args",
+                )
+            field_quantity = quantity or "Mag_E"
+            if field_quantity not in FIELD_QUANTITIES:
+                raise PolicyError(
+                    f"unknown field quantity {field_quantity!r}",
+                    code="field_quantity_unknown",
+                    details={"allowed": sorted(FIELD_QUANTITIES)},
+                )
+        self._ensure_session()
+        report_name = self._default_report_name(
+            report_type,
+            name=name,
+            face=face,
+            frequency=frequency,
+            quantity=field_quantity if report_type == "field_face" else None,
+        )
+        setup_name = setup or allowlist.default_setup or "Setup1"
+        sweep_name = sweep or allowlist.default_sweep
+        family_variables: list[str] = []
+        if report_type != "field_face":
+            family_variables = self._family_variables(
+                families=families, parametric=parametric
             )
-        self._reports[report_id] = rec
+        if self.is_fake:
+            assert self._fake is not None
+            rec = self._fake.create_results_report(
+                report_type=report_type,
+                name=report_name,
+                setup=setup_name,
+                sweep=sweep_name,
+                frequency=frequency,
+                face=face,
+                family_variables=family_variables,
+                quantity=field_quantity if report_type == "field_face" else None,
+            )
+        else:
+            assert self._live is not None
+            if report_type == "field_face":
+                rec = self._live.create_field_overlay(
+                    name=report_name,
+                    face=str(face),
+                    frequency=str(frequency),
+                    setup=setup_name,
+                    sweep=sweep_name,
+                    quantity=field_quantity,
+                )
+            else:
+                rec = self._live.create_results_report(
+                    report_type=report_type,
+                    name=report_name,
+                    setup=setup_name,
+                    sweep=sweep_name,
+                    frequency=frequency,
+                    family_variables=family_variables,
+                )
+        rec["report_id"] = rec.get("name") or report_name
+        rec["report_type"] = report_type
+        rec["face"] = face
+        rec["frequency"] = frequency
+        if report_type == "field_face":
+            rec["quantity"] = field_quantity
+        self._reports[str(rec["report_id"])] = rec
         return {"ok": True, "report": rec}
 
     def report_export(self, report_id: str) -> dict[str, Any]:
-        rec = self._reports.get(report_id)
-        if rec is None:
-            raise PolicyError(f"report not found: {report_id}", code="report_not_found")
         self._ensure_session()
-        kind = rec["report_type"]
-        stamp = new_id("art_")
-        setup = str(rec.get("setup") or "Setup1")
-        sweep = rec.get("sweep")
-        if kind == "field_face":
-            if not rec.get("face") or not rec.get("frequency"):
-                raise PolicyError(
-                    "field_face export needs face and frequency",
-                    code="field_export_args",
-                )
-            dest = self.artifacts_dir / f"{stamp}_field_face.jpg"
+        rec = self._reports.get(report_id)
+        listed_item: dict[str, Any] | None = None
+        if self.is_fake:
+            assert self._fake is not None
+            listed = self._fake.list_reports()
+        else:
+            assert self._live is not None
+            listed = self._live.list_reports()
+        for item in listed:
+            if item.get("name") == report_id or item.get("report_id") == report_id:
+                listed_item = item
+                break
+        kind = (rec or {}).get("report_type") or (listed_item or {}).get("report_type")
+        is_overlay = kind == "field_face" or (listed_item or {}).get("tree") == "Field Overlays"
+        if listed_item is None:
+            raise PolicyError(
+                f"report {report_id!r} is not under Results or Field Overlays; create it first",
+                code="report_not_in_results",
+                details={"report_id": report_id},
+            )
+        listed_name = str(listed_item.get("name") or report_id)
+        if is_overlay:
+            dest = self.artifacts_dir / f"{new_id('art_')}_field_face.jpg"
             if self.is_fake:
-                dest.write_bytes(_FAKE_JPEG)
+                assert self._fake is not None
+                dest = self._fake.export_results_report(
+                    listed_name, dest, report_type="field_face"
+                )
             else:
                 assert self._live is not None
-                dest = self._live.export_field_face_image(
-                    dest,
-                    face=str(rec["face"]),
-                    frequency=str(rec["frequency"]),
-                    setup=setup,
-                    sweep=sweep,
-                )
-            rec["artifact"] = str(dest)
-            rec["format"] = "image"
-            return {"ok": True, "report": rec, "path": str(dest), "format": "image"}
-        dest = self.artifacts_dir / f"{stamp}_{kind}.csv"
+                dest = self._live.export_field_overlay(listed_name, dest)
+            out = rec or dict(listed_item)
+            out["artifact"] = str(dest)
+            out["format"] = "image"
+            self._reports[listed_name] = out
+            return {"ok": True, "report": out, "path": str(dest), "format": "image"}
+        dest = self.artifacts_dir / f"{new_id('art_')}_{kind or 'report'}.csv"
         if self.is_fake:
-            if kind == "terminal_z":
-                dest.write_text("freq_ghz,re,im\n1.0,40.0,12.0\n2.4,50.0,2.0\n", encoding="utf-8")
-            elif kind == "farfield_2d":
-                dest.write_text(
-                    "theta_deg,db_gain_total\n-180,-12.0\n0,5.0\n180,-12.0\n",
-                    encoding="utf-8",
-                )
-            else:
-                dest.write_text(
-                    "freq_ghz,s11_db\n1.0,-5.0\n2.4,-12.0\n3.0,-8.0\n",
-                    encoding="utf-8",
-                )
-        elif kind == "modal_s":
-            assert self._live is not None
-            dest = self._live.export_modal_s_csv(setup=setup, sweep=sweep, dest=dest)
-        elif kind == "terminal_z":
-            assert self._live is not None
-            dest = self._live.export_terminal_z_csv(setup=setup, sweep=sweep, dest=dest)
-        elif kind == "farfield_2d":
-            assert self._live is not None
-            dest = self._live.export_farfield_2d_csv(
-                setup=setup,
-                sweep=sweep,
-                dest=dest,
-                frequency=rec.get("frequency"),
+            assert self._fake is not None
+            dest = self._fake.export_results_report(
+                listed_name, dest, report_type=kind
             )
         else:
-            raise AdapterError("unknown report kind", code="report_type_unknown")
-        rec["artifact"] = str(dest)
-        rec["format"] = "csv"
-        return {"ok": True, "report": rec, "path": str(dest), "format": "csv"}
+            assert self._live is not None
+            dest = self._live.export_results_report(
+                listed_name, dest, report_type=kind
+            )
+        if dest.suffix.lower() == ".csv":
+            dest = normalize_exported_report_csv(dest, kind)
+        out = rec or {
+            "report_id": listed_name,
+            "name": listed_name,
+            "report_type": kind,
+            "in_results": True,
+        }
+        out["artifact"] = str(dest)
+        out["format"] = "csv"
+        self._reports[listed_name] = out
+        return {"ok": True, "report": out, "path": str(dest), "format": "csv"}
 
     def view_capture(
         self,

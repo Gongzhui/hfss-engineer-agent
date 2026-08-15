@@ -26,6 +26,11 @@ PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "view_capture",
     "variable_map",
     "project_save",
+    "optimetrics_types",
+    "optimetrics_list",
+    "parametric_create",
+    "parametric_start",
+    "parametric_export_table",
 )
 
 FORBIDDEN_TOOL_NAMES: frozenset[str] = frozenset(
@@ -115,7 +120,7 @@ def variables_set(parameters: list[dict[str, Any]]) -> dict[str, Any]:
 
 @mcp.tool()
 def analyze_start(setup: str | None = None) -> dict[str, Any]:
-    """Start Analyze on the live design (async job). Does not extract metrics."""
+    """Accept an Analyze job. ok is not solved — poll analyze_status until done."""
     try:
         return get_app().analyze_start(setup=setup)
     except Exception as exc:  # noqa: BLE001
@@ -124,6 +129,7 @@ def analyze_start(setup: str | None = None) -> dict[str, Any]:
 
 @mcp.tool()
 def analyze_status(job_id: str) -> dict[str, Any]:
+    """Job state plus Message Manager lines (what a human sees while it solves)."""
     try:
         return get_app().analyze_status(job_id)
     except Exception as exc:  # noqa: BLE001
@@ -150,6 +156,7 @@ def report_types() -> dict[str, Any]:
 
 @mcp.tool()
 def report_list() -> dict[str, Any]:
+    """List reports currently under Results (what a human can see)."""
     try:
         return get_app().report_list()
     except Exception as exc:  # noqa: BLE001
@@ -164,8 +171,11 @@ def report_create(
     sweep: str | None = None,
     face: str | None = None,
     frequency: str | None = None,
+    families: list[str] | None = None,
+    parametric: str | None = None,
+    quantity: str | None = None,
 ) -> dict[str, Any]:
-    """Create a report handle. Export separately (CSV for curves, image for fields)."""
+    """Create a Results or Field Overlays plot. field_face quantity is Mag_E or Mag_Jsurf."""
     try:
         return get_app().report_create(
             report_type,
@@ -174,6 +184,9 @@ def report_create(
             sweep=sweep,
             face=face,
             frequency=frequency,
+            families=families,
+            parametric=parametric,
+            quantity=quantity,
         )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
@@ -181,7 +194,7 @@ def report_create(
 
 @mcp.tool()
 def report_export(report_id: str) -> dict[str, Any]:
-    """Export a created report. Curves → CSV path; field_face needs face+frequency."""
+    """ExportToFile a Results report. Name comes from report_list / report_create."""
     try:
         return get_app().report_export(report_id)
     except Exception as exc:  # noqa: BLE001
@@ -214,6 +227,55 @@ def project_save(mode: str = "save_as", path: str | None = None) -> dict[str, An
     """Save or Save As. Never automatic. Prefer save_as to a new versioned file."""
     try:
         return get_app().project_save(mode=mode, path=path)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def optimetrics_types() -> dict[str, Any]:
+    """Finite Optimetrics catalog. Currently only parametric is allowed."""
+    try:
+        return get_app().optimetrics_types()
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def optimetrics_list() -> dict[str, Any]:
+    """List setups under Optimetrics (what a human can see)."""
+    try:
+        return get_app().optimetrics_list()
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def parametric_create(
+    name: str | None = None,
+    setup: str | None = None,
+    sweeps: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Create or edit an Optimetrics Parametric node. Never deletes."""
+    try:
+        return get_app().parametric_create(name=name, setup=setup, sweeps=sweeps)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def parametric_start(name: str) -> dict[str, Any]:
+    """Accept Optimetrics SolveSetup (async). ok is not solved — poll analyze_status."""
+    try:
+        return get_app().parametric_start(name)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def parametric_export_table(name: str) -> dict[str, Any]:
+    """Export the parametric sweep table (ExportParametricSetupTable)."""
+    try:
+        return get_app().parametric_export_table(name)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
