@@ -1,0 +1,1 @@
+Detuned copy for Host Agent sessions. Created by MCP `project_save(mode="save_as")` from the ported `nominal/` project, then nine allowlisted variables changed within 50%, including `lw=5.25mm` to mismatch the microstrip Z0. Do not run `build.py` against this file.

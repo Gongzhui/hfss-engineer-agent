@@ -1,0 +1,48 @@
+{
+  "case_id": "uwb_circular_notch",
+  "version": 1,
+  "description": "Thesis §3.1 circular monopole + U-slot. Sandbox is a Save As of the ported nominal, then nine variables detuned within 50%, including lw to mismatch the microstrip Z0.",
+  "source": {
+    "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\cases\\uwb_circular_notch\\sandbox\\uwb_circular_notch.aedt",
+    "design_name": "CircularMonopole",
+    "setup": "Setup1",
+    "sweep": "Sweep1",
+    "port": "1",
+    "citation": "陈彦松, 超宽带天线及其带阻特性设计, 东南大学本科毕业设计, 2025, §3.1 / 表 3.1"
+  },
+  "variables": [
+    {"name": "patch_r", "unit": "mm", "min": 4.0, "max": 12.0},
+    {"name": "l2", "unit": "mm", "min": 1.0, "max": 3.0},
+    {"name": "slot_length", "unit": "mm", "min": 10.0, "max": 30.0},
+    {"name": "sw", "unit": "mm", "min": 0.5, "max": 1.5},
+    {"name": "lw", "unit": "mm", "min": 1.75, "max": 5.25},
+    {"name": "l1", "unit": "mm", "min": 8.15, "max": 24.45},
+    {"name": "g1", "unit": "mm", "min": 8.0, "max": 24.0},
+    {"name": "g2", "unit": "mm", "min": 1.95, "max": 5.85},
+    {"name": "g3", "unit": "mm", "min": 2.6, "max": 7.8}
+  ],
+  "perturbation": {
+    "patch_r": "5.6mm",
+    "slot_length": "12mm",
+    "l1": "10.0mm",
+    "l2": "1.2mm",
+    "sw": "1.5mm",
+    "g1": "8.5mm",
+    "g2": "2.0mm",
+    "g3": "2.6mm",
+    "lw": "5.25mm"
+  },
+  "metrics": {
+    "band_ghz": [3.07, 12.67],
+    "notch_ghz": [5.0, 7.0],
+    "primary": "impedance_bandwidth_and_notch",
+    "thresholds": {
+      "s11_db": -10.0
+    },
+    "notes": "Score S11<=-10 dB coverage and a distinguishable stopband. S11_min does not pass/fail. See eval/keys/uwb_circular_notch.json."
+  },
+  "budget": {
+    "max_trials": 8,
+    "max_runtime_seconds": 7200.0
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "l": {
+    "expression": "33mm",
+    "evaluated": "33mm"
+  },
+  "w": {
+    "expression": "25mm",
+    "evaluated": "25mm"
+  },
+  "sub_h": {
+    "expression": "1.14mm",
+    "evaluated": "1.14mm"
+  },
+  "lw": {
+    "expression": "3.5mm",
+    "evaluated": "3.5mm"
+  },
+  "l1": {
+    "expression": "16.3mm",
+    "evaluated": "16.3mm"
+  },
+  "patch_r": {
+    "expression": "8mm",
+    "evaluated": "8mm"
+  },
+  "slot_length": {
+    "expression": "20mm",
+    "evaluated": "20mm"
+  },
+  "l2": {
+    "expression": "2mm",
+    "evaluated": "2mm"
+  },
+  "sw": {
+    "expression": "1mm",
+    "evaluated": "1mm"
+  },
+  "g1": {
+    "expression": "16mm",
+    "evaluated": "16mm"
+  },
+  "g2": {
+    "expression": "3.9mm",
+    "evaluated": "3.9mm"
+  },
+  "g3": {
+    "expression": "5.2mm",
+    "evaluated": "5.2mm"
+  },
+  "air_pad": {
+    "expression": "25mm",
+    "evaluated": "25mm"
+  },
+  "l3": {
+    "expression": "slot_length/2",
+    "evaluated": "slot_length/2"
+  },
+  "l4": {
+    "expression": "slot_length/4",
+    "evaluated": "slot_length/4"
+  }
+}

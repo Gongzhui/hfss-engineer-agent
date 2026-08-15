@@ -1,0 +1,9 @@
+{
+  "exam_id": "uwb_circular_notch",
+  "design_band_ghz": [3.07, 12.67],
+  "threshold_db": -10.0,
+  "nominal_s11": "cases/uwb_circular_notch/results/s11.csv",
+  "start_s11": "cases/uwb_circular_notch/results/s11_sandbox.csv",
+  "answer_vars": "cases/uwb_circular_notch/answer/nominal_vars.json",
+  "notes": "Score impedance bandwidth (S11 <= -10 dB) and whether a stopband is distinguishable. Do not pass/fail on S11_min."
+}

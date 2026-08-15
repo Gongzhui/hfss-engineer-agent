@@ -19,6 +19,9 @@ references/
 .tmp_e2e_gui/
 batch.log
 scratch/
+cases/*/preview/
+*.aedt.auto
+*.pyaedt/
 
 
 # Regenerable run artifacts (BLOCKED B1, 2026-08-11)
@@ -28,3 +31,5 @@ examples/demo_output/
 benchmark/cases/*/build/
 benchmark/cases/*/runs/*/app_data/
 benchmark/cases/*/runs/run_2*/
+eval/exams/*/runs/**
+!eval/exams/*/runs/.gitkeep
