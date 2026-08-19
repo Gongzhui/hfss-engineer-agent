@@ -54,7 +54,7 @@ HFSS already has a finite set of report types (Modal S Parameter, Terminal Z, fa
 
 ### 5. Artifacts: curves vs fields
 
-- **Curves** (S11, Z, 2D pattern cuts, and similar 1-D / 2-D traces): export **CSV** from the report that exists under **Results**. If the plot is not in Results, the agent cannot see it — same as a human. `report_create` adds a real HFSS report; `report_export` is `ExportToFile` on that name.
+- **Curves** (S11, Z, 2D pattern cuts, and similar 1-D / 2-D traces): export **CSV** from the report that exists under **Results**. If the plot is not in Results, the agent cannot see it — same as a human. `report_create` adds a real HFSS report; `report_export` is `ExportToFile` on that name (GUI Export Data; Separate Columns off so each swept variable has its own column).
 - **Fields / surface current**: do **not** dump a whole-field CSV. Export a **visual** (color plot / image) on a **specified face + frequency**. `quantity` is a finite set (`Mag_E`, `Mag_Jsurf`). The overlay must remain visible in the GUI.
 - Touchstone / `ExportNetworkData` is **not** an agent-visible S11 channel. It can disagree with Modal `dB(S(1,1))` on a wave port.
 
@@ -75,7 +75,7 @@ The Skill teaches the **generic** procedure (matching antennas and 2-bit phase u
 3. Decide sample density from what this round needs to show (wide/sparse when the range is unknown; tighter when it is not).
 4. Run HFSS **Optimetrics Parametric**. Write the grouping and density **before** `parametric_create`. A rationale that would paste onto a different antenna is not a rationale.
 5. Read the **family of curves**: which knob moves the observable, which can be frozen.
-6. Next round: new group, or same group finer. Pin a point with `variables_set` only after the matrix says so.
+6. Next round: new group, or same group finer. Pin a point with `variables_set` only after the matrix says so. After any parameter write, look at the live model (`view_capture`). Geometry with an obvious CAD error is not a keepable point. How many views is judgment, not a checklist.
 
 The Skill must **not** bake a default N or default samples-per-axis. Suggested numbers make the agent copy them instead of judging. Worked counts belong only as labeled illustrations, not as the procedure. "Not an optimizer sampler" forbids genetic / PSO **and** one-factor-at-a-time value jumps. It does **not** forbid a human-scale Parametric matrix, and it does not prescribe the grid.
 

@@ -54,6 +54,49 @@ def parse_s11_series(path: Path) -> list[tuple[str, list[float], list[float]]]:
         if not grouped:
             raise SystemExit(f"no S11 points in CSV {path}")
         return [(label, freqs, dbs) for label, (freqs, dbs) in grouped.items()]
+    freq_i = next((i for i, name in enumerate(lowered) if "freq" in name), None)
+    s11_cols = [
+        i
+        for i, name in enumerate(lowered)
+        if "db(s(1,1))" in name or "db(s11)" in name or name == "s11_db"
+    ]
+    if freq_i is not None and len(s11_cols) == 1:
+        db_i = s11_cols[0]
+        var_is = [
+            i
+            for i in range(len(header))
+            if i not in {freq_i, db_i} and "db(" not in lowered[i]
+        ]
+        if var_is:
+            freq_unit = "GHz"
+            for token in header[freq_i].replace("[", " ").replace("]", " ").split():
+                if token.lower() in {"ghz", "mhz", "khz", "hz"}:
+                    freq_unit = token
+                    break
+            grouped = {}
+            for raw in rows[1:]:
+                if max(freq_i, db_i, max(var_is)) >= len(raw):
+                    continue
+                try:
+                    freq = _freq_to_ghz(float(raw[freq_i]), freq_unit)
+                    db = float(raw[db_i])
+                except ValueError:
+                    continue
+                parts = []
+                for index in var_is:
+                    name = header[index].split("[", 1)[0].strip().strip('"') or f"v{index}"
+                    unit = ""
+                    if "[" in header[index] and "]" in header[index]:
+                        unit = header[index].split("[", 1)[1].split("]", 1)[0].strip()
+                        if unit == "[]":
+                            unit = ""
+                    parts.append(f"{name}='{raw[index].strip()}{unit}'")
+                label = " ".join(parts) or "trace"
+                bucket = grouped.setdefault(label, ([], []))
+                bucket[0].append(freq)
+                bucket[1].append(db)
+            if grouped:
+                return [(label, freqs, dbs) for label, (freqs, dbs) in grouped.items()]
     freqs: list[float] = []
     dbs: list[float] = []
     headers: list[str] = []

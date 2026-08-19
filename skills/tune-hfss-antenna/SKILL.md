@@ -19,11 +19,14 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - 只调 allowlist 里的变量；禁改几何、材料、端口、HFSS Setup。
 - 扫参必须出现在 Optimetrics 树里。禁止自己循环 `variables_set`+Analyze 冒充矩阵。
 - 禁止 Optimetrics Optimization / Sensitivity / Statistical / DOE。
-- `variables_set` 只用于矩阵看完之后**钉住一组点**，不要求解、不要保存。
+- `variables_set` 用来把矩阵里的一组点写进活模型。不要求解、不要保存。返回 `needs_solve: true`：Results 仍是上一份已解的 variation，不是刚写入的值。几何会立刻跟着变，看模型不必 Analyze。
+- **每次改完参数都要看模型。** `variables_set` 之后用 `view_capture` 检查几何有没有明显错误（导体离开支撑面、槽开出金属、端口离开边、物体相交或消失）。三维和各个正交视图都值得看，宁可多看，不能少看。模型已经不像原来那副天线，这组点就不能留。怎么看、看几张，按当时需要，不要当成固定步骤去打勾。
+- `variables_set` 的参数键是 `name` 或 `variable`；`parametric_create` 的扫参键同样是 `variable` 或 `name`。两种写法等价。
 - `parametric_start` / `analyze_start` 的 `ok: true` **只表示任务已受理**，不是扫完。看 `done`。未 `done` 就必须 `analyze_status`（里面有 Message Manager 最近几行，这就是进度）。`failed` 时读 `job.error` 和 `messages`，不要空等。
 - **禁止** `trial_*` / `run_*`。
 - 不自动保存。有明显进展才 `project_save(mode="save_as")`。用户说「直接保存」才 `mode="save"`。
 - 推理写在 `hfss-tuning-log.md`。开扫前必须写清：**为什么是这一组、为什么是这些采样点**。写不出结构理由就还没到 `parametric_create`。
+- **不要并行调用 hfss-mcp 的 HFSS 工具。** AEDT 的 COM / `RunScript` 同一时刻只能进一个；并行 `health`+`snapshot` 或几个 `report_*` 会在 `SetActiveProject` 上卡死。同一轮里这些调用要串行。求解期间轮询 `analyze_status` 除外。
 
 ## Size the matrix (you decide)
 
@@ -52,13 +55,15 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Tools
 
-`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_capture` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`。钉点时才 `variables_set`。
+`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_capture` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`。钉点时 `variables_set`，随后再 `view_capture` 看模型。
 
 白名单：考场用该目录 `allowlist.json`；否则 `cases/uwb_circular_notch/allowlist.json`。
 
 同名 Parametric 再 `parametric_create` 会 **EditSetup**（树上那个节点被改掉，不删除）。粗扫改成精扫可以沿用名字；换一组变量建议换名字，免得和用户原来的扫参混在一起。
 
-开场那张单迹 `S11` **不会**因为后来扫了参就自动变成一簇。矩阵跑完后必须再建一份人看得到的报告（例如 `<Parametric名>_S11`），`families` 或 `parametric=` 把扫过的量设成 All，再 `report_export`。导出的 CSV 是 `freq_ghz,variation,s11_db`。不要把开场那条单迹当成矩阵结果。
+开场那张单迹 `S11` **不会**因为后来扫了参就自动变成一簇。矩阵跑完后必须再建一份人看得到的报告（例如 `<Parametric名>_S11`），用 `parametric=<该矩阵名>`（或显式 `families`）把扫过的量设成 All——和 GUI 里把 Family 设成 All 一样，同一量历史上解过的点都会出现在这簇里。其它量钉在 Nominal。`report_export` 走的是 GUI 右键 **Export Data**（Separate Columns 关掉）：原生表是每个扫过的量一列，再加 Freq 和 \(S_{11}\)。交给 Agent 的 CSV 是 `freq_ghz,variation,s11_db`，**variation 就是那几列拼成的参数组合**（例如 `g1='8.5mm' l2='1mm' lw='1.75mm'`），和图例一致。`labeled: true` 表示能分清每条线是哪一组点；不要按 Optimetrics 表的行序去对。不要把开场那条单迹当成矩阵结果。同名报告若已经在 Results 里，再带 family / Nominal 钉死会报 `report_exists`——换个新名字。
+
+钉住之后若要单条曲线，新建一份报告：省略 `families`/`parametric`，或传 `families=[]`。两者都把已知 Parametric 量钉在 Nominal，不会把所有矩阵当成 All。若刚 `variables_set` 还没 Analyze，`report_export` 会带 `stale_solution`：那条 CSV 仍是上一份已解的点。
 
 `field_face` 需要 `face` 和 `frequency`。插值扫频常常没存场，失败就继续看簇曲线，不要改 HFSS Setup 去强行存场。
 
@@ -68,12 +73,12 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 2. `allowlist_load`。`snapshot`。不熟则 `variable_map` + `view_capture`。
 3. 写清这一轮在调匹配还是相位。按上一节排出分组和采样，写入日志，再 `parametric_create`（须在树上能看见；看返回的 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
 4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。看哪条曲线随哪个量动、哪个量几乎不动。
-5. 敏感的留下，不敏感的可以钉死。下一轮换一组，或同一组收窄加密。钉点时才 `variables_set`。钉住之后如需单条曲线，再导出不含 family 的报告（或 `families=[]`）。
+5. 敏感的留下，不敏感的可以钉死。下一轮换一组，或同一组收窄加密。钉点时才 `variables_set`。**改完就看模型**（`view_capture`），看出几何错误就不要留这组点。钉住之后如需单条曲线，再导出不含 family 的新报告（省略 `families`，或 `families=[]`）。不要复用开场那张 `S11` 来「钉死」。
 6. 重复。达标、连续两轮看不出新的影响、或该分组的问题已经问完再停。不要用「跑满某几轮」当停手理由，也不要只扫一次就交差。
 
 ## Diagnose
 
-从**一簇**曲线看谁在搬带宽、谁在搬通带中间的抬起，不要只看钉住之后的一条，也不要只看三个标量。
+从**一簇**曲线看谁在搬带宽、谁在搬通带中间的抬起，不要只看钉住之后的一条，也不要只看三个标量。曲线好看但模型已经错了的点，不要当答案。
 
 - 匹配：\(S_{11}\le -10\,\mathrm{dB}\) 的穿越点。低频**整段**抬起，馈电/地板往往要进**同一组**矩阵，不要先整体缩放贴片。
 - 通带中间回到 −10 dB 以上的抬起才像阻带，不要和匹配失败混在一起。
