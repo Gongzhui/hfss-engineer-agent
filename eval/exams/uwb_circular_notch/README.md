@@ -2,6 +2,7 @@
 
 应试 Agent 只应看到本文件夹。不要用 Cursor 打开 `hfss-mcp` 仓库根。
 
+0. **开考前**确认 `runs/` 里只有 `.gitkeep`。若还有上一场的时间戳目录，先不要开考，把那些目录清出本文件夹。
 1. Electronics Desktop 打开  
    `cases/uwb_circular_notch/sandbox/uwb_circular_notch.aedt`  
    设计 `CircularMonopole`。不要打开 `nominal/`。
@@ -9,8 +10,8 @@
    `eval/exams/uwb_circular_notch`
 3. 确认用户级 MCP `hfss-mcp` 已连接（新窗口一般会带上 `~/.cursor/mcp.json`）。
 4. 新开 Agent 聊天，只发：**执行测试**  
-   手续是 Optimetrics 联合扫参（分组和密度由本结构判断），不是一串单点 Analyze。
-5. 结束后回到仓库根判卷（应试窗口里不要跑）：
+   卷面三项：6.6 GHz 阻带、宽度 ≤ 0.5 GHz、相对带宽 ≥ 130%。本场预算是 **求解时间合计 3 小时**（只计 HFSS 在算的时间，Agent 自己加总），满了必须交卷。手续是 Optimetrics 联合扫参（分组和密度由本结构判断），不是一串单点 Analyze。
+5. 结束后回到仓库根判卷（应试窗口里不要跑）。判完把本场 `runs/<run-id>` 清出本文件夹，再开下一场。
 
 ```powershell
 cd C:\Users\Gongzhui\Documents\Projects\hfss-mcp

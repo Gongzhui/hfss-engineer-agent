@@ -28,5 +28,5 @@ cases/<id>/
 
 | id | Status | Open |
 |---|---|---|
-| `uwb_circular_notch` | Ported nominal solved; sandbox detuned (9 params, `lw` included) | Host Agent exam: `eval/exams/uwb_circular_notch/` (impedance BW + a clear mid-band notch). Keep `nominal/` + `answer/` closed |
+| `uwb_circular_notch` | Ported nominal solved; sandbox detuned (9 params, `lw` included) | Host Agent exam: `eval/exams/uwb_circular_notch/` (6.6 GHz stopband, width ≤ 0.5 GHz, envelope rel BW ≥ 130%; 3 h solve time). Keep `nominal/` + `answer/` closed |
 | `siw_feed_l1` | Still under `benchmark/cases/siw_feed_l1/` (vendor example) | sandbox there |

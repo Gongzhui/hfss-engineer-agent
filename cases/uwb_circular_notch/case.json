@@ -34,12 +34,12 @@
   },
   "metrics": {
     "band_ghz": [3.07, 12.67],
-    "notch_ghz": [5.0, 7.0],
-    "primary": "impedance_bandwidth_and_notch",
+    "notch_ghz": [6.6, 6.6],
+    "primary": "notch_center_width_and_envelope_rel_bw",
     "thresholds": {
       "s11_db": -10.0
     },
-    "notes": "Score S11<=-10 dB coverage and a distinguishable stopband. S11_min does not pass/fail. See eval/keys/uwb_circular_notch.json."
+    "notes": "Pass/fail is eval/keys/uwb_circular_notch.json: center 6.6 GHz (no slack), width <= 0.5 GHz, envelope rel BW >= 1.30. S11_min does not pass/fail. Exam budget is 3 hours of solve time."
   },
   "budget": {
     "max_trials": 8,

@@ -5,5 +5,14 @@
   "nominal_s11": "cases/uwb_circular_notch/results/s11.csv",
   "start_s11": "cases/uwb_circular_notch/results/s11_sandbox.csv",
   "answer_vars": "cases/uwb_circular_notch/answer/nominal_vars.json",
-  "notes": "Score impedance bandwidth (S11 <= -10 dB) and whether a stopband is distinguishable. Do not pass/fail on S11_min."
+  "time_limit_hours": 3,
+  "time_budget": "solve",
+  "spec": {
+    "notch_center_ghz": 6.6,
+    "notch_center_tol_ghz": 0.0,
+    "occupied_ghz": [6.6, 6.6],
+    "notch_width_max_ghz": 0.5,
+    "rel_bw_min": 1.30
+  },
+  "notes": "Lock notch frequency to the thesis 6.6 GHz (no slack). Width 0.4→0.5 GHz and envelope rel BW 1.37→1.30 are the only slack. Width is the difference of adjacent passband outer edges on the 0.1 GHz grid (last ≤−10 of the lower band to first ≤−10 of the upper band), not the span of interior points above −10. Do not pass/fail on S11_min. Nominal must pass; sandbox start must fail. Budget is 3 hours of HFSS solve time only (sum of log solve_time lines); protocol.on_time is separate from RF pass."
 }

@@ -1,11 +1,11 @@
 # 执行测试
 
-用户说「执行测试」时，按本文件做完并停。先读 GOAL.md、OUTPUT.md 和 Skill `tune-hfss-antenna`。本考场目标是阻抗带宽 + 清晰阻带；**手续**必须是 Optimetrics 联合扫参，不是单点改值。
+用户说「执行测试」时，按本文件做完并停。先读 GOAL.md、OUTPUT.md 和 Skill `tune-hfss-antenna`。本考场目标是 **6.6 GHz 阻带 + 宽度上限 + 相对带宽**；**手续**必须是 Optimetrics 联合扫参，不是单点改值。**求解时间合计不得超过 3 小时**（只计求解，自己加总），到点必须交卷。
 
 ## 禁止
 
 - 读取或打开本文件夹以外的工程说明、`cases/`、`answer/`、`nominal/`、`eval/keys/`、源码。
-- 读取 `runs/` 里已有的旧场次。只写自己新建的 `runs/<时间戳>/`。
+- 读取 `runs/` 里已经存在的时间戳目录。开考时那里应只有 `.gitkeep`。若已有别的场次，停下来告诉用户考场不干净，不要打开那些文件夹。只写自己新建的 `runs/<时间戳>/`。
 - 把最低 \(S_{11}\) 当目标。
 - 调用不存在的 `trial_*` / `run_*`。
 - 改几何、材料、端口、HFSS Setup。
@@ -13,22 +13,25 @@
 - Optimetrics Optimization / 遗传 / 粒子群。
 - 在日志里给自己打分或猜测标称尺寸。
 - 把 Skill 或本文件里的对照例子当成「本轮必须用的个数 / 点数 / 轮数」。分组和密度由本结构决定，开扫前写进日志。
+- 求解时间加总已满 3 小时还继续开新的扫。到点必须交卷。看图、写日志、导出不计入这 3 小时。
+- 同一轮并行调用多个会进 HFSS 的 MCP 工具（`health` / `session_list` / `snapshot` / `report_*` / `variable_map` / `view_capture` / `parametric_*`）。必须一个完成再调下一个。`allowlist_load` 可以和读文件并行，不要和 `snapshot` 并行。
 
 ## 步骤
 
 1. `health` 与 `session_list`。路径必须含 `sandbox`、不含 `nominal`。否则停下来让用户改开。
 2. `allowlist_load`，路径为本目录 `allowlist.json`。
-3. `snapshot`。新建 `runs/<YYYYMMDD-HHMMSS>/`，按 OUTPUT.md 写 `hfss-tuning-log.md`。
+3. `snapshot`。新建 `runs/<YYYYMMDD-HHMMSS>/`，按 OUTPUT.md 写 `hfss-tuning-log.md`。`started` 写本机系统时钟（北京时间）。`solve_total` 从 0 起，自己加总各轮 `solve_time`，上限 3 小时。
 4. 导出开场 `S11` 为 `round-000-s11.csv`（单迹）。写 Round 000：当前 −10 dB 频段、阻带是否可辨；**这一轮**准备扫哪一组（几个量、为什么耦合、若拆组怎么拆）、每轴取哪些点、乘积多少。写不出结构理由就不要 `parametric_create`。
-5. 每一轮矩阵：
+5. 每一轮矩阵**开扫前**把已记下的 `solve_time` 加总，写入 `solve_total`。累计已满 3 小时，或再开一轮会超过：不要再 `parametric_create`，按第 8 步交卷。还在扫的那一轮可以等它结束（这一轮仍计入），写完日志就收。预估不够再开一轮时，也交卷，不要赌。
+6. 每一轮矩阵：
    - 看 `parametric_create` 返回的 `points`。一轮最多 256 点（安全阀，不是推荐网格）。物理上该更大时拆组或减密，并写明是被上限卡住。
-   - `parametric_create` → 确认出现在 Optimetrics → `parametric_start` → **`analyze_status` 直到 `done`**（`ok` 不是扫完；失败看 `job.error` / `messages`）。同名会改树上那个节点，不删除。
+   - `parametric_create` → 确认出现在 Optimetrics → `parametric_start` → **`analyze_status` 直到 `done`**（`ok` 不是扫完；失败看 `job.error` / `messages`）。同名会改树上那个节点，不删除。扫完立刻用 job 的 `started_at` / `finished_at`（或自己记下的起止）写出本轮 `solve_time`，再加进 `solve_total`。单独 `analyze_start` 同样要记一笔 `solve_time`。
    - `parametric_export_table` 存成 `round-00N-table.csv`。
-   - **另建** Results 报告（不要复用开场那张单迹 `S11`）：`report_create(report_type="modal_s", name="<该Parametric名>_S11", parametric="<该Parametric名>")`，再 `report_export` 为 `round-00N-s11.csv`（应为 `freq_ghz,variation,s11_db` 一簇）。
-   - 日志写清：哪个量搬带宽/阻带，哪个量几乎不动，下一轮换组、收窄、还是钉死。
-6. 至少做一轮联合矩阵。不要把预算理解成一串单点 Analyze。钉点时才 `variables_set`，不要为此单独 Analyze，除非矩阵已经指出那一组点。
-7. 达标、连续两轮看不出新的影响、或该问的耦合已经问完则停。不要因为「好像该停在某几轮」而停，也不要只扫一次就交差。最后钉住的设计再导出**单迹** `s11.csv`（`families=[]` 或钉点后的当前设计）。不要覆盖用户的 sandbox，除非用户说保存。
+   - **另建** Results 报告（不要复用开场那张单迹 `S11`）：`report_create(report_type="modal_s", name="<该Parametric名>_S11", parametric="<该Parametric名>")`，再 `report_export` 为 `round-00N-s11.csv`（`freq_ghz,variation,s11_db`）。variation 是 Export Data 表里各变量列拼成的参数组合（和图例同一句话），用来认出每条线是哪一组点。All 里出现同一量的历史取值是正常的。
+   - 日志写清：哪个量搬带宽/阻带，哪个量几乎不动，下一轮换组、收窄、还是钉死。`variables_set` 之后用 `view_capture` 看模型有没有错；看出来了就写进日志，不要留那组点。
+7. 至少做一轮联合矩阵。不要把预算理解成一串单点 Analyze。钉点时才 `variables_set`，不要为此单独 Analyze，除非矩阵已经指出那一组点。改完参数就看模型。
+8. 达标、连续两轮看不出新的影响、该问的耦合已经问完、**或求解时间加总已满 3 小时**：停。不要因为「好像该停在某几轮」而停，也不要只扫一次就交差；**预算用尽除外，必须交卷**。交卷：钉住当时最好的一组（`variables_set` 的键是 `name` 或 `variable`，返回 `needs_solve`）。模型已经明显错了的点不要交。导出**单迹** `s11.csv` 用新报告名 + `families=[]`，不要复用开场 `S11`。若 `report_export` 带 `stale_solution`，那条曲线仍是上一份已解的点。日志写 `stopped`（本机时钟）和最终 `solve_total`。不要覆盖用户的 sandbox，除非用户说保存。
 
 ## 曲线怎么读
 
-阻抗带宽 = \(S_{11}\le -10\,\mathrm{dB}\) 的频段。先标穿越点。从**一簇**曲线看参数影响，不要只看钉住之后的一条。
+阻抗带宽 = \(S_{11}\le -10\,\mathrm{dB}\) 的频段。阻带看 6.6 GHz 是否抬起、缺口宽不宽过 0.5 GHz（相邻两段通带外沿之差，外沿是仍 ≤ −10 dB 的那两个栅格点；不要数缺口里高于 −10 的点）、两侧外沿相对带宽够不够 130%。从**一簇**曲线看参数影响，不要只看钉住之后的一条。宽度算法见 GOAL.md。

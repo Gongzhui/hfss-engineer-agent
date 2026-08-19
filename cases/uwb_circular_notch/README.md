@@ -55,7 +55,7 @@ Conductors are zero-thickness sheets with Perfect E (`PatchPEC`, `GroundPEC`). F
 | | Thesis Fig 3-6 | Modal `dB(S(1,1))` |
 |---|---|---|
 | −10 dB 通带 | 3.07–12.67 GHz，中间有阻带 | 约 2.3–6.4 与 6.8–12.3 GHz；3.07–12.67 内约 94% 点 ≤ −10 dB |
-| 阻带 | ~6 GHz 抬起 | 6.6 GHz −5.63 dB |
+| 阻带 | ~6 GHz 抬起 | 6.4–6.8 GHz，中心 6.6 GHz，−5.63 dB；包络相对带宽 137% |
 | 谐振深度 | ~3.7 GHz −25 dB，~11.2 GHz −39 dB | 2.4 GHz −18.5 dB；11.2 GHz −13.1 dB |
 
 ## Sandbox perturbation (2026-08-13)

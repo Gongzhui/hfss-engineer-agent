@@ -20,11 +20,13 @@ def _load_score():
 def test_nominal_has_wide_impedance_bw_and_a_notch() -> None:
     score = _load_score()
     rows = score.load_s11(REPO / "cases" / "uwb_circular_notch" / "results" / "s11.csv")
-    m = score.metrics(rows)
+    m = score.metrics(rows, notch_target_ghz=6.6)
     assert m["impedance_bw_ghz"] > 10.0
     assert m["design_band_frac_le_m10"] > 0.9
     assert m["notch"] is not None
     assert m["notch"]["clear"] is True
+    assert m["notch"]["center_ghz"] == 6.6
+    assert m["notch"]["width_ghz"] == 0.4
 
 
 def test_sandbox_start_has_weaker_low_band() -> None:
@@ -32,12 +34,37 @@ def test_sandbox_start_has_weaker_low_band() -> None:
     rows = score.load_s11(
         REPO / "cases" / "uwb_circular_notch" / "results" / "s11_sandbox.csv"
     )
-    m = score.metrics(rows)
+    m = score.metrics(rows, notch_target_ghz=6.6)
     assert m["design_band_frac_le_m10"] < 0.85
     assert m["impedance_bw_ghz"] < 10.0
+    assert m["notch"] is not None
+    assert m["notch"]["center_ghz"] != 6.6
+    assert m["notch"]["width_ghz"] > 0.5
 
 
-def test_score_exam_uses_keys_not_s11_min_as_verdict() -> None:
+def test_nominal_passes_exam_spec() -> None:
+    score = _load_score()
+    tmp = REPO / "eval" / "exams" / "uwb_circular_notch" / "runs" / "_pytest_nom"
+    tmp.mkdir(parents=True, exist_ok=True)
+    src = REPO / "cases" / "uwb_circular_notch" / "results" / "s11.csv"
+    (tmp / "s11.csv").write_bytes(src.read_bytes())
+    try:
+        payload = score.score_exam("uwb_circular_notch", tmp)
+        assert payload["pass"] is True
+        end = payload["verdict"]["end"]
+        assert end["notch"]["center_ghz"] == 6.6
+        assert end["notch"]["width_ghz"] == 0.4
+        assert end["envelope"]["relative_bw"] == 1.37
+        assert all(end["checks"].values())
+        assert payload["verdict"]["start"]["pass"] is False
+        assert payload["verdict"]["nominal_reference"]["pass"] is True
+        assert "must not decide pass/fail" in payload["pass_fail_note"]
+    finally:
+        (tmp / "s11.csv").unlink(missing_ok=True)
+        tmp.rmdir()
+
+
+def test_sandbox_fails_exam_spec() -> None:
     score = _load_score()
     tmp = REPO / "eval" / "exams" / "uwb_circular_notch" / "runs" / "_pytest"
     tmp.mkdir(parents=True, exist_ok=True)
@@ -45,11 +72,78 @@ def test_score_exam_uses_keys_not_s11_min_as_verdict() -> None:
     (tmp / "s11.csv").write_bytes(src.read_bytes())
     try:
         payload = score.score_exam("uwb_circular_notch", tmp)
-        assert "must not decide pass/fail" in payload["pass_fail_note"]
+        assert payload["pass"] is False
+        checks = payload["verdict"]["end"]["checks"]
+        assert checks["notch_center_ok"] is False
+        assert checks["notch_width_ok"] is False
+        assert checks["rel_bw_ok"] is False
         end_frac = payload["end"]["design_band_frac_le_m10"]
         start_frac = payload["start"]["design_band_frac_le_m10"]
         assert end_frac == start_frac
-        assert "pass" not in payload
+        assert "must not decide pass/fail" in payload["pass_fail_note"]
+        assert payload["protocol"]["on_time"] is False
     finally:
         (tmp / "s11.csv").unlink(missing_ok=True)
         tmp.rmdir()
+
+
+def test_time_limit_is_protocol_not_rf_pass() -> None:
+    score = _load_score()
+    tmp = REPO / "eval" / "exams" / "uwb_circular_notch" / "runs" / "_pytest_clock"
+    tmp.mkdir(parents=True, exist_ok=True)
+    src = REPO / "cases" / "uwb_circular_notch" / "results" / "s11.csv"
+    (tmp / "s11.csv").write_bytes(src.read_bytes())
+    log = tmp / "hfss-tuning-log.md"
+    log.write_text(
+        "\n".join(
+            [
+                "- started: 2026-08-15 21:00 +08:00",
+                "- stopped: 2026-08-16 02:00 +08:00",
+                "- job_id: job_a",
+                "- solve_time: 1h 10m",
+                "- job_id: job_b",
+                "- solve_time: 50m",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    try:
+        payload = score.score_exam("uwb_circular_notch", tmp)
+        assert payload["pass"] is True
+        assert payload["protocol"]["time_budget"] == "solve"
+        assert payload["protocol"]["solve_total_s"] == 7200
+        assert payload["protocol"]["on_time"] is True
+        log.write_text(
+            "\n".join(
+                [
+                    "- started: 2026-08-15 21:00 +08:00",
+                    "- stopped: 2026-08-15 22:00 +08:00",
+                    "- job_id: job_a",
+                    "- solve_time: 2h",
+                    "- job_id: job_b",
+                    "- solve_time: 1h 5m",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        payload = score.score_exam("uwb_circular_notch", tmp)
+        assert payload["pass"] is True
+        assert payload["protocol"]["on_time"] is False
+    finally:
+        (tmp / "s11.csv").unlink(missing_ok=True)
+        log.unlink(missing_ok=True)
+        tmp.rmdir()
+
+
+def test_parse_duration_units() -> None:
+    score = _load_score()
+    assert score.parse_duration("12m30s") == 750
+    assert score.parse_duration("1h 2m") == 3720
+    assert score.parse_duration("01:12:30") == 4350
+    assert score.parse_duration("45s") == 45
+    assert score.parse_duration("2小时15分") == 8100
+    assert score.parse_duration("6m32s (2026-08-17T13:45:58Z → 13:52:30Z)") == 392
+    assert score.parse_duration("") is None
+    assert score.parse_duration("not-a-time") is None
