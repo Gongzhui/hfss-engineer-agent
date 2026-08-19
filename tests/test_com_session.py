@@ -6,8 +6,10 @@ from types import SimpleNamespace
 from unittest import mock
 
 from hfss_mcp.com_session import (
+    _ironpython_runner_script,
     desktop_prog_id,
     ensure_graphical_project,
+    list_com_projects,
     normalize_aedt_version,
     open_project_on_desktop,
 )
@@ -80,3 +82,33 @@ def test_ensure_graphical_uses_existing_com_project() -> None:
             )
         assert out["process_id"] == 99
         assert out["design"] == "HFSSDesign1"
+
+
+def test_runner_skips_set_active_when_already_on_project() -> None:
+    from pathlib import Path
+
+    text = _ironpython_runner_script(Path("req.json"), Path("out.json"))
+    assert "oProject = oDesktop.GetActiveProject()" in text
+    assert "switched = True" in text
+    assert "if (not oProject) or (str(oProject.GetName()) != target_name):" in text
+
+
+def test_list_com_projects_does_not_activate_the_only_open_project() -> None:
+    proj = SimpleNamespace(
+        GetName=lambda: "uwb_circular_notch",
+        GetPath=lambda: r"C:\sandbox",
+        GetTopDesignList=lambda: ["CircularMonopole"],
+    )
+    calls: list[str] = []
+
+    desktop = SimpleNamespace(
+        GetProcessID=lambda: 17044,
+        GetProjectList=lambda: ["uwb_circular_notch"],
+        GetActiveProject=lambda: proj,
+        SetActiveProject=lambda name: calls.append(name) or proj,
+    )
+    items = list_com_projects(desktop)
+    assert calls == []
+    assert items[0]["project_name"] == "uwb_circular_notch"
+    assert items[0]["designs"] == ["CircularMonopole"]
+    assert items[0]["is_active_project"] is True

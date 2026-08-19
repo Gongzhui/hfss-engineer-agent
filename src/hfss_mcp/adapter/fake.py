@@ -128,6 +128,7 @@ class FakeAdapter:
         frequency: str | None = None,
         face: str | None = None,
         family_variables: list[str] | None = None,
+        nominal_variables: list[str] | None = None,
         quantity: str | None = None,
     ) -> dict[str, Any]:
         with self._lock:
@@ -156,8 +157,21 @@ class FakeAdapter:
                     return out
                 self._field_overlays.append(rec)
                 return copy.deepcopy(rec)
+            family = [str(v) for v in (family_variables or []) if str(v).strip()]
+            nominal = [
+                str(v)
+                for v in (nominal_variables or [])
+                if str(v).strip() and str(v).strip() not in family
+            ]
             existing = next((x for x in self._results_reports if x["name"] == name), None)
             if existing:
+                if family or nominal:
+                    raise AdapterError(
+                        f"report {name!r} already exists; pick a new name to apply "
+                        "families or Nominal pins",
+                        code="report_exists",
+                        details={"name": name},
+                    )
                 return {
                     **copy.deepcopy(existing),
                     "created": False,
@@ -175,8 +189,17 @@ class FakeAdapter:
                 "tree": "Results",
                 "created": True,
                 "reused": False,
-                "family_variables": list(family_variables or []),
-                "families_applied": bool(family_variables),
+                "family_variables": family,
+                "nominal_variables": nominal,
+                "families_applied": bool(family),
+                "traces": (
+                    [
+                        f"dB(S(1,1)) [] - {family[0]}='lo'",
+                        f"dB(S(1,1)) [] - {family[0]}='hi'",
+                    ]
+                    if family
+                    else []
+                ),
             }
             self._results_reports.append(report_rec)
             return copy.deepcopy(report_rec)
@@ -212,18 +235,22 @@ class FakeAdapter:
                     encoding="utf-8",
                 )
             elif families:
-                headers = ["Freq [GHz]"]
-                for var in families:
-                    headers.append(f"dB(S(1,1)) [] - {var}='lo'")
-                    headers.append(f"dB(S(1,1)) [] - {var}='hi'")
-                    break
-                if len(headers) == 1:
-                    headers.append("dB(S(1,1)) []")
-                dest.write_text(
-                    ",".join(f'"{h}"' for h in headers)
-                    + "\n1.0,-5.0,-4.0\n2.4,-12.0,-9.0\n3.0,-8.0,-7.0\n",
-                    encoding="utf-8",
-                )
+                # GUI Export Data, Separate Columns unchecked: one column per var.
+                combo_lo = {var: 10.0 if index == 0 else 11.0 for index, var in enumerate(families)}
+                combo_hi = {var: 11.0 if index == 0 else 13.0 for index, var in enumerate(families)}
+                header = [f"{var} [mm]" for var in families] + [
+                    "Freq [GHz]",
+                    "dB(S(1,1)) []",
+                ]
+                freqs = (1.0, 2.4, 3.0)
+                dbs = ((-5.0, -12.0, -8.0), (-4.0, -9.0, -7.0))
+                lines = [",".join(f'"{item}"' for item in header)]
+                for combo, trace in ((combo_lo, dbs[0]), (combo_hi, dbs[1])):
+                    for freq, db in zip(freqs, trace, strict=True):
+                        cells = [str(combo[var]) for var in families]
+                        cells.extend([str(freq), str(db)])
+                        lines.append(",".join(cells))
+                dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
             else:
                 dest.write_text(
                     "freq_ghz,s11_db\n1.0,-5.0\n2.4,-12.0\n3.0,-8.0\n",

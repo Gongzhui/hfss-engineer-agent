@@ -22,11 +22,12 @@ from hfss_mcp.live import (
     REPORT_TYPES,
     LiveDesign,
     attach_live,
+    crash_message,
     failure_message_for_setup,
     last_progress_line,
     list_rot_sessions,
 )
-from hfss_mcp.metrics import normalize_exported_report_csv
+from hfss_mcp.metrics import csv_export_summary, normalize_exported_report_csv
 from hfss_mcp.session_discovery import discover_running_sessions
 
 _FAKE_JPEG = bytes.fromhex(
@@ -68,19 +69,47 @@ class AppContext:
         self._job_lock = threading.Lock()
         self._reports: dict[str, dict[str, Any]] = {}
         self._analyze_thread: threading.Thread | None = None
+        self._parametric_vars: dict[str, list[str]] = {}
+        self._variables_dirty: bool = False
 
     @property
     def is_fake(self) -> bool:
         return self.config.adapter == "fake"
 
     def close(self) -> None:
+        self._drop_session()
+
+    def _drop_session(self) -> None:
         self._live = None
+        self._parametric_vars = {}
+        self._variables_dirty = False
         if self._fake is not None:
             try:
                 self._fake.disconnect(close_desktop=False)
             except Exception:
                 pass
             self._fake = None
+
+    def _allowlist_matches_session(self, allowlist: Allowlist) -> bool:
+        if self.is_fake:
+            if self._fake is None:
+                return False
+            return (
+                self._fake._project_name == allowlist.project_name
+                and self._fake._design_name == allowlist.design_name
+            )
+        if self._live is None:
+            return False
+        if (
+            self._live.project_name != allowlist.project_name
+            or self._live.design_name != allowlist.design_name
+        ):
+            return False
+        wanted = allowlist.project_path
+        have = self._live.project_path
+        if wanted and have:
+            return Path(have).resolve(strict=False) == Path(wanted).resolve(strict=False)
+        return True
 
     def health(self) -> dict[str, Any]:
         env = inspect_environment()
@@ -147,6 +176,9 @@ class AppContext:
         else:
             raise PolicyError("pass path or allowlist", code="allowlist_required")
         self._allowlist = loaded
+        if not self._allowlist_matches_session(loaded):
+            if self._live is not None or self._fake is not None:
+                self._drop_session()
         return {
             "ok": True,
             "allowlist_id": loaded.allowlist_id(),
@@ -166,6 +198,8 @@ class AppContext:
 
     def _ensure_session(self) -> None:
         allowlist = self._require_allowlist()
+        if not self._allowlist_matches_session(allowlist):
+            self._drop_session()
         if self.is_fake:
             if self._fake is None:
                 self._fake = FakeAdapter(
@@ -236,7 +270,16 @@ class AppContext:
         else:
             assert self._live is not None
             result = self._live.set_variables(values)
-        return {"ok": True, **result}
+        self._variables_dirty = True
+        return {
+            "ok": True,
+            **result,
+            "needs_solve": True,
+            "note": (
+                "Variables are written. Results still show the last solved "
+                "variation until you Analyze or export a family trace for this point."
+            ),
+        }
 
     def analyze_start(self, setup: str | None = None) -> dict[str, Any]:
         allowlist = self._require_allowlist()
@@ -278,6 +321,7 @@ class AppContext:
             self._fake.start_solve(setup_name)
             rec["state"] = JobState.COMPLETED.value
             rec["finished_at"] = utc_now_iso()
+            self._variables_dirty = False
             return self._job_payload(rec)
 
         def _run() -> None:
@@ -287,6 +331,7 @@ class AppContext:
                 with self._job_lock:
                     rec["state"] = JobState.COMPLETED.value
                     rec["finished_at"] = utc_now_iso()
+                    self._variables_dirty = False
             except Exception as exc:
                 with self._job_lock:
                     rec["state"] = JobState.FAILED.value
@@ -334,6 +379,8 @@ class AppContext:
             rec["progress"] = progress
         if running:
             fail = failure_message_for_setup(messages, str(rec.get("setup") or ""))
+            if not fail and rec.get("kind") == "parametric":
+                fail = crash_message(messages)
             if fail:
                 rec["state"] = JobState.FAILED.value
                 rec["finished_at"] = utc_now_iso()
@@ -360,14 +407,22 @@ class AppContext:
     def optimetrics_types(self) -> dict[str, Any]:
         return {"ok": True, "types": OPTIMETRICS_TYPES}
 
-    def optimetrics_list(self) -> dict[str, Any]:
-        self._ensure_session()
+    def _optimetrics_setups(self) -> list[dict[str, Any]]:
         if self.is_fake:
             assert self._fake is not None
-            setups = self._fake.list_optimetrics()
-        else:
-            assert self._live is not None
-            setups = self._live.list_optimetrics()
+            return self._fake.list_optimetrics()
+        assert self._live is not None
+        return self._live.list_optimetrics()
+
+    def optimetrics_list(self) -> dict[str, Any]:
+        self._ensure_session()
+        setups = self._optimetrics_setups()
+        for item in setups:
+            if item.get("variables"):
+                continue
+            cached = self._parametric_vars.get(str(item.get("name") or ""))
+            if cached:
+                item["variables"] = list(cached)
         return {"ok": True, "setups": setups}
 
     def _format_parametric_sweeps(
@@ -382,7 +437,7 @@ class AppContext:
         formatted: list[dict[str, str]] = []
         total_points = 1
         for raw in sweeps:
-            name = str(raw.get("variable") or "").strip()
+            name = str(raw.get("variable") or raw.get("name") or "").strip()
             spec = allowlist.param_map().get(name)
             if spec is None:
                 raise PolicyError(
@@ -482,16 +537,13 @@ class AppContext:
         rec["sim_setup"] = setup_name
         rec["sweeps"] = formatted
         rec["points"] = points
+        rec["variables"] = [item["variable"] for item in formatted]
+        self._parametric_vars[report_name] = list(rec["variables"])
         return {"ok": True, "setup": rec}
 
     def parametric_start(self, name: str) -> dict[str, Any]:
         self._ensure_session()
-        if self.is_fake:
-            assert self._fake is not None
-            listed = self._fake.list_optimetrics()
-        else:
-            assert self._live is not None
-            listed = self._live.list_optimetrics()
+        listed = self._optimetrics_setups()
         match = next((item for item in listed if item.get("name") == name), None)
         if match is None:
             raise PolicyError(
@@ -527,6 +579,7 @@ class AppContext:
         if self.is_fake:
             rec["state"] = JobState.COMPLETED.value
             rec["finished_at"] = utc_now_iso()
+            self._variables_dirty = False
             return self._job_payload(rec)
 
         def _run() -> None:
@@ -536,6 +589,7 @@ class AppContext:
                 with self._job_lock:
                     rec["state"] = JobState.COMPLETED.value
                     rec["finished_at"] = utc_now_iso()
+                    self._variables_dirty = False
             except Exception as exc:
                 with self._job_lock:
                     rec["state"] = JobState.FAILED.value
@@ -594,15 +648,64 @@ class AppContext:
             reports = self._live.list_reports()
         return {"ok": True, "reports": reports}
 
-    def _family_variables(
+    def _known_parametric_variable_names(self) -> list[str]:
+        seen: list[str] = []
+
+        def add(name: object) -> None:
+            key = str(name).strip()
+            if key and key not in seen:
+                seen.append(key)
+
+        for cached in self._parametric_vars.values():
+            for name in cached:
+                add(name)
+        for item in self._optimetrics_setups():
+            if item.get("setup_kind") != "parametric":
+                continue
+            for name in item.get("variables") or []:
+                add(name)
+            cached = self._parametric_vars.get(str(item.get("name") or ""))
+            if cached:
+                for name in cached:
+                    add(name)
+        return seen
+
+    def _parametric_setup_variables(self, name: str) -> list[str]:
+        listed = self._optimetrics_setups()
+        match = next((item for item in listed if item.get("name") == name), None)
+        if match is None:
+            raise PolicyError(
+                f"parametric {name!r} is not under Optimetrics",
+                code="report_not_in_results",
+                details={"name": name},
+            )
+        names = [str(x).strip() for x in (match.get("variables") or []) if str(x).strip()]
+        if not names:
+            names = [
+                str(x).strip()
+                for x in (self._parametric_vars.get(name) or [])
+                if str(x).strip()
+            ]
+        if not names:
+            raise PolicyError(
+                f"parametric {name!r} has no sweep variables on the Optimetrics node; "
+                "names are cached when you parametric_create in this MCP session",
+                code="parametric_variables_unknown",
+                details={"name": name},
+            )
+        return names
+
+    def _report_variation_plan(
         self,
         *,
         families: list[str] | None,
         parametric: str | None,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
+        """(All vars, Nominal-pinned vars). Default does not All every setup."""
         allowlist = self._require_allowlist()
+        known = self._known_parametric_variable_names()
+        family: list[str] = []
         if families is not None:
-            out: list[str] = []
             for name in families:
                 key = str(name).strip()
                 if not key:
@@ -613,32 +716,12 @@ class AppContext:
                         code="variable_not_allowed",
                         details={"name": key, "allowed": sorted(allowlist.names())},
                     )
-                if key not in out:
-                    out.append(key)
-            return out
-        if self.is_fake:
-            assert self._fake is not None
-            listed = self._fake.list_optimetrics()
-        else:
-            assert self._live is not None
-            listed = self._live.list_optimetrics()
-        setups = [item for item in listed if item.get("setup_kind") == "parametric"]
-        if parametric:
-            match = next((item for item in setups if item.get("name") == parametric), None)
-            if match is None:
-                raise PolicyError(
-                    f"parametric {parametric!r} is not under Optimetrics",
-                    code="report_not_in_results",
-                    details={"name": parametric},
-                )
-            setups = [match]
-        seen: list[str] = []
-        for item in setups:
-            for name in item.get("variables") or []:
-                key = str(name).strip()
-                if key and key not in seen:
-                    seen.append(key)
-        return seen
+                if key not in family:
+                    family.append(key)
+        elif parametric:
+            family = self._parametric_setup_variables(parametric)
+        nominal = [name for name in known if name not in family]
+        return family, nominal
 
     def report_create(
         self,
@@ -686,8 +769,9 @@ class AppContext:
         setup_name = setup or allowlist.default_setup or "Setup1"
         sweep_name = sweep or allowlist.default_sweep
         family_variables: list[str] = []
+        nominal_variables: list[str] = []
         if report_type != "field_face":
-            family_variables = self._family_variables(
+            family_variables, nominal_variables = self._report_variation_plan(
                 families=families, parametric=parametric
             )
         if self.is_fake:
@@ -700,6 +784,7 @@ class AppContext:
                 frequency=frequency,
                 face=face,
                 family_variables=family_variables,
+                nominal_variables=nominal_variables,
                 quantity=field_quantity if report_type == "field_face" else None,
             )
         else:
@@ -721,11 +806,15 @@ class AppContext:
                     sweep=sweep_name,
                     frequency=frequency,
                     family_variables=family_variables,
+                    nominal_variables=nominal_variables,
                 )
         rec["report_id"] = rec.get("name") or report_name
         rec["report_type"] = report_type
         rec["face"] = face
         rec["frequency"] = frequency
+        if report_type != "field_face":
+            rec["family_variables"] = list(rec.get("family_variables") or family_variables)
+            rec["nominal_variables"] = list(rec.get("nominal_variables") or nominal_variables)
         if report_type == "field_face":
             rec["quantity"] = field_quantity
         self._reports[str(rec["report_id"])] = rec
@@ -781,7 +870,11 @@ class AppContext:
                 listed_name, dest, report_type=kind
             )
         if dest.suffix.lower() == ".csv":
-            dest = normalize_exported_report_csv(dest, kind)
+            dest = normalize_exported_report_csv(
+                dest,
+                kind,
+                trace_names=list(listed_item.get("traces") or []),
+            )
         out = rec or {
             "report_id": listed_name,
             "name": listed_name,
@@ -791,7 +884,26 @@ class AppContext:
         out["artifact"] = str(dest)
         out["format"] = "csv"
         self._reports[listed_name] = out
-        return {"ok": True, "report": out, "path": str(dest), "format": "csv"}
+        payload: dict[str, Any] = {
+            "ok": True,
+            "report": out,
+            "path": str(dest),
+            "format": "csv",
+        }
+        if dest.suffix.lower() == ".csv":
+            summary = csv_export_summary(dest)
+            payload["traces"] = summary.get("traces")
+            payload["labeled"] = summary.get("labeled")
+            payload["csv_format"] = summary.get("format")
+            payload["header"] = summary.get("header")
+        if self._variables_dirty:
+            payload["stale_solution"] = True
+            payload["note"] = (
+                "variables_set has not been solved. This CSV is the last solved "
+                "variation, not the current design values. Analyze, or export a "
+                "family trace that already contains this point."
+            )
+        return payload
 
     def view_capture(
         self,

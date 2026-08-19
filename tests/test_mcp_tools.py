@@ -79,7 +79,14 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         )
         assert changed["ok"] is True
         assert changed["saved"] is False
+        assert changed["needs_solve"] is True
         assert changed["readback"]["patch_w"]["value"] == 11.0
+        aliased = variables_set(
+            parameters=[{"variable": "patch_l", "value": 12.5, "unit": "mm"}]
+        )
+        assert aliased["ok"] is True
+        assert aliased["needs_solve"] is True
+        assert aliased["readback"]["patch_l"]["value"] == 12.5
 
         started = analyze_start(setup="Setup1")
         assert started["ok"] is True
@@ -102,6 +109,8 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         assert any(item["name"] == "S11" for item in listed["reports"])
         exported = report_export(created["report"]["report_id"])
         assert exported["format"] == "csv"
+        assert exported["csv_format"] == "single"
+        assert exported["traces"] == 1
         assert Path(exported["path"]).is_file()
 
         pictured = view_capture()
@@ -220,9 +229,63 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         )
         assert family["ok"] is True
         assert family["report"]["families_applied"] is True
+        assert family["report"]["family_variables"] == ["patch_w", "patch_l"]
+        assert "patch_w" not in family["report"]["nominal_variables"]
         family_out = report_export(family["report"]["report_id"])
         family_text = Path(family_out["path"]).read_text(encoding="utf-8")
         assert family_text.splitlines()[0] == "freq_ghz,variation,s11_db"
+        assert family_out["csv_format"] == "family"
+        assert family_out["traces"] == 2
+        assert family_out["labeled"] is True
+        assert "patch_w='10mm'" in family_text
+        assert "stale_solution" not in family_out
+        pinned = report_create("modal_s", name="S11_nominal", families=[])
+        assert pinned["ok"] is True
+        assert pinned["report"]["families_applied"] is False
+        assert pinned["report"]["family_variables"] == []
+        assert "patch_w" in pinned["report"]["nominal_variables"]
+        pinned_out = report_export(pinned["report"]["report_id"])
+        assert pinned_out["csv_format"] == "single"
+        assert pinned_out["traces"] == 1
+        isolated = report_create("modal_s", name="S11_after_sweeps")
+        assert isolated["ok"] is True
+        assert isolated["report"]["families_applied"] is False
+        assert isolated["report"]["family_variables"] == []
+        assert "patch_w" in isolated["report"]["nominal_variables"]
+        reused_family = report_create(
+            "modal_s",
+            name="Parametric_patch_w_S11",
+            parametric="Parametric_patch_w",
+        )
+        assert reused_family["ok"] is False
+        assert reused_family["error"]["code"] == "report_exists"
+        named_sweep = parametric_create(
+            name="Parametric_alias",
+            sweeps=[
+                {
+                    "name": "patch_w",
+                    "variation": "values",
+                    "values": [10.0, 11.0],
+                    "unit": "mm",
+                }
+            ],
+        )
+        assert named_sweep["ok"] is True
+        assert named_sweep["setup"]["variables"] == ["patch_w"]
+        assert ctx._fake is not None
+        ctx._fake._optimetrics[0]["variables"] = []
+        filled = next(
+            item
+            for item in optimetrics_list()["setups"]
+            if item["name"] == "Parametric_patch_w"
+        )
+        assert filled["variables"] == ["patch_w", "patch_l"]
+        dirty = variables_set(
+            parameters=[{"name": "patch_w", "value": 10.5, "unit": "mm"}]
+        )
+        assert dirty["needs_solve"] is True
+        stale = report_export(created["report"]["report_id"])
+        assert stale["stale_solution"] is True
         joint = parametric_create(
             name="Parametric_joint",
             sweeps=[
@@ -287,7 +350,7 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
 
 
 def test_hfss_message_failure_is_setup_specific() -> None:
-    from hfss_mcp.live import failure_message_for_setup
+    from hfss_mcp.live import crash_message, failure_message_for_setup
 
     messages = [
         "Error in command execution",
@@ -297,4 +360,14 @@ def test_hfss_message_failure_is_setup_specific() -> None:
     hit = failure_message_for_setup(messages, "P_feed_ground")
     assert hit is not None
     assert "P_feed_ground" in hit
+    assert failure_message_for_setup(messages, "P_g1_slot") is None
+
+    crash_lines = [
+        "Parametric analysis started",
+        "The solver process has been terminated.",
+    ]
+    crash = crash_message(crash_lines)
+    assert crash is not None
+    assert "terminated" in crash.lower()
+    assert failure_message_for_setup(crash_lines, "P_g1_slot") is None
     assert failure_message_for_setup(messages, "Setup1") is None

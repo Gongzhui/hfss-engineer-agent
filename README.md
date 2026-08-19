@@ -20,6 +20,7 @@ V0 optimizer tools (`trial_*`, `run_*`, workspace copies, exclusive worker Deskt
 | `docs/archive/LLM-TUNING-RESEARCH.md` | Archived 2023–25 LLM-as-optimizer survey; does not govern V1 |
 | `cases/` | Antenna examples + benchmark (nominal / sandbox / answer). `examples/` is MCP smoke only. |
 | `eval/` | Host Agent exam packs. Open `eval/exams/<id>/` in Cursor, not the repo root. |
+| `docs/FUTURE-UNATTENDED-EXAM.md` | Deferred: unattended N-run exam harness (not implemented) |
 
 ## Production start (this machine)
 
@@ -88,14 +89,14 @@ uv run hfss-mcp
 | `session_list` | read | ROT desktops and open projects |
 | `allowlist_load` | policy | Slim JSON / old manifest / `case.json` |
 | `snapshot` | read | Variables, setups, identity. No screenshot |
-| `variables_set` | mutate | Partial allowlisted update; no solve; no save |
+| `variables_set` | mutate | Partial allowlisted update; `name` or `variable`; no solve; no save; returns `needs_solve` |
 | `analyze_start` / `analyze_status` / `analyze_cancel` | job | `ok` on start = accepted, not solved. Status includes Message Manager lines |
-| `report_types` / `report_list` / `report_create` / `report_export` | reports | List/create/export **Results** plots. After a parametric, pass `parametric` or `families` so the plot shows the family. `modal_s` is Modal `dB(S(1,1))` via `ExportToFile`. `field_face` takes `face`, `frequency`, and `quantity` (`Mag_E` or `Mag_Jsurf`). |
+| `report_types` / `report_list` / `report_create` / `report_export` | reports | List/create/export **Results** plots. After a parametric, pass `parametric` so that matrix is All and other swept vars stay Nominal. Omit / `families=[]` pins all known parametric vars. Reusing a name to apply families/pins → `report_exists`. `report_export` is GUI Export Data (`ExportToFile` 3rd arg False): variable columns become `variation`. Includes `traces`/`labeled`/`csv_format`; `stale_solution` if unsaved `variables_set`. `modal_s` is Modal `dB(S(1,1))`. `field_face` takes `face`, `frequency`, and `quantity` (`Mag_E` or `Mag_Jsurf`). |
 | `view_capture` | visual | 3D modeler screenshot; optional isolate |
 | `variable_map` | read | Find-references: variable → object/expression |
 | `project_save` | save | `save` or `save_as`; never automatic |
 | `optimetrics_types` / `optimetrics_list` | read | Catalog + setups currently under **Optimetrics** |
-| `parametric_create` | mutate | Real `OptiParametric` node. Allowlisted variables; **cap 256 points** (safety rail, not a recipe). Same name edits the node; never deletes |
+| `parametric_create` | mutate | Real `OptiParametric` node. Sweep key `variable` or `name`. Allowlisted variables; **cap 256 points** (safety rail, not a recipe). Same name edits the node; never deletes |
 | `parametric_start` | job | `Optimetrics.SolveSetup`. `ok` = accepted. Poll `analyze_status` |
 | `parametric_export_table` | read | `ExportParametricSetupTable` (combination table, not Modal S11). Family S11 is a Results report |
 
@@ -126,7 +127,7 @@ uv run mypy
 
 Procedural tuning knowledge lives in `skills/tune-hfss-antenna/` (not inside the Python package). On this machine it is linked from `~/.agents/skills/tune-hfss-antenna` so Cursor and other hosts can discover it without a `.cursor/` folder in the repo.
 
-The current Skill matches the V1 engineer loop: live attach, joint Optimetrics Parametric whose grouping and density the agent must justify from the structure, family curves via a Results plot, pin with `variables_set` after the matrix, `view_capture`, `variable_map`. One-factor-at-a-time `variables_set` + Analyze is not the inner loop. The Skill does not ship a default N or samples-per-axis.
+The current Skill matches the V1 engineer loop: live attach, joint Optimetrics Parametric whose grouping and density the agent must justify from the structure, family curves via a Results plot, pin with `variables_set` after the matrix, and look at the live model after changing parameters. One-factor-at-a-time `variables_set` + Analyze is not the inner loop. The Skill does not ship a default N or samples-per-axis.
 
 ## Package layout
 

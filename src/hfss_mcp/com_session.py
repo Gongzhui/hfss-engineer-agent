@@ -14,11 +14,16 @@ import json
 import os
 import shutil
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
 from hfss_mcp.errors import AdapterError
+
+# AEDT COM / RunScript is not reentrant. Host Agents batch MCP tools; concurrent
+# SetActiveProject (listing + RunScript, or two RunScripts) hangs the GUI.
+_COM_LOCK = threading.RLock()
 
 
 def normalize_aedt_version(version: str | None) -> str | None:
@@ -164,7 +169,33 @@ def desktop_process_id(desktop: Any) -> int:
     return int(desktop.GetProcessID())
 
 
+def _project_handle(
+    desktop: Any,
+    name: str,
+    *,
+    active_name: str | None,
+    active: Any,
+) -> tuple[Any, bool]:
+    """Return (project, switched_active). Prefer not calling SetActiveProject."""
+    if active is not None and name == active_name:
+        return active, False
+    getter = getattr(desktop, "GetProject", None)
+    if callable(getter):
+        try:
+            proj = getter(name)
+            if proj is not None:
+                return proj, False
+        except Exception:
+            pass
+    return desktop.SetActiveProject(name), True
+
+
 def list_com_projects(desktop: Any) -> list[dict[str, Any]]:
+    with _COM_LOCK:
+        return _list_com_projects_unlocked(desktop)
+
+
+def _list_com_projects_unlocked(desktop: Any) -> list[dict[str, Any]]:
     try:
         names = [str(x) for x in (desktop.GetProjectList() or [])]
     except Exception as exc:
@@ -175,17 +206,23 @@ def list_com_projects(desktop: Any) -> list[dict[str, Any]]:
         ) from exc
     items: list[dict[str, Any]] = []
     active_name = None
+    active = None
     try:
         active = desktop.GetActiveProject()
         if active:
             active_name = str(active.GetName())
     except Exception:
         active = None
+    switched_away = False
     for name in names:
         try:
-            proj = desktop.SetActiveProject(name)
+            proj, switched = _project_handle(
+                desktop, name, active_name=active_name, active=active
+            )
         except Exception:
             continue
+        if switched:
+            switched_away = True
         path = ""
         try:
             path = str(proj.GetPath() or "")
@@ -210,7 +247,7 @@ def list_com_projects(desktop: Any) -> list[dict[str, Any]]:
                 "source": "com_rot",
             }
         )
-    if active_name:
+    if switched_away and active_name:
         try:
             desktop.SetActiveProject(active_name)
         except Exception:
@@ -372,6 +409,8 @@ def _ironpython_runner_script(request_path: Path, result_path: Path) -> str:
             "output = {}",
             "previous_project_name = None",
             "previous_design_name = None",
+            "switched = False",
+            "target_name = None",
             "try:",
             "    active_project = oDesktop.GetActiveProject()",
             "    if active_project:",
@@ -390,7 +429,11 @@ def _ironpython_runner_script(request_path: Path, result_path: Path) -> str:
             "        payload = json.load(handle)",
             "    finally:",
             "        handle.close()",
-            "    oProject = oDesktop.SetActiveProject(payload['project_name'])",
+            "    target_name = payload['project_name']",
+            "    oProject = oDesktop.GetActiveProject()",
+            "    if (not oProject) or (str(oProject.GetName()) != target_name):",
+            "        oProject = oDesktop.SetActiveProject(payload['project_name'])",
+            "        switched = True",
             "    oDesign = oProject.SetActiveDesign(payload['design'])",
             "    try:",
             "        oEditor = oDesign.SetActiveEditor('3D Modeler')",
@@ -409,7 +452,7 @@ def _ironpython_runner_script(request_path: Path, result_path: Path) -> str:
             "except Exception:",
             "    output = {'ok': False, 'error': traceback.format_exc()}",
             "finally:",
-            "    if previous_project_name:",
+            "    if switched and previous_project_name and previous_project_name != target_name:",
             "        try:",
             "            restore_project = oDesktop.SetActiveProject(previous_project_name)",
             "            if previous_design_name:",
@@ -461,38 +504,39 @@ def execute_run_script(
         runner_path.write_text(
             _ironpython_runner_script(request_path, result_path), encoding="ascii"
         )
-        desktop = get_desktop(
-            version=version,
-            process_id=process_id,
-            create_if_missing=False,
-        )
-        current_pid = desktop_process_id(desktop)
-        if process_id and int(process_id) != current_pid:
-            raise AdapterError(
-                f"Attached session expects AEDT PID {process_id}, "
-                f"but the reachable desktop is PID {current_pid}.",
-                code="aedt_pid_mismatch",
-                details={"expected": process_id, "actual": current_pid},
+        with _COM_LOCK:
+            desktop = get_desktop(
+                version=version,
+                process_id=process_id,
+                create_if_missing=False,
             )
-        result_code = desktop.RunScript(str(runner_path))
-        if int(result_code) != 0:
-            raise AdapterError(
-                f"AEDT RunScript failed with code {result_code}",
-                code="run_script_failed",
-                details={"result_code": int(result_code)},
-            )
-        deadline = time.time() + max(float(timeout_seconds), 1.0)
-        while time.time() < deadline:
-            if result_path.is_file():
-                break
-            time.sleep(0.1)
-        if not result_path.is_file():
-            raise AdapterError(
-                "AEDT RunScript did not produce a result file before timeout",
-                code="run_script_timeout",
-                details={"timeout_seconds": timeout_seconds},
-            )
-        payload = json.loads(result_path.read_text(encoding="utf-8"))
+            current_pid = desktop_process_id(desktop)
+            if process_id and int(process_id) != current_pid:
+                raise AdapterError(
+                    f"Attached session expects AEDT PID {process_id}, "
+                    f"but the reachable desktop is PID {current_pid}.",
+                    code="aedt_pid_mismatch",
+                    details={"expected": process_id, "actual": current_pid},
+                )
+            result_code = desktop.RunScript(str(runner_path))
+            if int(result_code) != 0:
+                raise AdapterError(
+                    f"AEDT RunScript failed with code {result_code}",
+                    code="run_script_failed",
+                    details={"result_code": int(result_code)},
+                )
+            deadline = time.time() + max(float(timeout_seconds), 1.0)
+            while time.time() < deadline:
+                if result_path.is_file():
+                    break
+                time.sleep(0.1)
+            if not result_path.is_file():
+                raise AdapterError(
+                    "AEDT RunScript did not produce a result file before timeout",
+                    code="run_script_timeout",
+                    details={"timeout_seconds": timeout_seconds},
+                )
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict) or not payload.get("ok", False):
             raise AdapterError(
                 str((payload or {}).get("error") or "RunScript failed"),

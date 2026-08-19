@@ -111,7 +111,7 @@ def snapshot() -> dict[str, Any]:
 
 @mcp.tool()
 def variables_set(parameters: list[dict[str, Any]]) -> dict[str, Any]:
-    """Set one or more allowlisted variables. Partial update. Does not solve or save."""
+    """Set allowlisted variables. `name` or `variable`. No solve, no save."""
     try:
         return get_app().variables_set(parameters)
     except Exception as exc:  # noqa: BLE001
@@ -175,7 +175,7 @@ def report_create(
     parametric: str | None = None,
     quantity: str | None = None,
 ) -> dict[str, Any]:
-    """Create a Results or Field Overlays plot. field_face quantity is Mag_E or Mag_Jsurf."""
+    """Create a Results or Field Overlays plot. Pick a new name to apply families."""
     try:
         return get_app().report_create(
             report_type,
@@ -194,7 +194,10 @@ def report_create(
 
 @mcp.tool()
 def report_export(report_id: str) -> dict[str, Any]:
-    """ExportToFile a Results report. Name comes from report_list / report_create."""
+    """ExportToFile a Results report. CSV includes traces/labeled; may be stale.
+
+    Family S11 uses GUI Export Data (one column per swept variable).
+    """
     try:
         return get_app().report_export(report_id)
     except Exception as exc:  # noqa: BLE001
@@ -255,7 +258,7 @@ def parametric_create(
     setup: str | None = None,
     sweeps: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Create or edit an Optimetrics Parametric node. Never deletes."""
+    """Create or edit an Optimetrics Parametric node. `variable` or `name`."""
     try:
         return get_app().parametric_create(name=name, setup=setup, sweeps=sweeps)
     except Exception as exc:  # noqa: BLE001

@@ -6,7 +6,7 @@ import math
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 def utc_now_iso() -> str:
@@ -24,11 +24,11 @@ class JobState(StrEnum):
 
 
 class ParameterValue(BaseModel):
-    name: str
+    name: str = Field(validation_alias=AliasChoices("name", "variable"))
     value: float
     unit: str
 
-    model_config = {"extra": "forbid"}
+    model_config = {"extra": "forbid", "populate_by_name": True}
 
     @field_validator("name", "unit")
     @classmethod

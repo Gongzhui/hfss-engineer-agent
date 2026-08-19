@@ -92,6 +92,25 @@ def failure_message_for_setup(messages: list[str], setup: str) -> str | None:
     return None
 
 
+def crash_message(messages: list[str]) -> str | None:
+    """Engine-died lines that often omit the Optimetrics setup name."""
+    for line in reversed(messages):
+        low = line.lower()
+        if any(
+            hint in low
+            for hint in (
+                "not responding",
+                "has been terminated",
+                "engine error",
+                "fatal error",
+                "process was terminated",
+                "solver process",
+            )
+        ):
+            return line
+    return None
+
+
 def last_progress_line(messages: list[str]) -> str | None:
     if not messages:
         return None
@@ -597,11 +616,13 @@ class LiveDesign:
         sweep: str | None,
         frequency: str | None = None,
         family_variables: list[str] | None = None,
+        nominal_variables: list[str] | None = None,
     ) -> dict[str, Any]:
         """Add a plot under Results if missing. Never delete an existing report.
 
-        family_variables become All in the variation dict so the plot shows the
-        parametric family a human would add under Results — not a hidden export.
+        family_variables become All; other known parametric vars become Nominal
+        so later Optimetrics rounds do not leak into the plot. CreateReport
+        failures are raised — there is no silent Freq-only fallback.
         """
         if report_type not in DEFAULT_REPORT_NAMES:
             raise AdapterError(
@@ -611,7 +632,36 @@ class LiveDesign:
         preferred = f"{setup} : {sweep}" if sweep else f"{setup} : LastAdaptive"
         freq = frequency or "All"
         family = [str(v) for v in (family_variables or []) if str(v).strip()]
+        nominal = [
+            str(v)
+            for v in (nominal_variables or [])
+            if str(v).strip() and str(v).strip() not in family
+        ]
+        existing_names = {str(item.get("name") or "") for item in self.list_reports()}
+        if name in existing_names:
+            if family or nominal:
+                raise AdapterError(
+                    f"report {name!r} already exists; pick a new name to apply "
+                    "families or Nominal pins",
+                    code="report_exists",
+                    details={"name": name},
+                )
+            return {
+                "name": name,
+                "report_id": name,
+                "report_type": report_type,
+                "created": False,
+                "reused": True,
+                "in_results": True,
+                "setup": setup,
+                "sweep": sweep,
+                "frequency": frequency,
+                "family_variables": family,
+                "nominal_variables": nominal,
+                "families_applied": False,
+            }
         family_payload = json.dumps(family, ensure_ascii=True)
+        nominal_payload = json.dumps(nominal, ensure_ascii=True)
         raw = self._script(
             "\n".join(
                 [
@@ -622,9 +672,13 @@ class LiveDesign:
                     f"setup = {setup!r}",
                     f"freq = {freq!r}",
                     f"family_vars = json.loads({family_payload!r})",
+                    f"nominal_vars = json.loads({nominal_payload!r})",
                     "variation = ['Freq:=', ['All']]",
                     "for var in family_vars:",
                     "    variation += [str(var) + ':=', ['All']]",
+                    "for var in nominal_vars:",
+                    "    if var not in family_vars:",
+                    "        variation += [str(var) + ':=', ['Nominal']]",
                     "families_applied = bool(family_vars)",
                     "report_module = oDesign.GetModule('ReportSetup')",
                     "existing = []",
@@ -633,134 +687,112 @@ class LiveDesign:
                     "except Exception:",
                     "    existing = []",
                     "if report_name in existing:",
-                    "    result['name'] = report_name",
-                    "    result['created'] = False",
-                    "    result['reused'] = True",
-                    "    result['in_results'] = True",
-                    "    result['families_applied'] = False",
-                    "    result['family_variables'] = family_vars",
-                    "else:",
-                    "    solutions = []",
+                    "    raise Exception('report ' + report_name + ' already exists; pick a new name')",
+                    "solutions = []",
+                    "category = 'Modal Solution Data'",
+                    "if report_type == 'modal_s':",
                     "    category = 'Modal Solution Data'",
-                    "    if report_type == 'modal_s':",
-                    "        category = 'Modal Solution Data'",
-                    "    elif report_type == 'terminal_z':",
-                    "        category = 'Terminal Solution Data'",
-                    "    elif report_type == 'farfield_2d':",
-                    "        category = 'Far Fields'",
+                    "elif report_type == 'terminal_z':",
+                    "    category = 'Terminal Solution Data'",
+                    "elif report_type == 'farfield_2d':",
+                    "    category = 'Far Fields'",
+                    "try:",
+                    "    solutions = [str(x) for x in (report_module.GetAvailableSolutions(category) or [])]",
+                    "except Exception:",
+                    "    solutions = []",
+                    "candidates = [preferred, setup + ' : LastAdaptive', setup]",
+                    "setup_solution = preferred",
+                    "for cand in candidates:",
+                    "    if (not solutions) or (cand in solutions):",
+                    "        setup_solution = cand",
+                    "        break",
+                    "if solutions and setup_solution not in solutions:",
+                    "    setup_solution = solutions[0]",
+                    "created = False",
+                    "errors = []",
+                    "if report_type == 'modal_s':",
                     "    try:",
-                    "        solutions = [str(x) for x in (report_module.GetAvailableSolutions(category) or [])]",
-                    "    except Exception:",
-                    "        solutions = []",
-                    "    candidates = [preferred, setup + ' : LastAdaptive', setup]",
-                    "    setup_solution = preferred",
-                    "    for cand in candidates:",
-                    "        if (not solutions) or (cand in solutions):",
-                    "            setup_solution = cand",
-                    "            break",
-                    "    if solutions and setup_solution not in solutions:",
-                    "        setup_solution = solutions[0]",
-                    "    created = False",
-                    "    errors = []",
-                    "    if report_type == 'modal_s':",
+                    "        report_module.CreateReport(report_name, 'Modal Solution Data', 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], variation, ['X Component:=', 'Freq', 'Y Component:=', ['dB(S(1,1))']])",
+                    "        created = True",
+                    "    except Exception as error:",
+                    "        errors.append(str(error))",
+                    "elif report_type == 'terminal_z':",
+                    "    attempts = [('Terminal Solution Data', ['re(Zt(1,1))', 'im(Zt(1,1))']), ('Terminal Solution Data', ['re(Z(1,1))', 'im(Z(1,1))']), ('Modal Solution Data', ['re(Z(1,1))', 'im(Z(1,1))'])]",
+                    "    for category, exprs in attempts:",
                     "        try:",
-                    "            report_module.CreateReport(report_name, 'Modal Solution Data', 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], variation, ['X Component:=', 'Freq', 'Y Component:=', ['dB(S(1,1))']])",
+                    "            report_module.CreateReport(report_name, category, 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], variation, ['X Component:=', 'Freq', 'Y Component:=', exprs])",
                     "            created = True",
+                    "            break",
                     "        except Exception as error:",
                     "            errors.append(str(error))",
-                    "            if family_vars:",
-                    "                try:",
-                    "                    report_module.CreateReport(report_name, 'Modal Solution Data', 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], ['Freq:=', ['All']], ['X Component:=', 'Freq', 'Y Component:=', ['dB(S(1,1))']])",
-                    "                    created = True",
-                    "                    families_applied = False",
-                    "                except Exception as retry_error:",
-                    "                    errors.append(str(retry_error))",
-                    "    elif report_type == 'terminal_z':",
-                    "        attempts = [('Terminal Solution Data', ['re(Zt(1,1))', 'im(Zt(1,1))']), ('Terminal Solution Data', ['re(Z(1,1))', 'im(Z(1,1))']), ('Modal Solution Data', ['re(Z(1,1))', 'im(Z(1,1))'])]",
-                    "        for category, exprs in attempts:",
+                    "elif report_type == 'farfield_2d':",
+                    "    spheres = []",
+                    "    try:",
+                    "        rad = oDesign.GetModule('RadField')",
+                    "        for args in (('Infinite Sphere',), ()):",
                     "            try:",
-                    "                report_module.CreateReport(report_name, category, 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], variation, ['X Component:=', 'Freq', 'Y Component:=', exprs])",
+                    "                spheres = [str(x) for x in (rad.GetSetupNames(*args) or [])]",
+                    "                if spheres:",
+                    "                    break",
+                    "            except Exception:",
+                    "                pass",
+                    "    except Exception:",
+                    "        spheres = []",
+                    "    if not spheres:",
+                    "        raise Exception('No infinite sphere / far-field setup on this design')",
+                    "    ff_solutions = []",
+                    "    try:",
+                    "        ff_solutions = [str(x) for x in (report_module.GetAvailableSolutions('Far Fields') or [])]",
+                    "    except Exception:",
+                    "        ff_solutions = []",
+                    "    ff_setup = preferred",
+                    "    if ff_solutions and preferred not in ff_solutions:",
+                    "        adaptive = [s for s in ff_solutions if 'LastAdaptive' in s]",
+                    "        ff_setup = adaptive[0] if adaptive else ff_solutions[0]",
+                    "    variation = ['Theta:=', ['All'], 'Phi:=', ['0deg'], 'Freq:=', [freq]]",
+                    "    for sphere in spheres:",
+                    "        context = ['Context:=', sphere]",
+                    "        for expression in ['dB(GainTotal)', 'GainTotal', 'dB(RealizedGainTotal)']:",
+                    "            try:",
+                    "                report_module.CreateReport(report_name, 'Far Fields', 'Rectangular Plot', ff_setup, context, variation, ['X Component:=', 'Theta', 'Y Component:=', [expression]])",
                     "                created = True",
                     "                break",
                     "            except Exception as error:",
                     "                errors.append(str(error))",
-                    "        if (not created) and family_vars:",
-                    "            for category, exprs in attempts:",
-                    "                try:",
-                    "                    report_module.CreateReport(report_name, category, 'Rectangular Plot', setup_solution, ['Domain:=', 'Sweep'], ['Freq:=', ['All']], ['X Component:=', 'Freq', 'Y Component:=', exprs])",
-                    "                    created = True",
-                    "                    families_applied = False",
-                    "                    break",
-                    "                except Exception as retry_error:",
-                    "                    errors.append(str(retry_error))",
-                    "    elif report_type == 'farfield_2d':",
-                    "        spheres = []",
-                    "        try:",
-                    "            rad = oDesign.GetModule('RadField')",
-                    "            for args in (('Infinite Sphere',), ()):",
-                    "                try:",
-                    "                    spheres = [str(x) for x in (rad.GetSetupNames(*args) or [])]",
-                    "                    if spheres:",
-                    "                        break",
-                    "                except Exception:",
-                    "                    pass",
-                    "        except Exception:",
-                    "            spheres = []",
-                    "        if not spheres:",
-                    "            raise Exception('No infinite sphere / far-field setup on this design')",
-                    "        ff_solutions = []",
-                    "        try:",
-                    "            ff_solutions = [str(x) for x in (report_module.GetAvailableSolutions('Far Fields') or [])]",
-                    "        except Exception:",
-                    "            ff_solutions = []",
-                    "        ff_setup = preferred",
-                    "        if ff_solutions and preferred not in ff_solutions:",
-                    "            adaptive = [s for s in ff_solutions if 'LastAdaptive' in s]",
-                    "            ff_setup = adaptive[0] if adaptive else ff_solutions[0]",
-                    "        variation = ['Theta:=', ['All'], 'Phi:=', ['0deg'], 'Freq:=', [freq]]",
-                    "        for sphere in spheres:",
-                    "            context = ['Context:=', sphere]",
-                    "            for expression in ['dB(GainTotal)', 'GainTotal', 'dB(RealizedGainTotal)']:",
-                    "                try:",
-                    "                    report_module.CreateReport(report_name, 'Far Fields', 'Rectangular Plot', ff_setup, context, variation, ['X Component:=', 'Theta', 'Y Component:=', [expression]])",
-                    "                    created = True",
-                    "                    break",
-                    "                except Exception as error:",
-                    "                    errors.append(str(error))",
-                    "            if created:",
-                    "                break",
-                    "    if not created:",
-                    "        raise Exception('CreateReport failed for ' + report_name + ': ' + '; '.join(errors))",
+                    "        if created:",
+                    "            break",
+                    "if not created:",
+                    "    raise Exception('CreateReport failed for ' + report_name + ': ' + '; '.join(errors))",
+                    "still = []",
+                    "try:",
+                    "    still = [str(x) for x in (report_module.GetAllReportNames() or [])]",
+                    "except Exception:",
                     "    still = []",
-                    "    try:",
-                    "        still = [str(x) for x in (report_module.GetAllReportNames() or [])]",
-                    "    except Exception:",
-                    "        still = []",
-                    "    if report_name not in still:",
-                    "        raise Exception('report ' + report_name + ' was created but is not under Results')",
-                    "    result['name'] = report_name",
-                    "    result['created'] = True",
-                    "    result['reused'] = False",
-                    "    result['in_results'] = True",
-                    "    result['families_applied'] = families_applied",
-                    "    result['family_variables'] = family_vars",
+                    "if report_name not in still:",
+                    "    raise Exception('report ' + report_name + ' was created but is not under Results')",
+                    "result['name'] = report_name",
+                    "result['created'] = True",
+                    "result['reused'] = False",
+                    "result['in_results'] = True",
+                    "result['families_applied'] = families_applied",
+                    "result['family_variables'] = family_vars",
+                    "result['nominal_variables'] = nominal_vars",
                 ]
             )
         )
-        reused = bool(raw.get("reused"))
-        families_applied = False if reused else bool(raw.get("families_applied"))
         return {
             "name": str(raw.get("name") or name),
             "report_id": str(raw.get("name") or name),
             "report_type": report_type,
             "created": bool(raw.get("created")),
-            "reused": reused,
+            "reused": False,
             "in_results": True,
             "setup": setup,
             "sweep": sweep,
             "frequency": frequency,
             "family_variables": family,
-            "families_applied": families_applied,
+            "nominal_variables": nominal,
+            "families_applied": bool(raw.get("families_applied")),
         }
 
     def export_results_report(
@@ -770,7 +802,12 @@ class LiveDesign:
         *,
         report_type: str | None = None,
     ) -> Path:
-        """ExportToFile a report that already exists under Results. No network-data bypass."""
+        """ExportToFile a report that already exists under Results. No network-data bypass.
+
+        The 3rd argument is the GUI "Separate Columns for Curves" checkbox.
+        False matches right-click Export Data with that box unchecked: one
+        column per swept variable, then Freq, then the quantity.
+        """
         existing = {str(item.get("name") or "") for item in self.list_reports()}
         if name not in existing:
             raise AdapterError(
@@ -804,7 +841,20 @@ class LiveDesign:
                     "        last = str(error)",
                     "if not exported:",
                     "    raise Exception(last or ('ExportToFile failed for ' + report_name))",
+                    "trace_names = []",
+                    "try:",
+                    "    raw_traces = report_module.GetTraceNames(report_name)",
+                    "    if raw_traces is None:",
+                    "        raw_traces = []",
+                    "    elif isinstance(raw_traces, str):",
+                    "        raw_traces = [raw_traces]",
+                    "    else:",
+                    "        raw_traces = list(raw_traces)",
+                    "    trace_names = [str(t) for t in raw_traces]",
+                    "except Exception:",
+                    "    trace_names = []",
                     "result['path'] = output_csv",
+                    "result['trace_names'] = trace_names",
                 ]
             )
         )
@@ -814,7 +864,14 @@ class LiveDesign:
                 f"report CSV was not written for {name!r}",
                 code="report_export_failed",
             )
-        return normalize_exported_report_csv(path, report_type)
+        names = raw.get("trace_names") or []
+        if not isinstance(names, list):
+            names = [names]
+        return normalize_exported_report_csv(
+            path,
+            report_type,
+            trace_names=[str(item) for item in names],
+        )
 
     def create_field_overlay(
         self,
