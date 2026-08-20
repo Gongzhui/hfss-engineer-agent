@@ -216,17 +216,12 @@ def _assert_classified(hfss: object) -> dict[str, list[str]]:
 def _hide_objects(hfss: object, names: list[str], hidden: bool) -> None:
     if not names:
         return
+    args = ["NAME:Selections", "Selections:=", ",".join(names)]
     with suppress(Exception):
-        hfss.modeler.oeditor.ChangeProperty(
-            [
-                "NAME:AllTabs",
-                [
-                    "NAME:Geometry3DAttributeTab",
-                    ["NAME:PropServers"] + names,
-                    ["NAME:ChangedProps", ["NAME:Show", "Value:=", not hidden]],
-                ],
-            ]
-        )
+        if hidden:
+            hfss.modeler.oeditor.Hide(args)
+        else:
+            hfss.modeler.oeditor.Show(args)
 
 
 def _export_preview(hfss: object, dest: Path, *, hide: list[str] | None = None) -> None:

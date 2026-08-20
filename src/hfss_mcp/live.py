@@ -32,6 +32,113 @@ _EXPR_GLUED = re.compile(
     r"^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([A-Za-z_%µμ]+)$"
 )
 _VAR_TOKEN = re.compile(r"\$?[A-Za-z_][\w$]*")
+_AIRBOX_KEYS = (
+    "airbox",
+    "air",
+    "region",
+    "openregion",
+    "radiationbox",
+    "vacuumbox",
+    "airregion",
+)
+
+
+def is_airbox_object_name(name: str) -> bool:
+    """True for radiation/air boxes that would otherwise dominate FitAll."""
+    key = "".join(ch for ch in name.lower() if ch.isalnum())
+    return key in _AIRBOX_KEYS or "airbox" in key
+
+
+def view_capture_script(
+    dest: Path,
+    *,
+    orientation: str = "isometric",
+    isolate: list[str] | None = None,
+    width: int = 1280,
+    height: int = 800,
+) -> str:
+    """IronPython: hide air boxes, FitAll, screenshot, restore visibility."""
+    names = json.dumps([str(x) for x in (isolate or [])], ensure_ascii=True)
+    keys = json.dumps(list(_AIRBOX_KEYS), ensure_ascii=True)
+    return "\n".join(
+        [
+            "import os",
+            f"file_name = {str(Path(dest).resolve())!r}",
+            f"orientation = {orientation!r}",
+            f"width = {int(width)}",
+            f"height = {int(height)}",
+            f"isolate = {names}",
+            f"airbox_keys = {keys}",
+            "parent = os.path.dirname(file_name)",
+            "if parent and not os.path.isdir(parent):",
+            "    os.makedirs(parent)",
+            "def is_airbox(name):",
+            "    key = ''.join(ch for ch in name.lower() if ch.isalnum())",
+            "    return key in airbox_keys or 'airbox' in key",
+            "all_names = []",
+            "for group in ('Solids', 'Sheets', 'Lines'):",
+            "    try:",
+            "        all_names.extend([str(x) for x in (oEditor.GetObjectsInGroup(group) or [])])",
+            "    except Exception:",
+            "        pass",
+            "if isolate:",
+            "    hidden = [n for n in all_names if n not in isolate]",
+            "    try:",
+            "        oEditor.ShowUnclassified(False)",
+            "    except Exception:",
+            "        pass",
+            "else:",
+            "    hidden = [n for n in all_names if is_airbox(n)]",
+            "exported = False",
+            "last = ''",
+            "def vis(names, show):",
+            "    if not names:",
+            "        return",
+            "    batches = [",
+            "        ['NAME:Selections', 'Selections:=', ','.join(names)],",
+            "        ['NAME:Selections', 'Selections:=', ','.join(names), 'NewPartsModelFlag:=', 'Model'],",
+            "    ]",
+            "    for args in batches:",
+            "        try:",
+            "            if show:",
+            "                oEditor.Show(args)",
+            "            else:",
+            "                oEditor.Hide(args)",
+            "            return",
+            "        except Exception:",
+            "            pass",
+            "    for n in names:",
+            "        try:",
+            "            one = ['NAME:Selections', 'Selections:=', n]",
+            "            if show:",
+            "                oEditor.Show(one)",
+            "            else:",
+            "                oEditor.Hide(one)",
+            "        except Exception:",
+            "            pass",
+            "try:",
+            "    vis(hidden, False)",
+            "    try:",
+            "        oEditor.FitAll()",
+            "    except Exception:",
+            "        pass",
+            "    params = ['NAME:SaveImageParams', 'ShowAxis:=', False, 'ShowGrid:=', False, 'ShowRuler:=', False, 'ShowRegion:=', False, 'Orientation:=', orientation]",
+            "    for args in ((file_name, int(width), int(height), params), (file_name, int(width), int(height)), (file_name,)):",
+            "        try:",
+            "            oEditor.ExportModelImageToFile(*args)",
+            "            if os.path.isfile(file_name):",
+            "                exported = True",
+            "                break",
+            "        except Exception as error:",
+            "            last = str(error)",
+            "finally:",
+            "    vis(hidden, True)",
+            "if not exported:",
+            "    raise Exception(last or 'ExportModelImageToFile failed')",
+            "result['file'] = file_name",
+            "result['hidden'] = hidden",
+        ]
+    )
 
 REPORT_TYPES: list[dict[str, str]] = [
     {"id": "modal_s", "kind": "curve", "export": "csv", "label": "Modal S-parameters"},
@@ -1057,76 +1164,23 @@ class LiveDesign:
         isolate: list[str] | None = None,
         width: int = 1280,
         height: int = 800,
-    ) -> Path:
+    ) -> tuple[Path, list[str]]:
         dest = Path(dest).resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
-        names = json.dumps([str(x) for x in (isolate or [])], ensure_ascii=True)
         raw = self._script(
-            "\n".join(
-                [
-                    "import os",
-                    f"file_name = {str(dest)!r}",
-                    f"orientation = {orientation!r}",
-                    f"width = {int(width)}",
-                    f"height = {int(height)}",
-                    f"isolate = {names}",
-                    "parent = os.path.dirname(file_name)",
-                    "if parent and not os.path.isdir(parent):",
-                    "    os.makedirs(parent)",
-                    "hidden = []",
-                    "if isolate:",
-                    "    try:",
-                    "        oEditor.ShowUnclassified(False)",
-                    "    except Exception:",
-                    "        pass",
-                    "    try:",
-                    "        all_names = []",
-                    "        for group in ('Solids', 'Sheets', 'Lines'):",
-                    "            try:",
-                    "                all_names.extend([str(x) for x in (oEditor.GetObjectsInGroup(group) or [])])",
-                    "            except Exception:",
-                    "                pass",
-                    "        hidden = [n for n in all_names if n not in isolate]",
-                    "        if hidden:",
-                    "            oEditor.ChangeProperty([",
-                    "                'NAME:AllTabs',",
-                    "                ['NAME:Geometry3DAttributeTab', ['NAME:PropServers'] + hidden, ['NAME:ChangedProps', ['NAME:Show', 'Value:=', False]]],",
-                    "            ])",
-                    "    except Exception:",
-                    "        pass",
-                    "try:",
-                    "    oEditor.FitAll()",
-                    "except Exception:",
-                    "    pass",
-                    "params = ['NAME:SaveImageParams', 'ShowAxis:=', False, 'ShowGrid:=', False, 'ShowRuler:=', False, 'ShowRegion:=', 'Default', 'Orientation:=', orientation]",
-                    "exported = False",
-                    "last = ''",
-                    "for args in ((file_name, int(width), int(height), params), (file_name, int(width), int(height)), (file_name,)):",
-                    "    try:",
-                    "        oEditor.ExportModelImageToFile(*args)",
-                    "        if os.path.isfile(file_name):",
-                    "            exported = True",
-                    "            break",
-                    "    except Exception as error:",
-                    "        last = str(error)",
-                    "if hidden:",
-                    "    try:",
-                    "        oEditor.ChangeProperty([",
-                    "            'NAME:AllTabs',",
-                    "            ['NAME:Geometry3DAttributeTab', ['NAME:PropServers'] + hidden, ['NAME:ChangedProps', ['NAME:Show', 'Value:=', True]]],",
-                    "        ])",
-                    "    except Exception:",
-                    "        pass",
-                    "if not exported:",
-                    "    raise Exception(last or 'ExportModelImageToFile failed')",
-                    "result['file'] = file_name",
-                ]
+            view_capture_script(
+                dest,
+                orientation=orientation,
+                isolate=isolate,
+                width=width,
+                height=height,
             )
         )
         path = Path(str(raw.get("file") or dest))
+        hidden = [str(x) for x in (raw.get("hidden") or [])]
         if not path.is_file():
             raise AdapterError("view capture did not write a file", code="view_capture_failed")
-        return path
+        return path, hidden
 
     def variable_map(self, names: list[str] | None = None) -> dict[str, Any]:
         raw = self._script(

@@ -916,10 +916,19 @@ class AppContext:
         if self.is_fake:
             dest.write_bytes(_FAKE_JPEG)
             path = dest
+            hidden: list[str] = []
         else:
             assert self._live is not None
-            path = self._live.view_capture(dest, orientation=orientation, isolate=isolate)
-        return {"ok": True, "path": str(path), "orientation": orientation, "isolate": isolate or []}
+            path, hidden = self._live.view_capture(
+                dest, orientation=orientation, isolate=isolate
+            )
+        return {
+            "ok": True,
+            "path": str(path),
+            "orientation": orientation,
+            "isolate": isolate or [],
+            "hidden": hidden,
+        }
 
     def variable_map(self, names: list[str] | None = None) -> dict[str, Any]:
         allowlist = self._require_allowlist()

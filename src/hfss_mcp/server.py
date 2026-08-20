@@ -209,7 +209,7 @@ def view_capture(
     orientation: str = "isometric",
     isolate: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Screenshot the live 3D modeler view. Optional isolate object names."""
+    """Screenshot the live 3D modeler. Hides air boxes, FitAll, then restores."""
     try:
         return get_app().view_capture(orientation=orientation, isolate=isolate)
     except Exception as exc:  # noqa: BLE001

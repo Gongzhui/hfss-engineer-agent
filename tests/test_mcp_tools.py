@@ -115,6 +115,7 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
 
         pictured = view_capture()
         assert Path(pictured["path"]).is_file()
+        assert pictured["hidden"] == []
 
         z_rep = report_create(report_type="terminal_z", setup="Setup1")
         z_out = report_export(z_rep["report"]["report_id"])

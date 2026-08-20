@@ -92,7 +92,7 @@ uv run hfss-mcp
 | `variables_set` | mutate | Partial allowlisted update; `name` or `variable`; no solve; no save; returns `needs_solve` |
 | `analyze_start` / `analyze_status` / `analyze_cancel` | job | `ok` on start = accepted, not solved. Status includes Message Manager lines |
 | `report_types` / `report_list` / `report_create` / `report_export` | reports | List/create/export **Results** plots. After a parametric, pass `parametric` so that matrix is All and other swept vars stay Nominal. Omit / `families=[]` pins all known parametric vars. Reusing a name to apply families/pins → `report_exists`. `report_export` is GUI Export Data (`ExportToFile` 3rd arg False): variable columns become `variation`. Includes `traces`/`labeled`/`csv_format`; `stale_solution` if unsaved `variables_set`. `modal_s` is Modal `dB(S(1,1))`. `field_face` takes `face`, `frequency`, and `quantity` (`Mag_E` or `Mag_Jsurf`). |
-| `view_capture` | visual | 3D modeler screenshot; optional isolate |
+| `view_capture` | visual | Hide air box, FitAll, screenshot; restore visibility. Optional isolate |
 | `variable_map` | read | Find-references: variable → object/expression |
 | `project_save` | save | `save` or `save_as`; never automatic |
 | `optimetrics_types` / `optimetrics_list` | read | Catalog + setups currently under **Optimetrics** |
