@@ -75,7 +75,7 @@ The Skill teaches the **generic** procedure (matching antennas and 2-bit phase u
 3. Decide sample density from what this round needs to show (wide/sparse when the range is unknown; tighter when it is not).
 4. Run HFSS **Optimetrics Parametric**. Write the grouping and density **before** `parametric_create`. A rationale that would paste onto a different antenna is not a rationale.
 5. Read the **family of curves**: which knob moves the observable, which can be frozen.
-6. Next round: new group, or same group finer. Pin a point with `variables_set` only after the matrix says so. After any parameter write, look at the live model (`view_capture`). Geometry with an obvious CAD error is not a keepable point. How many views is judgment, not a checklist.
+6. Next round: new group, or same group finer. If the last round showed a trade-off, put those knobs in one joint matrix (or try an intermediate value). Stop when the named question is met; an exam may also stop when another sweep would exceed its solve budget. Do not stop because coupled groups "feel done" or two rounds looked flat. Pin a point with `variables_set` only after the matrix says so. After any parameter write, look at the live model (`view_capture`). Geometry with an obvious CAD error is not a keepable point. How many views is judgment, not a checklist.
 
 The Skill must **not** bake a default N or default samples-per-axis. Suggested numbers make the agent copy them instead of judging. Worked counts belong only as labeled illustrations, not as the procedure. "Not an optimizer sampler" forbids genetic / PSO **and** one-factor-at-a-time value jumps. It does **not** forbid a human-scale Parametric matrix, and it does not prescribe the grid.
 

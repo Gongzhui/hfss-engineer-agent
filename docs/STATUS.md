@@ -19,7 +19,7 @@ V0 architecture snapshot (not the running MCP): `ARCHITECTURE_V0.md`.
 - [x] Skill `skills/tune-hfss-antenna/` matches the V1 loop: joint Optimetrics Parametric whose grouping/density the agent must justify; not OFAT `variables_set` + Analyze; no baked default N. After changing parameters, look at the model (`view_capture`); do not keep an obviously broken geometry. Visual check is a habit, not a new MCP primitive or a fixed view checklist.
 - [x] Offline FakeAdapter tests + **real AEDT 2023 R2** live attach.
 - [x] `cases/` tree: `uwb_circular_notch` nominal is ported and solved; sandbox is Save As + 9-param detune including `lw`. Do not rebuild with `build.py` (wipes the port).
-- [x] Exam pack `eval/exams/uwb_circular_notch/`: isolated Cursor workspace, log-only agent output, hidden `eval/score_run.py` + `eval/keys/`. Finished runs live in `eval/archive/` (outside the exam folder). Spec is 6.6 GHz stopband (no frequency slack), width ≤ 0.5 GHz, envelope rel BW ≥ 130%. Solve-time budget 3 hours (sum of log `solve_time`; thinking/export do not count); `protocol.on_time` is separate from RF pass. Inner loop is joint matrices, not a fixed round count.
+- [x] Exam pack `eval/exams/uwb_circular_notch/`: isolated Cursor workspace, log-only agent output, hidden `eval/score_run.py` + `eval/keys/`. Finished runs live in `eval/archive/` (outside the exam folder). Spec is 6.6 GHz stopband (no frequency slack; peak and the 6.6 GHz point must be above −7 dB), width ≤ 0.5 GHz, envelope rel BW ≥ 130%. Passband edges stay at −10 dB. Solve-time budget 3 hours (sum of log `solve_time`; thinking/export do not count); `protocol.on_time` is separate from RF pass. Inner loop is joint matrices, not a fixed round count.
 
 ## Known limits (honest)
 
@@ -35,7 +35,7 @@ V0 architecture snapshot (not the running MCP): `ARCHITECTURE_V0.md`.
 10. **Do not parallelize HFSS MCP tools.** AEDT COM/`RunScript` is not reentrant. Concurrent `snapshot` + `health`/`report_list` hangs at `SetActiveProject`. The server serializes RunScript and project listing; Host Agents must still call those tools one at a time. `analyze_status` during a solve is the exception.
 11. **`variables_set` does not refresh Results.** The CSV after a pin is the last solved variation until Analyze (or a family export that already contains that point). `report_export` flags this with `stale_solution`.
 12. **Finished exam runs must leave the exam folder.** `eval/exams/<id>/runs/` is visible to the Host Agent. After scoring, move the timestamp directory to `eval/archive/`. A written "do not read old runs" rule is not isolation.
-13. **`view_capture` is one orientation per call.** Default is isometric. After `variables_set`, look at the model; extra angles (including 3D) catch CAD errors that S11 will not. Allowlist boxes are independent; coupled CAD constraints are not expressed in the MCP. This is the agent's eyes, not a solver flag.
+13. **`view_capture` uses `oEditor.Hide`/`Show`, then FitAll, then screenshots.** Default is isometric. Radiation/air solids (`AirBox` and similar names) are hidden for the capture so the antenna fills the frame, then shown again. AEDT 2023 R2 has no `Geometry3DAttributeTab` `Show` property; that call used to abort the whole capture. Hide failure must not block export. After `variables_set`, look at the model; extra angles (including 3D) catch CAD errors that S11 will not. Allowlist boxes are independent; coupled CAD constraints are not expressed in the MCP. This is the agent's eyes, not a solver flag.
 
 ## Not started (deferred)
 

@@ -20,7 +20,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - 扫参必须出现在 Optimetrics 树里。禁止自己循环 `variables_set`+Analyze 冒充矩阵。
 - 禁止 Optimetrics Optimization / Sensitivity / Statistical / DOE。
 - `variables_set` 用来把矩阵里的一组点写进活模型。不要求解、不要保存。返回 `needs_solve: true`：Results 仍是上一份已解的 variation，不是刚写入的值。几何会立刻跟着变，看模型不必 Analyze。
-- **每次改完参数都要看模型。** `variables_set` 之后用 `view_capture` 检查几何有没有明显错误（导体离开支撑面、槽开出金属、端口离开边、物体相交或消失）。三维和各个正交视图都值得看，宁可多看，不能少看。模型已经不像原来那副天线，这组点就不能留。怎么看、看几张，按当时需要，不要当成固定步骤去打勾。
+- **每次改完参数都要看模型。** `variables_set` 之后用 `view_capture` 检查几何有没有明显错误（导体离开支撑面、槽开出金属、端口离开边、物体相交或消失）。截图会先藏空气盒再 FitAll，天线应占满画面。三维和各个正交视图都值得看，宁可多看，不能少看。模型已经不像原来那副天线，这组点就不能留。怎么看、看几张，按当时需要，不要当成固定步骤去打勾。
 - `variables_set` 的参数键是 `name` 或 `variable`；`parametric_create` 的扫参键同样是 `variable` 或 `name`。两种写法等价。
 - `parametric_start` / `analyze_start` 的 `ok: true` **只表示任务已受理**，不是扫完。看 `done`。未 `done` 就必须 `analyze_status`（里面有 Message Manager 最近几行，这就是进度）。`failed` 时读 `job.error` 和 `messages`，不要空等。
 - **禁止** `trial_*` / `run_*`。
@@ -74,7 +74,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 3. 写清这一轮在调匹配还是相位。按上一节排出分组和采样，写入日志，再 `parametric_create`（须在树上能看见；看返回的 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
 4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。看哪条曲线随哪个量动、哪个量几乎不动。
 5. 敏感的留下，不敏感的可以钉死。下一轮换一组，或同一组收窄加密。钉点时才 `variables_set`。**改完就看模型**（`view_capture`），看出几何错误就不要留这组点。钉住之后如需单条曲线，再导出不含 family 的新报告（省略 `families`，或 `families=[]`）。不要复用开场那张 `S11` 来「钉死」。
-6. 重复。达标、连续两轮看不出新的影响、或该分组的问题已经问完再停。不要用「跑满某几轮」当停手理由，也不要只扫一次就交差。
+6. 重复。停手只有：观察量已经达标；或（考场）再开一轮会超过求解时间上限。没达标且时间还够，就必须再开一轮。上一轮看出互斥，下一轮把互斥的量放进同一张联合矩阵（或改中间值再问）。不要用「连续两轮看不出新的影响」「该问的耦合已经问完」「跑满某几轮」当停手理由，也不要只扫一次就交差。
 
 ## Diagnose
 

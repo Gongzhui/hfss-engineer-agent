@@ -55,6 +55,7 @@ def test_nominal_passes_exam_spec() -> None:
         assert end["notch"]["center_ghz"] == 6.6
         assert end["notch"]["width_ghz"] == 0.4
         assert end["envelope"]["relative_bw"] == 1.37
+        assert end["notch"]["peak_s11_db"] > -7.0
         assert all(end["checks"].values())
         assert payload["verdict"]["start"]["pass"] is False
         assert payload["verdict"]["nominal_reference"]["pass"] is True
@@ -76,6 +77,7 @@ def test_sandbox_fails_exam_spec() -> None:
         checks = payload["verdict"]["end"]["checks"]
         assert checks["notch_center_ok"] is False
         assert checks["notch_width_ok"] is False
+        assert checks["occupied_stopped"] is False
         assert checks["rel_bw_ok"] is False
         end_frac = payload["end"]["design_band_frac_le_m10"]
         start_frac = payload["start"]["design_band_frac_le_m10"]
@@ -134,6 +136,42 @@ def test_time_limit_is_protocol_not_rf_pass() -> None:
     finally:
         (tmp / "s11.csv").unlink(missing_ok=True)
         log.unlink(missing_ok=True)
+        tmp.rmdir()
+
+
+def test_shallow_notch_at_66_fails_peak_floor() -> None:
+    score = _load_score()
+    tmp = REPO / "eval" / "exams" / "uwb_circular_notch" / "runs" / "_pytest_peak"
+    tmp.mkdir(parents=True, exist_ok=True)
+    lines = ["freq_ghz,s11_db"]
+    for i in range(141):
+        freq = round(1.0 + i * 0.1, 1)
+        if abs(freq - 6.6) < 1e-9:
+            db = -9.96
+        elif abs(freq - 6.5) < 1e-9:
+            db = -10.21
+        elif abs(freq - 6.7) < 1e-9:
+            db = -10.85
+        elif 2.2 <= freq <= 6.5 or freq >= 6.7:
+            db = -12.0
+        elif freq <= 1.8:
+            db = -12.0
+        else:
+            db = -8.0
+        lines.append(f"{freq},{db}")
+    (tmp / "s11.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        payload = score.score_exam("uwb_circular_notch", tmp)
+        end = payload["verdict"]["end"]
+        assert end["notch"]["center_ghz"] == 6.6
+        assert end["notch"]["width_ghz"] == 0.2
+        assert end["checks"]["notch_width_ok"] is True
+        assert end["checks"]["rel_bw_ok"] is True
+        assert end["checks"]["notch_clear_ok"] is False
+        assert end["checks"]["occupied_stopped"] is False
+        assert payload["pass"] is False
+    finally:
+        (tmp / "s11.csv").unlink(missing_ok=True)
         tmp.rmdir()
 
 

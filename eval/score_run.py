@@ -167,7 +167,10 @@ def grade_spec(
     if notch is not None:
         envelope = envelope_rel_bw(bands, notch["ghz"][0], notch["ghz"][1])
     occ = spec.get("occupied_ghz") or [target, target]
-    occupied_ok = occupied_stopped(rows, float(occ[0]), float(occ[1]))
+    peak_min = float(spec.get("notch_peak_min_db", THR))
+    occupied_ok = occupied_stopped(
+        rows, float(occ[0]), float(occ[1]), thr=peak_min
+    )
     center = None if notch is None else notch.get("center_ghz")
     width = None if notch is None else notch.get("width_ghz")
     peak = None if notch is None else notch.get("peak_s11_db")
@@ -182,7 +185,7 @@ def grade_spec(
         "notch_width_ok": (
             width is not None and width_min <= width <= width_max
         ),
-        "notch_clear_ok": peak is not None and peak > THR,
+        "notch_clear_ok": peak is not None and peak > peak_min,
         "rel_bw_ok": rel is not None and rel >= float(spec["rel_bw_min"]),
     }
     return {
@@ -375,11 +378,13 @@ def score_exam(exam_id: str, run_dir: Path) -> dict[str, Any]:
         }
         payload["pass"] = payload["verdict"]["end"]["pass"]
         payload["pass_fail_note"] = (
-            "Pass if the stopband is at the stated center, no wider than "
-            "the max width, and the envelope relative bandwidth meets the "
-            "floor. s11_min is informational and must not decide pass/fail. "
-            "Nominal is the known-good reference, not a number to copy. "
-            "The time budget is protocol.on_time and does not decide pass."
+            "Pass if the stopband is at the stated center, the peak (and the "
+            "occupied point) is above notch_peak_min_db, the gap is no wider "
+            "than the max width, and the envelope relative bandwidth meets "
+            "the floor. Passband edges stay at -10 dB. s11_min is "
+            "informational and must not decide pass/fail. Nominal is the "
+            "known-good reference, not a number to copy. The time budget is "
+            "protocol.on_time and does not decide pass."
         )
     limit = key.get("time_limit_hours")
     if limit is not None:
