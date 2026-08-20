@@ -6,49 +6,26 @@ import csv
 import re
 
 from matplotlib.path import Path as MplPath
-from matplotlib.patches import FancyBboxPatch, PathPatch, Rectangle
+from matplotlib.patches import PathPatch, Rectangle
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "基于AI-Agent的HFSS天线优化方法.pdf"
-S11_INIT = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-000-s11.csv"
-)
-S11_R001 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-001-s11.csv"
-)
-S11_R002 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-002-s11.csv"
-)
-S11_R003 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-003-s11.csv"
-)
-S11_R004 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-004-s11.csv"
-)
-S11_R005 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-005-s11.csv"
-)
-S11_R006 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-006-s11.csv"
-)
-S11_R007 = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/round-007-s11.csv"
-)
-S11_FINAL = (
-    ROOT.parent
-    / "eval/archive/exams/uwb_circular_notch/runs/20260817-165848/s11.csv"
-)
+RUN = ROOT.parent / "eval/exams/uwb_circular_notch/runs/20260819-222718"
+if not RUN.is_dir():
+    RUN = ROOT.parent / "eval/archive/exams/uwb_circular_notch/runs/20260819-222718"
+S11_INIT = RUN / "round-000-s11.csv"
+S11_R001 = RUN / "round-001-s11.csv"
+S11_R002 = RUN / "round-002-s11.csv"
+S11_R003 = RUN / "round-003-s11.csv"
+S11_R004 = RUN / "round-004-s11.csv"
+S11_R005 = RUN / "round-005-s11.csv"
+S11_R006 = RUN / "round-006-s11.csv"
+S11_R007 = RUN / "round-007-s11.csv"
+S11_R008 = RUN / "round-008-s11.csv"
+S11_FINAL = RUN / "s11.csv"
 
 plt.rcParams.update(
     {
@@ -165,22 +142,23 @@ def page_02(pdf: PdfPages) -> None:
         (11, "第一轮结果"),
         (12, "第二轮扫参"),
         (13, "第二轮结果"),
-        (14, "第三轮扫参"),
-        (15, "第三轮结果"),
-        (16, "修改参数"),
+        (14, "修改参数"),
+        (15, "第三轮扫参"),
+        (16, "第三轮结果"),
         (17, "第四轮扫参"),
         (18, "第四轮结果"),
         (19, "第五轮扫参"),
         (20, "第五轮结果"),
-        (21, "第六轮扫参"),
-        (22, "第六轮结果"),
-        (23, "修改参数"),
+        (21, "修改参数"),
+        (22, "第六轮扫参"),
+        (23, "第六轮结果"),
         (24, "第七轮扫参"),
         (25, "第七轮结果"),
-        (26, "修改参数"),
-        (27, "交卷"),
-        (28, "交卷天线俯视图"),
-        (29, "与已有工作的对比"),
+        (26, "第八轮扫参"),
+        (27, "第八轮结果"),
+        (28, "交卷"),
+        (29, "交卷天线俯视图"),
+        (30, "与已有工作的对比"),
     ]
     mid = (len(entries) + 1) // 2
     columns = (entries[:mid], entries[mid:])
@@ -393,11 +371,11 @@ def page_04(pdf: PdfPages) -> None:
     ax.text(
         0.08,
         0.31,
-        "开场：patch_r = 5.6 mm，slot_length = 12 mm。S11 缺口在 6.0 GHz，宽约 1.7 GHz。\n"
-        "第一轮：slot_length = 10、11、12 mm，sw = 0.5、0.9、1.2、1.5 mm，共 12 点。\n"
-        "写入 HFSS：Optimetrics 中建立 Para_slot_sw_r001，Analyze 12 组。\n"
-        "结果：12 条峰都在 5.9–6.1 GHz，缩短槽几乎不搬频 → 下一轮改扫 patch_r × slot_length。\n"
-        "钉点：patch_r = 10 mm，slot_length = 19.1 mm，sw = 0.5 mm，lw = 1.75 mm。",
+        "开场：patch_r = 5.6 mm，slot_length = 12 mm，lw = 5.25 mm。S11 在 5–7 GHz 有约 1.9 GHz 塌陷，峰在 6.0 GHz。\n"
+        "第一轮：slot_length × sw × l2，27 点。槽长加 60%，峰仍停在 6.0 GHz 附近。\n"
+        "写入 HFSS：Optimetrics 中建立 SlotU_R001，Analyze 27 组。\n"
+        "结果：开场塌陷不是倒 U 在工作 → 下一轮改扫 patch_r × lw × g1。\n"
+        "钉点：patch_r = 11.5 mm，lw = 2.32 mm，slot_length = 19.7 mm，l1 = 11.8 mm。",
         ha="left",
         va="top",
         fontsize=14,
@@ -458,18 +436,6 @@ def load_s11(path: Path) -> tuple[list[float], list[float]]:
             freq.append(float(row["freq_ghz"]))
             s11.append(float(row["s11_db"]))
     return freq, s11
-
-
-def parse_slot_sw(variation: str) -> tuple[float, float]:
-    slot = float(re.search(r"slot_length='([0-9.]+)mm'", variation).group(1))
-    sw = float(re.search(r"sw='([0-9.]+)mm'", variation).group(1))
-    return slot, sw
-
-
-def parse_patch_slot(variation: str) -> tuple[float, float]:
-    patch = float(re.search(r"patch_r='([0-9.]+)mm'", variation).group(1))
-    slot = float(re.search(r"slot_length='([0-9.]+)mm'", variation).group(1))
-    return patch, slot
 
 
 def load_family(path: Path) -> dict[str, tuple[list[float], list[float]]]:
@@ -625,7 +591,7 @@ def page_07(pdf: PdfPages) -> None:
     goals = [
         (
             "1. 阻带位置",
-            "在 6.6 GHz 做出清晰阻带。\n阻带内 $S_{11}$ 最高点须在 6.6 GHz，\n且该点高于 −10 dB。",
+            "在 6.6 GHz 做出清晰阻带。\n阻带内 $S_{11}$ 最高点须在 6.6 GHz，\n且该点高于 −7 dB。",
         ),
         (
             "2. 阻带宽度",
@@ -668,20 +634,20 @@ def page_09(pdf: PdfPages) -> None:
     blocks = [
         (
             "看曲线",
-            "6.6 GHz 处没有清晰窄阻带。5.0–6.7 GHz 是一段约 1.7 GHz 的宽塌陷，最高点在 6.0 GHz（−6.9 dB），"
-            "6.6 GHz 处约 −9.0 dB。2.1–3.6 GHz 另有深失配，3.3 GHz 附近到 −1.3 dB，判断为匹配空洞，不是目标阻带。"
-            "若把 5–7 GHz 当缺口，相对带宽约 112%。",
+            "6.6 GHz 处没有清晰窄阻带。5.0–6.7 GHz 是一段约 1.9 GHz 的宽塌陷，最高点在 6.0 GHz（−6.9 dB），"
+            "6.6 GHz 处约 −9.0 dB，未到 −7 dB 以上。2.1–3.6 GHz 另有深失配，3.3 GHz 附近到 −1.3 dB，判断为匹配空洞，不是目标阻带。"
+            "若把 3.7 / 13.1 GHz 当两侧外沿，相对带宽约 112%。",
         ),
         (
             "变量分组",
-            "slot_length 与 sw 是同一谐振器，应联合看；圆片半径只有 5.6 mm，槽长 12 mm 已接近贴片尺度。"
-            "patch_r 主控低频截止，与槽同在一片金属上。馈线与部分地（lw、l1、g1 等）管 2–3.6 GHz 空洞和通带外沿，"
+            "slot_length、sw、l2 是同一套倒 U，应联合看；圆片半径只有 5.6 mm，槽长需小于约 16 mm 才能装进现有圆。"
+            "lw 开场 5.25 mm，相对 1.14 mm 基板偏宽。馈线与部分地（lw、l1、g1 等）管 2–3.6 GHz 空洞，"
             "与槽不是同一套电流路径，这一轮不放进阻带矩阵。",
         ),
         (
             "第一轮打算",
-            "先确认 5–7 GHz 塌陷是不是槽谐振。只扫 slot_length = 10、11、12 mm，"
-            "sw = 0.5、0.9、1.2、1.5 mm，共 12 点。贴片和馈地留到槽的特征能辨认之后。",
+            "先确认 5–7 GHz 塌陷是不是槽谐振。扫 slot_length = 10、12、16 mm，"
+            "sw = 0.5、1.0、1.5 mm，l2 = 1.0、2.0、3.0 mm，共 27 点。贴片和馈地留到槽的特征能辨认之后。",
         ),
     ]
     y = 0.68
@@ -704,424 +670,134 @@ def page_09(pdf: PdfPages) -> None:
 
 
 def page_10(pdf: PdfPages) -> None:
-    fig, ax = new_slide()
-    heading(ax, "第一轮扫参")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(ax, 0.08, 0.055, 0.84, 0.71, fill=fill, stroke=stroke)
-    ax.text(0.12, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    ax.plot([0.12, 0.88], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    ax.text(
-        0.12,
-        0.66,
-        "先确认 5–7 GHz 塌陷是不是槽谐振，只扫槽长和槽宽。",
-        ha="left",
-        va="top",
-        fontsize=15,
-        color="black",
-        zorder=2,
+    page_agent_table(
+        pdf,
+        "第一轮扫参",
+        "先确认 5–7 GHz 塌陷是不是槽谐振，只扫倒 U 三件套。",
+        ("变量", "取值"),
+        (
+            ("slot_length", "10、12、16 mm"),
+            ("sw", "0.5、1.0、1.5 mm"),
+            ("l2", "1.0、2.0、3.0 mm"),
+        ),
+        "3 × 3 × 3 = 27 点。其余变量保持初始值。Optimetrics：SlotU_R001。",
     )
-
-    col_x = (0.16, 0.42)
-    headers = ("变量", "取值")
-    rows = (
-        ("slot_length", "10、11、12 mm"),
-        ("sw", "0.5、0.9、1.2、1.5 mm"),
-    )
-    top, row_h, tab_w = 0.56, 0.09, 0.64
-    ax.add_patch(Rectangle((0.14, top - row_h), tab_w, row_h, facecolor="#E4EAF1", edgecolor=rule, lw=0.8, zorder=1))
-    for x, h in zip(col_x, headers):
-        ax.text(x, top - row_h / 2, h, ha="left", va="center", fontsize=14, color=stroke, zorder=2)
-    for i, (name, vals) in enumerate(rows):
-        y = top - (i + 2) * row_h
-        ax.add_patch(
-            Rectangle((0.14, y), tab_w, row_h, facecolor=fill, edgecolor=rule, lw=0.8, zorder=1)
-        )
-        ax.text(col_x[0], y + row_h / 2, name, ha="left", va="center", fontsize=14, color="black", zorder=2)
-        ax.text(col_x[1], y + row_h / 2, vals, ha="left", va="center", fontsize=14, color="black", zorder=2)
-
-    ax.text(
-        0.12,
-        0.18,
-        "3 × 4 = 12 点。其余变量保持初始值。Optimetrics：Para_slot_sw_r001。",
-        ha="left",
-        va="center",
-        fontsize=14,
-        color="black",
-        zorder=2,
-    )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_11(pdf: PdfPages) -> None:
-    fig = plt.figure(figsize=SLIDE, facecolor="white")
-    fig.text(0.08, 0.90, "第一轮结果", ha="left", va="top", fontsize=22, color="black")
-
-    slot_color = {10.0: "#1F4E79", 11.0: "#2A9D8F", 12.0: "#C45C26"}
-    sw_style = {0.5: "-", 0.9: "--", 1.2: "-.", 1.5: ":"}
-
-    ax = fig.add_axes((0.07, 0.14, 0.34, 0.64))
-    family = load_family(S11_R001)
-    for name, (freq, s11) in family.items():
-        slot, sw = parse_slot_sw(name)
-        ax.plot(freq, s11, color=slot_color[slot], ls=sw_style[sw], lw=1.35)
-    ax.axhline(-10, color="0.45", ls="--", lw=0.8)
-    ax.axvline(6.6, color="0.25", ls=":", lw=1.0)
-    ax.set_xlim(1, 15)
-    ax.set_ylim(-22, 3)
-    ax.set_xlabel("频率 / GHz", fontsize=12)
-    ax.set_ylabel(r"$S_{11}$ / dB", fontsize=12)
-    ax.tick_params(labelsize=10)
-    ax.grid(True, color="0.88", lw=0.6)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.text(6.75, 1.4, "6.6 GHz", color="0.25", fontsize=10, va="bottom")
-
-    overlay = fig.add_axes((0, 0, 1, 1), facecolor="none")
-    overlay.set_xlim(0, 1)
-    overlay.set_ylim(0, 1)
-    overlay.axis("off")
-    overlay.text(0.425, 0.76, "slot_length", ha="left", va="center", fontsize=10, color="#1F4E79")
-    overlay.text(0.425, 0.52, "sw", ha="left", va="center", fontsize=10, color="#1F4E79")
-    for i, sl in enumerate((10.0, 11.0, 12.0)):
-        y = 0.71 - i * 0.055
-        overlay.plot([0.425, 0.455], [y, y], color=slot_color[sl], lw=2.2, solid_capstyle="butt")
-        overlay.text(0.465, y, f"{sl:g} mm", ha="left", va="center", fontsize=10, color="black")
-    for i, sw in enumerate((0.5, 0.9, 1.2, 1.5)):
-        y = 0.46 - i * 0.055
-        overlay.plot([0.425, 0.455], [y, y], color="0.2", ls=sw_style[sw], lw=1.7, solid_capstyle="butt")
-        overlay.text(0.465, y, f"{sw:g} mm", ha="left", va="center", fontsize=10, color="black")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(overlay, 0.58, 0.10, 0.38, 0.68, fill=fill, stroke=stroke)
-    overlay.text(0.605, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    overlay.plot([0.605, 0.93], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    overlay.text(
-        0.605,
-        0.66,
-        wrap_cn(
-            "12 条曲线的峰都停在 5.9–6.1 GHz。槽从 12 mm 收到 10 mm，峰不按 1/L 走，3.3 GHz 失配也不动。"
-            "sw = 0.9 mm 时只是把坑填浅，6.6 GHz 甚至回到 −10 dB 以下。"
-            "这一尺度上短槽还不是 6.6 GHz 谐振器。下一轮换组：放大圆片、加长槽，扫 patch_r × slot_length；sw 钉在 0.5 mm。",
-            23,
-        ),
-        ha="left",
-        va="top",
-        fontsize=13,
-        color="black",
-        linespacing=1.55,
-        zorder=2,
+    page_family(
+        pdf,
+        "第一轮结果",
+        S11_R001,
+        "slot_length",
+        {10.0: "#1F4E79", 12.0: "#2A9D8F", 16.0: "#C45C26"},
+        "sw",
+        {0.5: "-", 1.0: "--", 1.5: "-."},
+        "27 条曲线的峰都停在 5.9–6.1 GHz。槽从 10 mm 加到 16 mm，电长度加 60%，峰只挪了约 0.07 GHz，完全不像半波谐振器。"
+        "sw 收窄没有把缺口收到 0.5 GHz 附近。l2 几乎只在深度上抖约 0.3 dB。"
+        "2.1–3.6 GHz 那截抬起全程都在。开场 5–7 GHz 大塌陷不是倒 U 在工作。"
+        "下一轮换组：扫 patch_r × lw × g1。",
+        alpha_key="l2",
+        alphas={1.0: 1.0, 2.0: 0.62, 3.0: 0.38},
+        lw=1.05,
     )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_12(pdf: PdfPages) -> None:
-    fig, ax = new_slide()
-    heading(ax, "第二轮扫参")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(ax, 0.08, 0.055, 0.84, 0.71, fill=fill, stroke=stroke)
-    ax.text(0.12, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    ax.plot([0.12, 0.88], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    ax.text(
-        0.12,
-        0.66,
-        "放大圆片、把槽加到半波长附近，看阻带会不会随槽长走动。",
-        ha="left",
-        va="top",
-        fontsize=15,
-        color="black",
-        zorder=2,
+    page_agent_table(
+        pdf,
+        "第二轮扫参",
+        "按基板厚度估 50 Ω 微带，放大圆片，看 5–7 GHz 是不是匹配空洞。",
+        ("变量", "取值"),
+        (
+            ("patch_r", "5.6、8.5、11.5 mm"),
+            ("lw", "1.75、3.50、5.25 mm"),
+            ("g1", "8.0、8.5、10.5 mm"),
+        ),
+        "3 × 3 × 3 = 27 点。g1 不取 16 mm：已经看见地会爬到贴片底下。Optimetrics：PatchFeed_R002。",
     )
-
-    col_x = (0.16, 0.42)
-    headers = ("变量", "取值")
-    rows = (
-        ("patch_r", "7.0、9.5、12.0 mm"),
-        ("slot_length", "14、18、22、26 mm"),
-    )
-    top, row_h, tab_w = 0.56, 0.09, 0.64
-    ax.add_patch(Rectangle((0.14, top - row_h), tab_w, row_h, facecolor="#E4EAF1", edgecolor=rule, lw=0.8, zorder=1))
-    for x, h in zip(col_x, headers):
-        ax.text(x, top - row_h / 2, h, ha="left", va="center", fontsize=14, color=stroke, zorder=2)
-    for i, (name, vals) in enumerate(rows):
-        y = top - (i + 2) * row_h
-        ax.add_patch(
-            Rectangle((0.14, y), tab_w, row_h, facecolor=fill, edgecolor=rule, lw=0.8, zorder=1)
-        )
-        ax.text(col_x[0], y + row_h / 2, name, ha="left", va="center", fontsize=14, color="black", zorder=2)
-        ax.text(col_x[1], y + row_h / 2, vals, ha="left", va="center", fontsize=14, color="black", zorder=2)
-
-    ax.text(
-        0.12,
-        0.18,
-        "3 × 4 = 12 点。sw 钉在 0.5 mm。Optimetrics：Para_patch_slot_r002。",
-        ha="left",
-        va="center",
-        fontsize=14,
-        color="black",
-        zorder=2,
-    )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_13(pdf: PdfPages) -> None:
-    fig = plt.figure(figsize=SLIDE, facecolor="white")
-    fig.text(0.08, 0.90, "第二轮结果", ha="left", va="top", fontsize=22, color="black")
-
-    slot_color = {14.0: "#1F4E79", 18.0: "#2A9D8F", 22.0: "#C45C26", 26.0: "#7A3E9D"}
-    patch_style = {7.0: "-", 9.5: "--", 12.0: "-."}
-    keep_patch = set(patch_style)
-    keep_slot = set(slot_color)
-
-    ax = fig.add_axes((0.07, 0.14, 0.34, 0.64))
-    family = load_family(S11_R002)
-    for name, (freq, s11) in family.items():
-        patch, slot = parse_patch_slot(name)
-        if patch not in keep_patch or slot not in keep_slot:
-            continue
-        ax.plot(freq, s11, color=slot_color[slot], ls=patch_style[patch], lw=1.35)
-    ax.axhline(-10, color="0.45", ls="--", lw=0.8)
-    ax.axvline(6.6, color="0.25", ls=":", lw=1.0)
-    ax.set_xlim(1, 15)
-    ax.set_ylim(-22, 3)
-    ax.set_xlabel("频率 / GHz", fontsize=12)
-    ax.set_ylabel(r"$S_{11}$ / dB", fontsize=12)
-    ax.tick_params(labelsize=10)
-    ax.grid(True, color="0.88", lw=0.6)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.text(6.75, 1.4, "6.6 GHz", color="0.25", fontsize=10, va="bottom")
-
-    overlay = fig.add_axes((0, 0, 1, 1), facecolor="none")
-    overlay.set_xlim(0, 1)
-    overlay.set_ylim(0, 1)
-    overlay.axis("off")
-    overlay.text(0.425, 0.76, "slot_length", ha="left", va="center", fontsize=10, color="#1F4E79")
-    overlay.text(0.425, 0.48, "patch_r", ha="left", va="center", fontsize=10, color="#1F4E79")
-    for i, sl in enumerate((14.0, 18.0, 22.0, 26.0)):
-        y = 0.71 - i * 0.055
-        overlay.plot([0.425, 0.455], [y, y], color=slot_color[sl], lw=2.2, solid_capstyle="butt")
-        overlay.text(0.465, y, f"{sl:g} mm", ha="left", va="center", fontsize=10, color="black")
-    for i, pr in enumerate((7.0, 9.5, 12.0)):
-        y = 0.42 - i * 0.055
-        overlay.plot([0.425, 0.455], [y, y], color="0.2", ls=patch_style[pr], lw=1.7, solid_capstyle="butt")
-        overlay.text(0.465, y, f"{pr:g} mm", ha="left", va="center", fontsize=10, color="black")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(overlay, 0.58, 0.10, 0.38, 0.68, fill=fill, stroke=stroke)
-    overlay.text(0.605, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    overlay.plot([0.605, 0.93], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    overlay.text(
-        0.605,
-        0.66,
-        wrap_cn(
-            "槽一加长，窄缺口就出来了，并随槽长下移：18 mm 约在 7.4 GHz，22 mm 约在 6.1 GHz。"
-            "这才是槽谐振，不是开场那条 5–7 GHz 塌陷。"
-            "patch_r 主要搬 2–3 GHz 和 4–5 GHz 的失配；7 mm 圆片上槽谐振和失配粘在一起。"
-            "26 mm 槽相对圆片过长，曲线形状变差，不再用。"
-            "下一轮同一组收窄：对准 6.6 GHz，扫 patch_r × slot_length 在 9.5 mm、20.5 mm 附近；sw 仍钉 0.5 mm。",
-            23,
-        ),
-        ha="left",
-        va="top",
-        fontsize=13,
-        color="black",
-        linespacing=1.55,
-        zorder=2,
+    page_family(
+        pdf,
+        "第二轮结果",
+        S11_R002,
+        "lw",
+        {1.75: "#1F4E79", 3.5: "#2A9D8F", 5.25: "#C45C26"},
+        "patch_r",
+        {5.6: "-", 8.5: "--", 11.5: "-."},
+        "lw 是这一簇里搬匹配的主因。lw = 1.75 mm 时 5–7 GHz 大塌陷基本消失，多条曲线从约 2.2 GHz 一直匹配到 15 GHz。"
+        "开场 lw = 5.25 mm 在 1.14 mm 基板上 W/h≈4.6，远宽于 50 Ω。"
+        "圆加大后窄馈线下通带更完整。开场尺寸的倒 U 在这块已经匹配好的圆上打不出阻带。"
+        "钉 lw = 1.75 mm、patch_r = 11.5 mm、g1 = 8.0 mm。下一轮把槽请回来。",
+        alpha_key="g1",
+        alphas={8.0: 1.0, 8.5: 0.62, 10.5: 0.38},
+        lw=1.05,
     )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_14(pdf: PdfPages) -> None:
-    fig, ax = new_slide()
-    heading(ax, "第三轮扫参")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(ax, 0.08, 0.055, 0.84, 0.71, fill=fill, stroke=stroke)
-    ax.text(0.12, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    ax.plot([0.12, 0.88], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    ax.text(
-        0.12,
-        0.66,
-        "同一组收窄，把窄缺口的峰对准 6.6 GHz。",
-        ha="left",
-        va="top",
-        fontsize=15,
-        color="black",
-        zorder=2,
+    page_agent_table(
+        pdf,
+        "修改参数",
+        "匹配已经打开，把这组圆片和馈线写进模型。",
+        ("变量", "开场", "钉住"),
+        (
+            ("patch_r", "5.6 mm", "11.5 mm"),
+            ("lw", "5.25 mm", "1.75 mm"),
+            ("g1", "8.5 mm", "8.0 mm"),
+        ),
+        "槽三件套仍是开场值，下一轮再扫。",
     )
-
-    col_x = (0.16, 0.42)
-    headers = ("变量", "取值")
-    rows = (
-        ("patch_r", "9.0、9.5、10.0、10.5 mm"),
-        ("slot_length", "19.5、20.0、20.5、21.0 mm"),
-    )
-    top, row_h, tab_w = 0.56, 0.09, 0.64
-    ax.add_patch(Rectangle((0.14, top - row_h), tab_w, row_h, facecolor="#E4EAF1", edgecolor=rule, lw=0.8, zorder=1))
-    for x, h in zip(col_x, headers):
-        ax.text(x, top - row_h / 2, h, ha="left", va="center", fontsize=14, color=stroke, zorder=2)
-    for i, (name, vals) in enumerate(rows):
-        y = top - (i + 2) * row_h
-        ax.add_patch(
-            Rectangle((0.14, y), tab_w, row_h, facecolor=fill, edgecolor=rule, lw=0.8, zorder=1)
-        )
-        ax.text(col_x[0], y + row_h / 2, name, ha="left", va="center", fontsize=14, color="black", zorder=2)
-        ax.text(col_x[1], y + row_h / 2, vals, ha="left", va="center", fontsize=14, color="black", zorder=2)
-
-    ax.text(
-        0.12,
-        0.18,
-        "4 × 4 = 16 点。sw 钉在 0.5 mm。Optimetrics：Para_patch_slot_r003。",
-        ha="left",
-        va="center",
-        fontsize=14,
-        color="black",
-        zorder=2,
-    )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_15(pdf: PdfPages) -> None:
-    fig = plt.figure(figsize=SLIDE, facecolor="white")
-    fig.text(0.08, 0.90, "第三轮结果", ha="left", va="top", fontsize=22, color="black")
-
-    slot_color = {19.5: "#1F4E79", 20.0: "#2A9D8F", 20.5: "#C45C26", 21.0: "#7A3E9D"}
-    patch_style = {9.0: "-", 9.5: "--", 10.0: "-.", 10.5: ":"}
-    keep_patch = set(patch_style)
-    keep_slot = set(slot_color)
-
-    ax = fig.add_axes((0.07, 0.14, 0.34, 0.64))
-    family = load_family(S11_R003)
-    for name, (freq, s11) in family.items():
-        patch, slot = parse_patch_slot(name)
-        if patch not in keep_patch or slot not in keep_slot:
-            continue
-        ax.plot(freq, s11, color=slot_color[slot], ls=patch_style[patch], lw=1.25)
-    ax.axhline(-10, color="0.45", ls="--", lw=0.8)
-    ax.axvline(6.6, color="0.25", ls=":", lw=1.0)
-    ax.set_xlim(1, 15)
-    ax.set_ylim(-22, 3)
-    ax.set_xlabel("频率 / GHz", fontsize=12)
-    ax.set_ylabel(r"$S_{11}$ / dB", fontsize=12)
-    ax.tick_params(labelsize=10)
-    ax.grid(True, color="0.88", lw=0.6)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.text(6.75, 1.4, "6.6 GHz", color="0.25", fontsize=10, va="bottom")
-
-    overlay = fig.add_axes((0, 0, 1, 1), facecolor="none")
-    overlay.set_xlim(0, 1)
-    overlay.set_ylim(0, 1)
-    overlay.axis("off")
-    overlay.text(0.425, 0.76, "slot_length", ha="left", va="center", fontsize=10, color="#1F4E79")
-    overlay.text(0.425, 0.48, "patch_r", ha="left", va="center", fontsize=10, color="#1F4E79")
-    for i, sl in enumerate((19.5, 20.0, 20.5, 21.0)):
-        y = 0.71 - i * 0.055
-        overlay.plot([0.425, 0.455], [y, y], color=slot_color[sl], lw=2.2, solid_capstyle="butt")
-        overlay.text(0.465, y, f"{sl:g} mm", ha="left", va="center", fontsize=10, color="black")
-    for i, pr in enumerate((9.0, 9.5, 10.0, 10.5)):
-        y = 0.42 - i * 0.055
-        overlay.plot([0.425, 0.455], [y, y], color="0.2", ls=patch_style[pr], lw=1.7, solid_capstyle="butt")
-        overlay.text(0.465, y, f"{pr:g} mm", ha="left", va="center", fontsize=10, color="black")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(overlay, 0.58, 0.10, 0.38, 0.68, fill=fill, stroke=stroke)
-    overlay.text(0.605, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    overlay.plot([0.605, 0.93], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    overlay.text(
-        0.605,
-        0.66,
-        wrap_cn(
-            "两轴都在挪缺口。槽加长，缺口下移；圆片加大，同一槽长缺口略下移、6.6 GHz 处抬得更高。"
-            "对准 6.6 GHz 且宽度还在 0.5 GHz 以内的是 patch_r = 10 mm、slot_length = 19.5 mm"
-            "（峰 −7.97 dB，缺口约 0.2 GHz）。钉住这组，sw 仍是 0.5 mm。"
-            "4–5 GHz 和 2–3 GHz 的失配还在，不是槽能填的。"
-            "下一轮换组：扫成形地 g1 × g2 × g3。",
-            23,
+    page_agent_table(
+        pdf,
+        "第三轮扫参",
+        "匹配平台已经钉住。把倒 U 加长到能进通带的区间。",
+        ("变量", "取值"),
+        (
+            ("slot_length", "18、24、30 mm"),
+            ("sw", "0.5、1.0、1.5 mm"),
+            ("l2", "1.0、2.0、3.0 mm"),
         ),
-        ha="left",
-        va="top",
-        fontsize=13,
-        color="black",
-        linespacing=1.55,
-        zorder=2,
+        "3 × 3 × 3 = 27 点。12 mm 已证伪，不回头扫。Optimetrics：SlotU_R003。",
     )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_16(pdf: PdfPages) -> None:
-    fig, ax = new_slide()
-    heading(ax, "修改参数")
-
-    fill, stroke, rule = "#F3F6FA", "#1F4E79", "#C5D0DC"
-    speech_bubble(ax, 0.08, 0.055, 0.84, 0.71, fill=fill, stroke=stroke)
-    ax.text(0.12, 0.73, "Agent", ha="left", va="center", fontsize=13, color=stroke, zorder=2)
-    ax.plot([0.12, 0.88], [0.705, 0.705], color=rule, lw=0.8, zorder=1)
-    ax.text(
-        0.12,
-        0.66,
-        "缺口已经对准 6.6 GHz，把这组写进模型。",
-        ha="left",
-        va="top",
-        fontsize=15,
-        color="black",
-        zorder=2,
+    page_family(
+        pdf,
+        "第三轮结果",
+        S11_R003,
+        "slot_length",
+        {18.0: "#1F4E79", 24.0: "#2A9D8F", 30.0: "#C45C26"},
+        "sw",
+        {0.5: "-", 1.0: "--", 1.5: "-."},
+        "倒 U 终于出现可辨阻带，但只活在 slot_length = 18 mm 附近。"
+        "sw = 0.5 / 1.0 mm 时缺口宽 0.2–0.3 GHz，相对带宽够，峰值却只有约 −9.9 dB，中心在 7.1–7.5 GHz。"
+        "24、30 mm 不是按半波把中心往下搬，而是把这道尖缺口抹掉。"
+        "下一轮把互斥的馈线宽度拉进同一张表：slot_length × sw × lw。",
+        alpha_key="l2",
+        alphas={1.0: 1.0, 2.0: 0.62, 3.0: 0.38},
+        lw=1.05,
     )
-
-    col_x = (0.16, 0.40, 0.64)
-    headers = ("变量", "开场", "钉住")
-    rows = (
-        ("patch_r", "5.6 mm", "10 mm"),
-        ("slot_length", "12 mm", "19.5 mm"),
-        ("sw", "1.5 mm", "0.5 mm"),
-    )
-    top, row_h, tab_w = 0.56, 0.085, 0.68
-    ax.add_patch(Rectangle((0.14, top - row_h), tab_w, row_h, facecolor="#E4EAF1", edgecolor=rule, lw=0.8, zorder=1))
-    for x, h in zip(col_x, headers):
-        ax.text(x, top - row_h / 2, h, ha="left", va="center", fontsize=14, color=stroke, zorder=2)
-    for i, (name, old, new) in enumerate(rows):
-        y = top - (i + 2) * row_h
-        ax.add_patch(
-            Rectangle((0.14, y), tab_w, row_h, facecolor=fill, edgecolor=rule, lw=0.8, zorder=1)
-        )
-        ax.text(col_x[0], y + row_h / 2, name, ha="left", va="center", fontsize=14, color="black", zorder=2)
-        ax.text(col_x[1], y + row_h / 2, old, ha="left", va="center", fontsize=14, color="black", zorder=2)
-        ax.text(col_x[2], y + row_h / 2, new, ha="left", va="center", fontsize=14, color="black", zorder=2)
-
-    ax.text(
-        0.12,
-        0.16,
-        "其余变量保持开场值。",
-        ha="left",
-        va="center",
-        fontsize=14,
-        color="black",
-        zorder=2,
-    )
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def page_17(pdf: PdfPages) -> None:
     page_agent_table(
         pdf,
         "第四轮扫参",
-        "阻带已经对准，看成形地能不能填 2–3 GHz 和 4–5 GHz 的失配。",
+        "稍加长槽把 7.1 GHz 往 6.6 GHz 搬，同时问馈线能不能加深缺口。",
         ("变量", "取值"),
         (
-            ("g1", "8.5、16、24 mm"),
-            ("g2", "2.0、3.9、5.8 mm"),
-            ("g3", "2.6、5.2、7.8 mm"),
+            ("slot_length", "18、19.5、21 mm"),
+            ("sw", "0.5、0.8、1.1 mm"),
+            ("lw", "1.75、2.5、3.5 mm"),
         ),
-        "3 × 3 × 3 = 27 点。圆片与槽已钉。Optimetrics：Para_gnd_r004。",
+        "3 × 3 × 3 = 27 点。不取 24 mm。l2 钉 1.0 mm。Optimetrics：SlotFeed_R004。",
     )
 
 
@@ -1130,16 +806,16 @@ def page_18(pdf: PdfPages) -> None:
         pdf,
         "第四轮结果",
         S11_R004,
-        "g1",
-        {8.5: "#1F4E79", 16.0: "#2A9D8F", 24.0: "#C45C26"},
-        "g2",
-        {2.0: "-", 3.9: "--", 5.8: "-."},
-        "g1 主导。8.5 mm 时 6.6 GHz 窄口还在，4–5 GHz 和 2–3 GHz 空洞仍在。"
-        "地加到 16 mm 能填 4–5 GHz，但窄口被拉成约 2.7 GHz 的宽塌陷。"
-        "g2、g3 填不了坑，加大还会把缺口加宽。二者留在开场。"
-        "下一轮换到馈地交界：扫 g1 × l2，在 8.5 与 16 mm 之间找折中。",
-        alpha_key="g3",
-        alphas={2.6: 1.0, 5.2: 0.62, 7.8: 0.38},
+        "lw",
+        {1.75: "#1F4E79", 2.5: "#2A9D8F", 3.5: "#C45C26"},
+        "slot_length",
+        {18.0: "-", 19.5: "--", 21.0: "-."},
+        "lw 同时搬缺口深度和宽度。lw = 1.75 mm 时只有 18 mm 槽还给出可辨阻带，峰值停在 −9.9 dB；19.5 mm 鼓包正好在 6.6 GHz，但 −10.87 dB。"
+        "lw = 2.5 mm 把峰值抬到 −9～−8 dB，缺口扩到 0.8–1.0 GHz。"
+        "lw = 3.5 mm 能过 −7 dB，宽度却到 1.0–1.6 GHz。"
+        "下一轮把悬崖收到 1.75–2.25 mm，并带上 l2。",
+        alpha_key="sw",
+        alphas={0.5: 1.0, 0.8: 0.62, 1.1: 0.38},
         lw=1.05,
     )
 
@@ -1148,13 +824,14 @@ def page_19(pdf: PdfPages) -> None:
     page_agent_table(
         pdf,
         "第五轮扫参",
-        "g1 略加长，看 l2 能不能在填坑的同时把缺口收回去。",
+        "深度和宽度的悬崖在 1.75 与 2.5 mm 之间，开口耦合必须同表问。",
         ("变量", "取值"),
         (
-            ("g1", "8.5、10.5、12.5、14.5 mm"),
-            ("l2", "1.0、1.6、2.2、3.0 mm"),
+            ("lw", "1.75、2.00、2.25 mm"),
+            ("slot_length", "18.5、19.5、20.5 mm"),
+            ("l2", "1.0、2.0、3.0 mm"),
         ),
-        "4 × 4 = 16 点。g2、g3 留在开场。Optimetrics：Para_g1_l2_r005。",
+        "3 × 3 × 3 = 27 点。sw 钉在 0.5 mm。Optimetrics：SlotOpen_R005。",
     )
 
 
@@ -1163,59 +840,65 @@ def page_20(pdf: PdfPages) -> None:
         pdf,
         "第五轮结果",
         S11_R005,
-        "g1",
-        {8.5: "#1F4E79", 10.5: "#2A9D8F", 12.5: "#C45C26", 14.5: "#7A3E9D"},
-        "l2",
-        {1.0: "-", 1.6: "--", 2.2: "-.", 3.0: ":"},
-        "g1 = 10.5 mm 能填平 4–5 GHz，但 6.6 GHz 处回到 −10 dB 以下，上沿也被砍短。"
-        "再长到 12.5、14.5 mm，6–10 GHz 变成宽塌陷。"
-        "l2 在 g1 = 8.5 mm 时只是微移阻带中心，填不了空洞。"
-        "回到 g1 = 8.5 mm、l2 = 1.2 mm。下一轮换馈线：扫 lw × l1。",
+        "lw",
+        {1.75: "#1F4E79", 2.0: "#2A9D8F", 2.25: "#C45C26"},
+        "slot_length",
+        {18.5: "-", 19.5: "--", 20.5: "-."},
+        "lw = 2.25 mm、slot_length = 20.5 mm、l2 = 3.0 mm 第一次把峰值钉在 6.6 GHz（−9.49 dB），宽 0.4 GHz，相对带宽 145%。频率、宽度都过，只差再抬约 2.5 dB 过 −7。"
+        "l2 不是几乎不动：同一槽长上，开口从 1 mm 加到 3 mm 会把鼓包收成缺口，或再抹掉。"
+        "钉住这一组。下一轮换到还没问过的地台阶：sw × g2 × g3。",
+        alpha_key="l2",
+        alphas={1.0: 1.0, 2.0: 0.62, 3.0: 0.38},
+        lw=1.05,
     )
 
 
 def page_21(pdf: PdfPages) -> None:
     page_agent_table(
         pdf,
-        "第六轮扫参",
-        "钉住已对准的槽和短地，用馈线填匹配空洞。",
-        ("变量", "取值"),
+        "修改参数",
+        "频率和宽度已经就位，把这组槽和馈线写进模型。",
+        ("变量", "此前", "钉住"),
         (
-            ("lw", "1.75、3.50、5.25 mm"),
-            ("l1", "8.15、16.3、24.45 mm"),
+            ("lw", "1.75 mm", "2.25 mm"),
+            ("slot_length", "12 mm", "20.5 mm"),
+            ("l2", "1.2 mm", "3.0 mm"),
         ),
-        "3 × 3 = 9 点。圆片、槽和地已钉。Optimetrics：Para_feed_r006。",
+        "sw 钉在 0.5 mm。圆片与 g1 保持第二轮钉住值。",
     )
 
 
 def page_22(pdf: PdfPages) -> None:
-    page_family(
+    page_agent_table(
         pdf,
-        "第六轮结果",
-        S11_R006,
-        "lw",
-        {1.75: "#1F4E79", 3.5: "#2A9D8F", 5.25: "#C45C26"},
-        "l1",
-        {8.15: "-", 16.3: "--", 24.45: "-."},
-        "lw 收窄会填 2–3 GHz 和 4–5 GHz 的洞，也改槽的耦合。"
-        "lw = 1.75 mm、l1 = 16.3 mm 时 1–6.2 GHz 连成通带，相对带宽约 175%；"
-        "窄口还在，但峰在 6.5 GHz，6.6 GHz 刚回到通带。"
-        "l1 再长到 24.45 mm 阻带消失。钉 lw = 1.75 mm、l1 = 16.3 mm。"
-        "下一轮把槽谐振从 6.5 搬到 6.6 GHz。",
+        "第六轮扫参",
+        "在已对准 6.6 GHz 的平台上，看槽宽和地台阶能不能把峰值抬过 −7 dB。",
+        ("变量", "取值"),
+        (
+            ("sw", "0.5、0.7、0.9 mm"),
+            ("g2", "2.0、3.9、5.85 mm"),
+            ("g3", "2.6、5.2、7.8 mm"),
+        ),
+        "3 × 3 × 3 = 27 点。l1 仍钉 10 mm。Optimetrics：GroundSlot_R006。",
     )
 
 
 def page_23(pdf: PdfPages) -> None:
-    page_agent_table(
+    page_family(
         pdf,
-        "修改参数",
-        "匹配已经拉开，把这组馈线写进模型。",
-        ("变量", "此前", "钉住"),
-        (
-            ("lw", "5.25 mm", "1.75 mm"),
-            ("l1", "10 mm", "16.3 mm"),
-        ),
-        "圆片、槽和地保持第三轮钉住值。",
+        "第六轮结果",
+        S11_R006,
+        "g2",
+        {2.0: "#1F4E79", 3.9: "#2A9D8F", 5.85: "#C45C26"},
+        "sw",
+        {0.5: "-", 0.7: "--", 0.9: "-."},
+        "g2 是把 6.6 GHz 阻带搬走的量。只有开场 g2 = 2 mm 还把峰值留在 6.6 附近；3.9 mm 挪到 7.8 GHz，5.85 mm 再挪到 8–10 GHz。"
+        "g3 几乎不加深。sw = 0.7 mm 只深零点几 dB；0.9 mm 常常把缺口抹掉。"
+        "最好仍是开场台阶 + sw = 0.5 mm：6.6 GHz / −9.49 dB。"
+        "l1 = 24.45 mm 会把圆推出基板，不进网格。下一轮扫 l1 × lw × slot_length。",
+        alpha_key="g3",
+        alphas={2.6: 1.0, 5.2: 0.62, 7.8: 0.38},
+        lw=1.05,
     )
 
 
@@ -1223,13 +906,14 @@ def page_24(pdf: PdfPages) -> None:
     page_agent_table(
         pdf,
         "第七轮扫参",
-        "新馈电下把缺口从 6.5 GHz 搬回 6.6 GHz。",
+        "贴片-地间距和馈线是同一条馈缝，必须带着槽长一起问深度。",
         ("变量", "取值"),
         (
-            ("slot_length", "18.8、19.1、19.2、19.5 mm"),
-            ("sw", "0.5、0.9、1.3 mm"),
+            ("l1", "8.15、10、12 mm"),
+            ("lw", "2.15、2.35、2.55 mm"),
+            ("slot_length", "19.5、20.5、21.5 mm"),
         ),
-        "4 × 3 = 12 点。馈电与地已钉。Optimetrics：Para_slot_r007。",
+        "3 × 3 × 3 = 27 点。不取 16–24 mm。Optimetrics：FeedGap_R007。",
     )
 
 
@@ -1238,29 +922,55 @@ def page_25(pdf: PdfPages) -> None:
         pdf,
         "第七轮结果",
         S11_R007,
-        "slot_length",
-        {18.8: "#1F4E79", 19.1: "#2A9D8F", 19.2: "#C45C26", 19.5: "#7A3E9D"},
-        "sw",
-        {0.5: "-", 0.9: "--", 1.3: "-."},
-        "slot_length 继续搬峰，sw 加宽会把缺口抹掉。"
-        "sw = 0.5 mm 时，19.1 mm 峰在 6.6 GHz（−8.82 dB），缺口约 0.1 GHz；"
-        "通带约 1–6.4 与 6.7–15 GHz，相对带宽 175%。"
-        "钉住这一组，停并交卷。",
+        "l1",
+        {8.15: "#1F4E79", 10.0: "#2A9D8F", 12.0: "#C45C26"},
+        "lw",
+        {2.15: "-", 2.35: "--", 2.55: "-."},
+        "l1 是这一簇里搬深度的主因。圆贴近地（8.15 mm）把 6.6 GHz 附近的缺口抹掉。"
+        "l1 = 10 mm 仍是宽 0.3–0.5 GHz、峰值约 −9.3 dB 的平台。"
+        "l1 = 12 mm 第一次把峰值抬过 −7 dB（6.7 GHz / −6.86 dB），缺口却扩到 0.8 GHz；2.1–2.4 GHz 缝也被填上，相对带宽 174%。"
+        "下一轮把 l1 收到 10.5–11.8 mm，同一组加密。",
+        alpha_key="slot_length",
+        alphas={19.5: 1.0, 20.5: 0.62, 21.5: 0.38},
+        lw=1.05,
     )
 
 
 def page_26(pdf: PdfPages) -> None:
     page_agent_table(
         pdf,
-        "修改参数",
-        "缺口已经回到 6.6 GHz，把槽长写进模型。",
-        ("变量", "此前", "钉住"),
-        (("slot_length", "19.5 mm", "19.1 mm"),),
-        "其余保持第六轮钉住值。sw 仍是 0.5 mm。",
+        "第八轮扫参",
+        "l1 = 10 mm 窄而浅，l1 = 12 mm 深而宽。在中间找同时过 −7 dB 且宽不超过 0.5 GHz 的点。",
+        ("变量", "取值"),
+        (
+            ("l1", "10.5、11.2、11.8 mm"),
+            ("lw", "2.20、2.32、2.45 mm"),
+            ("slot_length", "19.3、19.7、20.1 mm"),
+        ),
+        "3 × 3 × 3 = 27 点。求解累计已近 2.5 小时，这是最后一张表。Optimetrics：FeedGapFine_R008。",
     )
 
 
 def page_27(pdf: PdfPages) -> None:
+    page_family(
+        pdf,
+        "第八轮结果",
+        S11_R008,
+        "l1",
+        {10.5: "#1F4E79", 11.2: "#2A9D8F", 11.8: "#C45C26"},
+        "lw",
+        {2.20: "-", 2.32: "--", 2.45: "-."},
+        "l1 从 10.5 加到 11.8 继续加深，也继续摊宽。"
+        "l1 = 10.5 mm 仍能给出宽 0.5 GHz 的缺口，6.6 GHz 最深只到 −8.88 dB。"
+        "l1 = 11.8 mm、lw = 2.32 mm、slot_length = 19.7 mm 把 6.6 GHz 抬到 −7.49 dB，峰值正好在 6.6 GHz，宽度 0.8 GHz。"
+        "没有一条同时过 −7 dB 且宽不超过 0.5 GHz。再开一轮会超过 3 小时，钉住这一组交卷。",
+        alpha_key="slot_length",
+        alphas={19.3: 1.0, 19.7: 0.62, 20.1: 0.38},
+        lw=1.05,
+    )
+
+
+def page_28(pdf: PdfPages) -> None:
     fig = plt.figure(figsize=SLIDE, facecolor="white")
     fig.text(0.08, 0.90, "交卷", ha="left", va="top", fontsize=22, color="black")
 
@@ -1285,27 +995,37 @@ def page_27(pdf: PdfPages) -> None:
 
     fig.text(0.66, 0.78, "判卷三项", ha="left", va="top", fontsize=16, color="black")
     goals = [
-        ("1. 阻带位置", "最高点在 6.6 GHz，\n该点 −8.82 dB，高于 −10 dB。"),
-        ("2. 阻带宽度", "0.1 GHz，不超过 0.5 GHz。"),
-        ("3. 相对带宽", "约 1–15 GHz，175%，\n高于 130%。"),
+        ("1. 阻带位置", "最高点在 6.6 GHz，\n该点 −7.49 dB；目标高于 −7 dB。"),
+        ("2. 阻带宽度", "0.8 GHz，超过 0.5 GHz 上限。"),
+        ("3. 相对带宽", "约 1.0–14.5 GHz，174%，\n高于 130%。"),
     ]
     y = 0.68
     for title, body in goals:
         fig.text(0.66, y, title, ha="left", va="top", fontsize=14, color="black")
         fig.text(0.66, y - 0.045, body, ha="left", va="top", fontsize=13, color="black", linespacing=1.45)
         y -= 0.18
+    fig.text(
+        0.66,
+        0.16,
+        "求解累计 2 h 52 min。\n再开一轮会超过 3 小时。",
+        ha="left",
+        va="top",
+        fontsize=13,
+        color="black",
+        linespacing=1.4,
+    )
     pdf.savefig(fig)
     plt.close(fig)
 
 
-def page_28(pdf: PdfPages) -> None:
+def page_29(pdf: PdfPages) -> None:
     fig = plt.figure(figsize=SLIDE, facecolor="white")
     fig.text(0.08, 0.90, "交卷天线俯视图", ha="left", va="top", fontsize=22, color="black")
     place_image(fig, ROOT / "figs" / "top_final.jpg", box=(0.08, 0.16, 0.84, 0.66))
     fig.text(
         0.08,
         0.07,
-        "注：此时铜已超出介质范围。因为 Agent 没有被要求使用视觉能力检查天线结构，后续可改进。",
+        "注：此时铜已超出介质范围。Agent 截过俯视图，仍把这组点留下了。",
         ha="left",
         va="center",
         fontsize=13,
@@ -1315,7 +1035,7 @@ def page_28(pdf: PdfPages) -> None:
     plt.close(fig)
 
 
-def page_29(pdf: PdfPages) -> None:
+def page_30(pdf: PdfPages) -> None:
     fig, ax = new_slide()
     heading(ax, "与已有工作的对比")
     ax.text(
@@ -1425,6 +1145,7 @@ def main() -> None:
         page_27(pdf)
         page_28(pdf)
         page_29(pdf)
+        page_30(pdf)
     print(OUT)
 
 
