@@ -1,6 +1,6 @@
 # Implementation status (V1 live COM attach)
 
-Last updated: 2026-08-19
+Last updated: 2026-08-21
 
 Live constitution: `ADR-002-ENGINEER-SESSION-MODEL.md`.
 V0 decision (superseded, keep clauses): `ADR-001-AUTONOMY-EXECUTION-MODEL.md`.
@@ -10,16 +10,16 @@ V0 architecture snapshot (not the running MCP): `ARCHITECTURE_V0.md`.
 
 - [x] Live attach via COM ROT / `Dispatch` + `oDesktop.RunScript`. **Does not** construct PyAEDT `Desktop()` / `Hfss()`.
 - [x] Will not launch a second AEDT; will not quit the user's Desktop on MCP/`AppContext.close()`.
-- [x] 20 MCP tools. **Not registered:** `trial_*`, `run_*`, setup CRUD, checkpoint, `exec`, Optimetrics Optimization / Sensitivity / Statistical / DOE.
+- [x] 22 MCP tools. **Not registered:** `trial_*`, `run_*`, setup CRUD, checkpoint, `exec`, Optimetrics Optimization / Sensitivity / Statistical / DOE.
 - [x] Slim allowlist. `variables_set` is a partial update; no solve; no save. Accepts `name` or `variable`. Returns `needs_solve`.
-- [x] `snapshot` is cheap JSON. `view_capture` and `variable_map` are on-demand.
+- [x] `snapshot` is cheap JSON (includes modeler object names). `view_hide` / `view_show` / `view_capture` are on-demand. Capture renders export-time `Selections` (fit list, or everything minus the hidden set) with `FitToSelections`; it does not depend on GUI view state.
 - [x] Reports: `report_list` = Results + Field Overlays; `report_create` adds a visible HFSS plot (`parametric=` Alls that matrix; omitted/`families=[]` pins other parametric vars at Nominal). Reusing a name to apply families/pins returns `report_exists`. `field_face` quantity is a finite set (`Mag_E` default, `Mag_Jsurf`). `report_export` = `ExportToFile` (3rd arg False = GUI Export Data, Separate Columns off: one column per swept variable) / `ExportFieldPlot`, then `freq_ghz,variation,s11_db` with those combinations as `variation`. `traces`/`labeled`/`csv_format`; `stale_solution` if unsaved `variables_set`. No Touchstone bypass, no hidden `hfss_mcp_*` plots.
 - [x] Optimetrics Parametric: `optimetrics_list` / `parametric_create` / `parametric_start` / `parametric_export_table`. Real `OptiParametric` node; `parametric_start` is **SolveSetup**, not `oDesign.Analyze`. Same name **edits** the node. Cap **256** points. `analyze_status` returns Message Manager lines.
 - [x] V0 optimizer package removed (`jobs/`, checkpoint, workspace, `run_optimizer`, `adapter/pyaedt_adapter.py`).
-- [x] Skill `skills/tune-hfss-antenna/` matches the V1 loop: joint Optimetrics Parametric whose grouping/density the agent must justify; not OFAT `variables_set` + Analyze; no baked default N. After changing parameters, look at the model (`view_capture`); do not keep an obviously broken geometry. Visual check is a habit, not a new MCP primitive or a fixed view checklist.
+- [x] Skill `skills/tune-hfss-antenna/` matches the V1 loop: joint Optimetrics Parametric whose grouping/density the agent must justify; not OFAT `variables_set` + Analyze; no baked default N. After changing parameters, look at the model (`view_hide` / `view_capture(fit=…)`); do not keep an obviously broken geometry. Visual check is a habit, not a fixed view checklist.
 - [x] Offline FakeAdapter tests + **real AEDT 2023 R2** live attach.
-- [x] `cases/` tree: `uwb_circular_notch` nominal is ported and solved; sandbox is Save As + 9-param detune including `lw`. Do not rebuild with `build.py` (wipes the port).
-- [x] Exam pack `eval/exams/uwb_circular_notch/`: isolated Cursor workspace, log-only agent output, hidden `eval/score_run.py` + `eval/keys/`. Finished runs live in `eval/archive/` (outside the exam folder). Spec is 6.6 GHz stopband (no frequency slack; peak and the 6.6 GHz point must be above −7 dB), width ≤ 0.5 GHz, envelope rel BW ≥ 130%. Passband edges stay at −10 dB. Solve-time budget 3 hours (sum of log `solve_time`; thinking/export do not count); `protocol.on_time` is separate from RF pass. Inner loop is joint matrices, not a fixed round count.
+- [x] `cases/` tree: `uwb_circular_notch` nominal is ported and solved; sandbox is Save As + 9-param detune including `lw`. Do not rebuild with `build.py` (wipes the port). `me_dipole_77` is the user-corrected 77 GHz PTH ME-dipole; sandbox is seven independent knobs detuned by the user.
+- [x] Exam packs `eval/exams/uwb_circular_notch/` and `eval/exams/me_dipole_77/`: isolated Cursor workspace, log-only agent output, hidden `eval/score_run.py` + `eval/keys/`. Finished runs live in `eval/archive/` (outside the exam folder). UWB spec is 6.6 GHz stopband (no frequency slack; peak and the 6.6 GHz point must be above −7 dB), width ≤ 0.5 GHz, envelope rel BW ≥ 130%. ME-dipole spec is 77 GHz inside a −10 dB band whose relative BW ≥ 25%. Passband edges stay at −10 dB. Solve-time budget 3 hours for UWB, 4 hours for the ME-dipole (sum of log `solve_time`; thinking/export do not count); `protocol.on_time` is separate from RF pass. Inner loop is joint matrices, not a fixed round count.
 
 ## Known limits (honest)
 
@@ -35,7 +35,7 @@ V0 architecture snapshot (not the running MCP): `ARCHITECTURE_V0.md`.
 10. **Do not parallelize HFSS MCP tools.** AEDT COM/`RunScript` is not reentrant. Concurrent `snapshot` + `health`/`report_list` hangs at `SetActiveProject`. The server serializes RunScript and project listing; Host Agents must still call those tools one at a time. `analyze_status` during a solve is the exception.
 11. **`variables_set` does not refresh Results.** The CSV after a pin is the last solved variation until Analyze (or a family export that already contains that point). `report_export` flags this with `stale_solution`.
 12. **Finished exam runs must leave the exam folder.** `eval/exams/<id>/runs/` is visible to the Host Agent. After scoring, move the timestamp directory to `eval/archive/`. A written "do not read old runs" rule is not isolation.
-13. **`view_capture` uses `oEditor.Hide`/`Show`, then FitAll, then screenshots.** Default is isometric. Radiation/air solids (`AirBox` and similar names) are hidden for the capture so the antenna fills the frame, then shown again. AEDT 2023 R2 has no `Geometry3DAttributeTab` `Show` property; that call used to abort the whole capture. Hide failure must not block export. After `variables_set`, look at the model; extra angles (including 3D) catch CAD errors that S11 will not. Allowlist boxes are independent; coupled CAD constraints are not expressed in the MCP. This is the agent's eyes, not a solver flag.
+13. **AEDT 2023 R2's 3D Modeler COM interface has no `Hide`/`Show` methods** (typelib enumeration + HFSS Scripting Guide agree), and we do not fake GUI hiding with transparency. `view_hide` / `view_show` are pure bookkeeping: they maintain the exclusion set. `view_capture` never relies on view state — it renders via export-time `Selections` + `FitToSelections` in `SaveImageParams` (true exclusion: hidden objects do not render at all, no wireframe residue), with `fit=[...]` selecting exactly those parts. The user's GUI is never touched by view tools. `orientation` is validated against isometric/top/bottom/front/back/left/right (ExportModelImageToFile requires ≥ 4 args, so invalid values used to die with a misleading arity error). Every capture first writes a tiny warm-up export at a *different* orientation, since the exporter can re-use a cached frame. After `variables_set`, look at the model; extra angles catch CAD errors that S11 will not. This is the agent's eyes, not a solver flag.
 
 ## Not started (deferred)
 

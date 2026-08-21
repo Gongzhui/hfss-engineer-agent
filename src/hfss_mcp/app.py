@@ -20,6 +20,7 @@ from hfss_mcp.live import (
     OPTIMETRICS_TYPES,
     PARAMETRIC_MAX_POINTS,
     REPORT_TYPES,
+    VIEW_ORIENTATIONS,
     LiveDesign,
     attach_live,
     crash_message,
@@ -71,6 +72,7 @@ class AppContext:
         self._analyze_thread: threading.Thread | None = None
         self._parametric_vars: dict[str, list[str]] = {}
         self._variables_dirty: bool = False
+        self._view_hidden: set[str] = set()
 
     @property
     def is_fake(self) -> bool:
@@ -83,6 +85,7 @@ class AppContext:
         self._live = None
         self._parametric_vars = {}
         self._variables_dirty = False
+        self._view_hidden = set()
         if self._fake is not None:
             try:
                 self._fake.disconnect(close_desktop=False)
@@ -905,29 +908,115 @@ class AppContext:
             )
         return payload
 
+    def view_hide(self, names: list[str]) -> dict[str, Any]:
+        cleaned = [str(x).strip() for x in names if str(x).strip()]
+        if not cleaned:
+            raise PolicyError("names must be non-empty", code="empty_parameters")
+        self._ensure_session()
+        if self.is_fake:
+            self._view_hidden.update(cleaned)
+            return {
+                "ok": True,
+                "hidden": sorted(self._view_hidden),
+                "names": cleaned,
+                "missing": [],
+            }
+        assert self._live is not None
+        raw = self._live.view_set_visible(cleaned, show=False)
+        self._view_hidden.update(raw["names"])
+        return {
+            "ok": True,
+            "hidden": sorted(self._view_hidden),
+            "names": raw["names"],
+            "missing": raw["missing"],
+            "objects": raw["objects"],
+        }
+
+    def view_show(
+        self, names: list[str] | None = None, *, all_objects: bool = False
+    ) -> dict[str, Any]:
+        cleaned = [str(x).strip() for x in (names or []) if str(x).strip()]
+        if not all_objects and not cleaned:
+            raise PolicyError(
+                "pass names or all_objects=true",
+                code="empty_parameters",
+            )
+        self._ensure_session()
+        if self.is_fake:
+            if all_objects:
+                shown = sorted(self._view_hidden)
+                self._view_hidden.clear()
+            else:
+                shown = cleaned
+                self._view_hidden.difference_update(cleaned)
+            return {
+                "ok": True,
+                "hidden": sorted(self._view_hidden),
+                "names": shown,
+                "missing": [],
+            }
+        assert self._live is not None
+        raw = self._live.view_set_visible(
+            cleaned, show=True, all_objects=all_objects
+        )
+        if all_objects:
+            self._view_hidden.clear()
+        else:
+            self._view_hidden.difference_update(raw["names"])
+        return {
+            "ok": True,
+            "hidden": sorted(self._view_hidden),
+            "names": raw["names"],
+            "missing": raw["missing"],
+            "objects": raw["objects"],
+        }
+
     def view_capture(
         self,
         *,
         orientation: str = "isometric",
+        fit: list[str] | None = None,
         isolate: list[str] | None = None,
     ) -> dict[str, Any]:
         self._ensure_session()
+        o = (orientation or "isometric").strip().lower()
+        if o not in VIEW_ORIENTATIONS:
+            raise PolicyError(
+                f"orientation must be one of: {', '.join(VIEW_ORIENTATIONS)}",
+                code="orientation_invalid",
+                details={"valid": list(VIEW_ORIENTATIONS), "got": orientation},
+            )
         dest = self.artifacts_dir / f"view_{new_id('')[:10]}.jpg"
+        keep = [str(x).strip() for x in (fit or isolate or []) if str(x).strip()]
         if self.is_fake:
             dest.write_bytes(_FAKE_JPEG)
-            path = dest
-            hidden: list[str] = []
-        else:
-            assert self._live is not None
-            path, hidden = self._live.view_capture(
-                dest, orientation=orientation, isolate=isolate
-            )
+            return {
+                "ok": True,
+                "path": str(dest),
+                "orientation": o,
+                "fit": keep,
+                "isolate": isolate or [],
+                "hidden": sorted(self._view_hidden),
+                "selection": keep,
+                "missing": [],
+            }
+        assert self._live is not None
+        path, selection, fitted, missing = self._live.view_capture(
+            dest,
+            orientation=o,
+            fit=keep or None,
+            isolate=None,
+            hidden=sorted(self._view_hidden),
+        )
         return {
             "ok": True,
             "path": str(path),
-            "orientation": orientation,
+            "orientation": o,
+            "fit": fitted,
             "isolate": isolate or [],
-            "hidden": hidden,
+            "hidden": sorted(self._view_hidden),
+            "selection": selection,
+            "missing": missing,
         }
 
     def variable_map(self, names: list[str] | None = None) -> dict[str, Any]:

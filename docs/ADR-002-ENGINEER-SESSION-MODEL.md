@@ -99,7 +99,7 @@ Sweeps a human would run under **Optimetrics → Parametric**. Same WYSIWYG rule
 
 ## Consequences
 
-- V1 MCP surface is the 20 engineer-session tools in `STATUS.md`. `trial_*` / `run_*` / setup CRUD / Optimetrics Optimization are not registered.
+- V1 MCP surface is the engineer-session tools in `STATUS.md`. `trial_*` / `run_*` / setup CRUD / Optimetrics Optimization are not registered.
 - `modal_s` / `terminal_z` / `farfield_2d` are real ReportSetup objects under Results. `field_face` is a real Field Overlays plot. `report_list` is `GetAllReportNames` plus `GetFieldPlotNames`. `report_export` is `ExportToFile` / `ExportFieldPlot`. There is no `ExportNetworkData` bypass and no modeler-screenshot fallback for fields. Missing plot → `report_not_in_results`.
 - V0 optimizer modules (`jobs/`, checkpoint, `run_optimizer`, PyAEDT worker adapter) are removed from the package.
 - Benchmark `siw_feed_l1` stays the demo case; live exams are the folders under `eval/exams/` (Cursor opens one exam directory, not the repo root).

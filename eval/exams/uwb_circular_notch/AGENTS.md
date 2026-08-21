@@ -14,7 +14,7 @@
 - 在日志里给自己打分或猜测标称尺寸。
 - 把 Skill 或本文件里的对照例子当成「本轮必须用的个数 / 点数 / 轮数」。分组和密度由本结构决定，开扫前写进日志。
 - 求解时间加总已满 3 小时还继续开新的扫。到点必须交卷。看图、写日志、导出不计入这 3 小时。
-- 同一轮并行调用多个会进 HFSS 的 MCP 工具（`health` / `session_list` / `snapshot` / `report_*` / `variable_map` / `view_capture` / `parametric_*`）。必须一个完成再调下一个。`allowlist_load` 可以和读文件并行，不要和 `snapshot` 并行。
+- 同一轮并行调用多个会进 HFSS 的 MCP 工具（`health` / `session_list` / `snapshot` / `report_*` / `variable_map` / `view_hide` / `view_show` / `view_capture` / `parametric_*`）。必须一个完成再调下一个。`allowlist_load` 可以和读文件并行，不要和 `snapshot` 并行。
 
 ## 步骤
 

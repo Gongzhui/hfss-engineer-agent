@@ -20,13 +20,21 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - 扫参必须出现在 Optimetrics 树里。禁止自己循环 `variables_set`+Analyze 冒充矩阵。
 - 禁止 Optimetrics Optimization / Sensitivity / Statistical / DOE。
 - `variables_set` 用来把矩阵里的一组点写进活模型。不要求解、不要保存。返回 `needs_solve: true`：Results 仍是上一份已解的 variation，不是刚写入的值。几何会立刻跟着变，看模型不必 Analyze。
-- **每次改完参数都要看模型。** `variables_set` 之后用 `view_capture` 检查几何有没有明显错误（导体离开支撑面、槽开出金属、端口离开边、物体相交或消失）。截图会先藏空气盒再 FitAll，天线应占满画面。三维和各个正交视图都值得看，宁可多看，不能少看。模型已经不像原来那副天线，这组点就不能留。怎么看、看几张，按当时需要，不要当成固定步骤去打勾。
+- **每次改完参数都要看模型。** 怎么看是你的判断（看哪几个零件、什么角度、看几张都不是清单），但有一条底线：模型已经不像原来那副天线，这组点就不能留。可用的看图工具见「看模型」一节。
 - `variables_set` 的参数键是 `name` 或 `variable`；`parametric_create` 的扫参键同样是 `variable` 或 `name`。两种写法等价。
 - `parametric_start` / `analyze_start` 的 `ok: true` **只表示任务已受理**，不是扫完。看 `done`。未 `done` 就必须 `analyze_status`（里面有 Message Manager 最近几行，这就是进度）。`failed` 时读 `job.error` 和 `messages`，不要空等。
 - **禁止** `trial_*` / `run_*`。
 - 不自动保存。有明显进展才 `project_save(mode="save_as")`。用户说「直接保存」才 `mode="save"`。
 - 推理写在 `hfss-tuning-log.md`。开扫前必须写清：**为什么是这一组、为什么是这些采样点**。写不出结构理由就还没到 `parametric_create`。
 - **不要并行调用 hfss-mcp 的 HFSS 工具。** AEDT 的 COM / `RunScript` 同一时刻只能进一个；并行 `health`+`snapshot` 或几个 `report_*` 会在 `SetActiveProject` 上卡死。同一轮里这些调用要串行。求解期间轮询 `analyze_status` 除外。
+
+## 看模型
+
+截图不依赖用户的 GUI 状态：每次 `view_capture` 都是导出时按名单现渲染的，你看到的图就是当时的真实几何。这几个工具怎么组合用由你定：
+
+- `snapshot` 的 `objects` 列出全部零件名，先认名字。
+- `view_hide(names)` / `view_show`：纯记账的排除名单。被排除的物体之后每张截图都完全不渲染（适合辐射盒、大地板、基板、接头这类占画面的东西——以**这一副**为准，工具不会替你猜哪个是空气盒）。不动用户的 GUI；`view_show(all_objects=true)` 清空名单。
+- `view_capture`：`orientation` 只能是 isometric/top/bottom/front/back/left/right（其它值直接被拒）；传 `fit=["零件名"]` 则这一张**只渲染**这些零件并框满它们，适合盯某一块铜。不传就渲染「全部 − 排除名单」。
 
 ## Size the matrix (you decide)
 
@@ -55,7 +63,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Tools
 
-`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_capture` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`。钉点时 `variables_set`，随后再 `view_capture` 看模型。
+`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`。钉点时 `variables_set`，随后再看模型。
 
 白名单：考场用该目录 `allowlist.json`；否则 `cases/uwb_circular_notch/allowlist.json`。
 
@@ -70,10 +78,10 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 ## Loop
 
 1. `health` / `session_list`。没有 Desktop 就让用户先打开工程。
-2. `allowlist_load`。`snapshot`。不熟则 `variable_map` + `view_capture`。
+2. `allowlist_load`。`snapshot`。不熟则 `variable_map`，并自己 `view_hide` / `view_capture`。
 3. 写清这一轮在调匹配还是相位。按上一节排出分组和采样，写入日志，再 `parametric_create`（须在树上能看见；看返回的 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
 4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。看哪条曲线随哪个量动、哪个量几乎不动。
-5. 敏感的留下，不敏感的可以钉死。下一轮换一组，或同一组收窄加密。钉点时才 `variables_set`。**改完就看模型**（`view_capture`），看出几何错误就不要留这组点。钉住之后如需单条曲线，再导出不含 family 的新报告（省略 `families`，或 `families=[]`）。不要复用开场那张 `S11` 来「钉死」。
+5. 敏感的留下，不敏感的可以钉死。下一轮换一组，或同一组收窄加密。钉点时才 `variables_set`。**改完就看模型**（自己 `view_hide` / `view_capture(fit=…)`，看出几何错误就不要留这组点）。钉住之后如需单条曲线，再导出不含 family 的新报告（省略 `families`，或 `families=[]`）。不要复用开场那张 `S11` 来「钉死」。
 6. 重复。停手只有：观察量已经达标；或（考场）再开一轮会超过求解时间上限。没达标且时间还够，就必须再开一轮。上一轮看出互斥，下一轮把互斥的量放进同一张联合矩阵（或改中间值再问）。不要用「连续两轮看不出新的影响」「该问的耦合已经问完」「跑满某几轮」当停手理由，也不要只扫一次就交差。
 
 ## Diagnose
@@ -94,4 +102,4 @@ uv run python skills/tune-hfss-antenna/scripts/plot_s11.py path/to/s11.csv --mar
 
 ## Demo case
 
-考场：Cursor **只打开**当前这题的 `eval/exams/<id>/`。AEDT 打开该题 README 里的 `sandbox/`。对 Agent 说「执行测试」。不要读 `answer/`。GOAL 以那一题为准。
+考场：宿主 Agent（Pi / Cursor）**只打开**当前这题的 `eval/exams/<id>/` 目录。AEDT 打开该题 README 里的 `sandbox/`。对 Agent 说「执行测试」。不要读 `answer/`。GOAL 以那一题为准。

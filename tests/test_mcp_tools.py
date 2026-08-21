@@ -29,6 +29,8 @@ from hfss_mcp.server import (
     variable_map,
     variables_set,
     view_capture,
+    view_hide,
+    view_show,
 )
 
 
@@ -73,6 +75,17 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         assert snap["ok"] is True
         assert snap["snapshot"]["revision"]
         assert "patch_w" in snap["snapshot"]["variables"]
+        assert "Patch" in snap["snapshot"]["objects"]
+
+        hidden = view_hide(names=["AirBox", "Ground"])
+        assert hidden["ok"] is True
+        assert "AirBox" in hidden["hidden"]
+        shown = view_show(names=["AirBox"])
+        assert shown["ok"] is True
+        assert "AirBox" not in shown["hidden"]
+        assert "Ground" in shown["hidden"]
+        shown_all = view_show(all_objects=True)
+        assert shown_all["hidden"] == []
 
         changed = variables_set(
             parameters=[{"name": "patch_w", "value": 11.0, "unit": "mm"}]
@@ -116,6 +129,8 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         pictured = view_capture()
         assert Path(pictured["path"]).is_file()
         assert pictured["hidden"] == []
+        fitted = view_capture(fit=["Patch"])
+        assert fitted["fit"] == ["Patch"]
 
         z_rep = report_create(report_type="terminal_z", setup="Setup1")
         z_out = report_export(z_rep["report"]["report_id"])

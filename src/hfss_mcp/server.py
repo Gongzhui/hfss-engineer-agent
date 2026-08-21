@@ -23,6 +23,8 @@ PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "report_list",
     "report_create",
     "report_export",
+    "view_hide",
+    "view_show",
     "view_capture",
     "variable_map",
     "project_save",
@@ -205,13 +207,42 @@ def report_export(report_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+def view_hide(names: list[str]) -> dict[str, Any]:
+    """Exclude 3D modeler objects from subsequent view_capture renders. Bookkeeping only — the GUI is not touched (2023 R2 has no GUI-hide API)."""
+    try:
+        return get_app().view_hide(names)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def view_show(names: list[str] | None = None, all_objects: bool = False) -> dict[str, Any]:
+    """Remove objects from the view_hide exclusion set. all_objects=true clears it."""
+    try:
+        return get_app().view_show(names, all_objects=all_objects)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
 def view_capture(
     orientation: str = "isometric",
+    fit: list[str] | None = None,
     isolate: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Screenshot the live 3D modeler. Hides air boxes, FitAll, then restores."""
+    """Screenshot the live 3D modeler.
+
+    Renders only the requested objects: fit=[names] renders exactly those and
+    frames them (export-time Selections + FitToSelections, true exclusion);
+    without fit, everything except the persistent view_hide set is rendered and
+    framed. isolate is the same as fit (kept for older callers). orientation
+    must be one of isometric/top/bottom/front/back/left/right. Response:
+    selection = what was rendered, hidden = persistent view_hide set.
+    """
     try:
-        return get_app().view_capture(orientation=orientation, isolate=isolate)
+        return get_app().view_capture(
+            orientation=orientation, fit=fit, isolate=isolate
+        )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 

@@ -74,6 +74,7 @@ class FakeAdapter:
                 revision=self._revision,
                 variables=copy.deepcopy(self._variables),
                 setups=list(self._setups),
+                objects=["Patch", "Substrate", "Ground", "AirBox"],
                 captured_at=utc_now_iso(),
             )
 

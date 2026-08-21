@@ -44,99 +44,133 @@ _AIRBOX_KEYS = (
 
 
 def is_airbox_object_name(name: str) -> bool:
-    """True for radiation/air boxes that would otherwise dominate FitAll."""
+    """Name-heuristic for radiation/air boxes. Capture does not use this automatically."""
     key = "".join(ch for ch in name.lower() if ch.isalnum())
     return key in _AIRBOX_KEYS or "airbox" in key
+
+
+VIEW_ORIENTATIONS = (
+    "isometric",
+    "top",
+    "bottom",
+    "front",
+    "back",
+    "left",
+    "right",
+)
+
+_EDITOR_VIS = """
+def all_object_names():
+    names = []
+    for group in ('Solids', 'Sheets', 'Lines'):
+        try:
+            names.extend([str(x) for x in (oEditor.GetObjectsInGroup(group) or [])])
+        except Exception:
+            pass
+    return names
+""".strip()
+
+
+def view_visibility_script(
+    *,
+    names: list[str],
+    show: bool,
+    all_objects: bool = False,
+) -> str:
+    """IronPython: validate object names for the hidden-set bookkeeping.
+
+    AEDT 2023 R2's 3D Modeler COM interface has no Hide/Show and we do not
+    fake it with transparency: this script only checks which names exist.
+    The hidden set lives in the app and is applied as export-time Selections
+    exclusion by view_capture. The user's GUI is never touched.
+    """
+    listed = json.dumps([str(x) for x in names], ensure_ascii=True)
+    return "\n".join(
+        [
+            _EDITOR_VIS,
+            f"want = {listed}",
+            f"all_objects = {bool(all_objects)}",
+            "present = all_object_names()",
+            "missing = []",
+            "if all_objects:",
+            "    targets = list(present)",
+            "else:",
+            "    targets = [n for n in want if n in present]",
+            "    missing = [n for n in want if n not in present]",
+            "result['names'] = targets",
+            "result['missing'] = missing",
+            "result['objects'] = present",
+        ]
+    )
 
 
 def view_capture_script(
     dest: Path,
     *,
     orientation: str = "isometric",
+    fit: list[str] | None = None,
     isolate: list[str] | None = None,
+    hidden: list[str] | None = None,
     width: int = 1280,
     height: int = 800,
 ) -> str:
-    """IronPython: hide air boxes, FitAll, screenshot, restore visibility."""
-    names = json.dumps([str(x) for x in (isolate or [])], ensure_ascii=True)
-    keys = json.dumps(list(_AIRBOX_KEYS), ensure_ascii=True)
+    """IronPython: screenshot via export-time Selections (true exclusion).
+
+    AEDT 2023 R2's 3D Modeler COM interface has no Hide/Show, so captures do
+    not rely on view state at all: SaveImageParams takes `Selections` (the
+    object list to render) and `FitToSelections` (frame those objects). With
+    fit/isolate, only those parts render, framed tight. Without it, the
+    selection is everything minus the persistent view_hide set. A tiny warm-up
+    export at a different orientation runs first: the exporter can re-use a
+    cached frame when nothing about the request appears to change.
+    """
+    keep = [str(x) for x in (fit or isolate or [])]
+    hidden_names = [str(x) for x in (hidden or [])]
+    warm = "top" if orientation.strip().lower() != "top" else "isometric"
+    warm_path = Path(dest).resolve().with_name("view_warmup.jpg")
     return "\n".join(
         [
             "import os",
+            _EDITOR_VIS,
             f"file_name = {str(Path(dest).resolve())!r}",
+            f"warm_name = {str(warm_path)!r}",
             f"orientation = {orientation!r}",
+            f"warm_orientation = {warm!r}",
             f"width = {int(width)}",
             f"height = {int(height)}",
-            f"isolate = {names}",
-            f"airbox_keys = {keys}",
+            f"keep = {json.dumps(keep, ensure_ascii=True)}",
+            f"hidden = {json.dumps(hidden_names, ensure_ascii=True)}",
             "parent = os.path.dirname(file_name)",
             "if parent and not os.path.isdir(parent):",
             "    os.makedirs(parent)",
-            "def is_airbox(name):",
-            "    key = ''.join(ch for ch in name.lower() if ch.isalnum())",
-            "    return key in airbox_keys or 'airbox' in key",
-            "all_names = []",
-            "for group in ('Solids', 'Sheets', 'Lines'):",
-            "    try:",
-            "        all_names.extend([str(x) for x in (oEditor.GetObjectsInGroup(group) or [])])",
-            "    except Exception:",
-            "        pass",
-            "if isolate:",
-            "    hidden = [n for n in all_names if n not in isolate]",
-            "    try:",
-            "        oEditor.ShowUnclassified(False)",
-            "    except Exception:",
-            "        pass",
+            "all_names = all_object_names()",
+            "missing_keep = [n for n in keep if n not in all_names]",
+            "if keep:",
+            "    selection = [n for n in keep if n in all_names]",
             "else:",
-            "    hidden = [n for n in all_names if is_airbox(n)]",
-            "exported = False",
-            "last = ''",
-            "def vis(names, show):",
-            "    if not names:",
-            "        return",
-            "    batches = [",
-            "        ['NAME:Selections', 'Selections:=', ','.join(names)],",
-            "        ['NAME:Selections', 'Selections:=', ','.join(names), 'NewPartsModelFlag:=', 'Model'],",
-            "    ]",
-            "    for args in batches:",
-            "        try:",
-            "            if show:",
-            "                oEditor.Show(args)",
-            "            else:",
-            "                oEditor.Hide(args)",
-            "            return",
-            "        except Exception:",
-            "            pass",
-            "    for n in names:",
-            "        try:",
-            "            one = ['NAME:Selections', 'Selections:=', n]",
-            "            if show:",
-            "                oEditor.Show(one)",
-            "            else:",
-            "                oEditor.Hide(one)",
-            "        except Exception:",
-            "            pass",
-            "try:",
-            "    vis(hidden, False)",
-            "    try:",
-            "        oEditor.FitAll()",
-            "    except Exception:",
-            "        pass",
-            "    params = ['NAME:SaveImageParams', 'ShowAxis:=', False, 'ShowGrid:=', False, 'ShowRuler:=', False, 'ShowRegion:=', False, 'Orientation:=', orientation]",
-            "    for args in ((file_name, int(width), int(height), params), (file_name, int(width), int(height)), (file_name,)):",
-            "        try:",
-            "            oEditor.ExportModelImageToFile(*args)",
-            "            if os.path.isfile(file_name):",
-            "                exported = True",
-            "                break",
-            "        except Exception as error:",
-            "            last = str(error)",
-            "finally:",
-            "    vis(hidden, True)",
-            "if not exported:",
-            "    raise Exception(last or 'ExportModelImageToFile failed')",
+            "    selection = [n for n in all_names if n not in hidden]",
+            "fit_sel = 'True' if selection else ''",
+            "sel_text = ','.join(selection)",
+            "def _params(o):",
+            "    return ['NAME:SaveImageParams',",
+            "            'ShowAxis:=', 'False', 'ShowGrid:=', 'False', 'ShowRuler:=', 'False',",
+            "            'ShowRegion:=', 'Default',",
+            "            'Selections:=', sel_text,",
+            "            'FieldPlotSelections:=', '',",
+            "            'FitToSelections:=', fit_sel,",
+            "            'FitToFieldPlotSelections:=', '',",
+            "            'Orientation:=', o,",
+            "            'ShowOrientationGadget:=', 'False']",
+            # ExportModelImageToFile requires >= 4 args; fewer-arg calls always fail.
+            "oEditor.ExportModelImageToFile(warm_name, 64, 40, _params(warm_orientation))",
+            "oEditor.ExportModelImageToFile(file_name, int(width), int(height), _params(orientation))",
+            "if not os.path.isfile(file_name):",
+            "    raise Exception('ExportModelImageToFile did not write ' + file_name)",
             "result['file'] = file_name",
-            "result['hidden'] = hidden",
+            "result['fit'] = [n for n in keep if n in all_names]",
+            "result['missing'] = missing_keep",
+            "result['selection'] = selection",
+            "result['objects'] = all_names",
         ]
     )
 
@@ -356,6 +390,13 @@ class LiveDesign:
                     "result['project_dir'] = path",
                     "result['variables'] = _items(oProject, 'project') + _items(oDesign, 'design')",
                     "result['setups'] = setups",
+                    "objects = []",
+                    "for group in ('Solids', 'Sheets', 'Lines'):",
+                    "    try:",
+                    "        objects.extend([str(x) for x in (oEditor.GetObjectsInGroup(group) or [])])",
+                    "    except Exception:",
+                    "        pass",
+                    "result['objects'] = objects",
                 ]
             )
         )
@@ -391,6 +432,7 @@ class LiveDesign:
             "revision": revision,
             "variables": {k: v.model_dump() for k, v in variables.items()},
             "setups": setups,
+            "objects": [str(x) for x in (raw.get("objects") or [])],
             "process_id": self.process_id,
             "captured_at": utc_now_iso(),
         }
@@ -1156,31 +1198,53 @@ class LiveDesign:
             )
         return path
 
+    def view_set_visible(
+        self,
+        names: list[str],
+        *,
+        show: bool,
+        all_objects: bool = False,
+    ) -> dict[str, Any]:
+        raw = self._script(
+            view_visibility_script(names=names, show=show, all_objects=all_objects)
+        )
+        return {
+            "names": [str(x) for x in (raw.get("names") or [])],
+            "missing": [str(x) for x in (raw.get("missing") or [])],
+            "objects": [str(x) for x in (raw.get("objects") or [])],
+        }
+
     def view_capture(
         self,
         dest: Path,
         *,
         orientation: str = "isometric",
+        fit: list[str] | None = None,
         isolate: list[str] | None = None,
+        hidden: list[str] | None = None,
         width: int = 1280,
         height: int = 800,
-    ) -> tuple[Path, list[str]]:
+    ) -> tuple[Path, list[str], list[str], list[str]]:
         dest = Path(dest).resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         raw = self._script(
             view_capture_script(
                 dest,
                 orientation=orientation,
+                fit=fit,
                 isolate=isolate,
+                hidden=hidden,
                 width=width,
                 height=height,
             )
         )
         path = Path(str(raw.get("file") or dest))
-        hidden = [str(x) for x in (raw.get("hidden") or [])]
+        selection = [str(x) for x in (raw.get("selection") or [])]
+        fitted = [str(x) for x in (raw.get("fit") or [])]
+        missing = [str(x) for x in (raw.get("missing") or [])]
         if not path.is_file():
             raise AdapterError("view capture did not write a file", code="view_capture_failed")
-        return path, hidden
+        return path, selection, fitted, missing
 
     def variable_map(self, names: list[str] | None = None) -> dict[str, Any]:
         raw = self._script(

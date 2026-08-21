@@ -53,6 +53,7 @@ class DesignSnapshot(BaseModel):
     revision: str
     variables: dict[str, ParameterValue] = Field(default_factory=dict)
     setups: list[str] = Field(default_factory=list)
+    objects: list[str] = Field(default_factory=list)
     captured_at: str = Field(default_factory=utc_now_iso)
 
     model_config = {"extra": "forbid"}
