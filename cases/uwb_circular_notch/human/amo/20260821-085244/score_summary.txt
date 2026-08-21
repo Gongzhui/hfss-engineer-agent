@@ -1,0 +1,17 @@
+n=147
+notch S11(6.6)>-7: 16/147
+low band max<=-10: 39/147
+high band max<=-10: 12/147
+both passbands: 6/147
+all three scalar goals: 0/147
+best Cost=11.006 var=57 s66=-10.07 low=-11.10 high=-8.75 n_ok=1
+highest S11(6.6)=4.38 dB var=102 low=-2.90 high=3.48 n_ok=1
+top by (n_ok, cost):
+  var=105 n_ok=2 cost=   15.16 s66= -10.89 low= -11.22 high= -10.21  pr=6.1496599mm slot=21.496599mm sw=1.122449mm l1=13.638776mm
+  var= 40 n_ok=2 cost=   26.58 s66= -12.16 low= -10.17 high= -10.92  pr=10.503401mm slot=27.07483mm sw=0.59863946mm l1=13.527891mm
+  var= 22 n_ok=2 cost=   37.41 s66= -13.12 low= -12.19 high= -10.72  pr=9.6326531mm slot=11.70068mm sw=0.67346939mm l1=22.620408mm
+  var= 29 n_ok=2 cost=   40.75 s66= -13.38 low= -11.70 high= -10.61  pr=9.5238095mm slot=29.795918mm sw=1.0952381mm l1=17.630612mm
+  var= 11 n_ok=2 cost=   44.13 s66= -13.64 low= -11.29 high= -10.82  pr=9.1972789mm slot=12.380952mm sw=0.97959184mm l1=13.195238mm
+  var=110 n_ok=2 cost=   49.18 s66= -14.01 low= -12.18 high= -11.58  pr=5.8231293mm slot=10.068027mm sw=1.1496599mm l1=19.293878mm
+  var= 57 n_ok=1 cost=   11.01 s66= -10.07 low= -11.10 high=  -8.75  pr=7.8367347mm slot=19.591837mm sw=0.63265306mm l1=14.082313mm
+  var= 74 n_ok=1 cost=   17.51 s66=  -8.28 low= -11.94 high=  -6.02  pr=6.3673469mm slot=20.544218mm sw=1.4013605mm l1=19.626531mm

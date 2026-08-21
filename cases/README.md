@@ -13,6 +13,7 @@ cases/<id>/
   nominal/            # example: nominal dimensions, no results
   sandbox/            # Host Agent opens this (detuned, no results)
   answer/             # scoring only — Skill must not read this
+  human/              # optional: person-in-GUI baselines (Optimetrics ASO, …); not an exam
 ```
 
 ## Rules

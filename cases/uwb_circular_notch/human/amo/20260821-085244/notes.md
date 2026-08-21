@@ -1,0 +1,27 @@
+# 人工：DesignXplorer 全局采样（12 h）
+
+- 工程（Save As，不要用 sandbox）: `C:\Users\Gongzhui\Documents\Projects\hfss-mcp\scratch\uwb_circular_notch_dxamo.aedt`
+- Desktop: PID 26068（`ansysedt -grpcsrv 49425`），Optimetrics 名 `DXDOE_OSF_12h`
+- 开始: 2026-08-21 08:52（北京时间；`StartAnalyze` 已进入，HFSSCOMENGINE 已起来）
+- 结束: 2026-08-21 11:23（北京时间；消息 `Design of Experiments Analysis is done`，profile `Finished`）
+- 实际评估: **147** 点（约 2.5 h），不是脚本里写的 1080。OSF 按变量个数自己定了样本数，墙钟 12 小时没用上
+- 实际方法: Electronics Desktop **Design of Experiments / Optimal Space-Filling**（`OptiDXDOE`，Max-Min Distance，User-Defined **1080** 点，MaxCycles 20）
+- 为什么不是树节点上的 AMO: `InsertSetup("OptiDesignExplorer")` + `Optimizer = Adaptive Multiple Objective (Random-search)` 在 2023 R2 里插得进去，但 **Number of Initial Samples 等 AMO 选项不能 SetPropValue**。那次只解了开场九点就 `DesignXplorer Analysis is done`。真正在盒子里撒点的是这条 DOE OSF。
+- 适应度（三条 Goal）:
+  - Setup1 : Sweep1, `max(dB(S(1,1)))` 2.5–6.3 GHz, `<= -10`, Weight 1
+  - Setup1 : Sweep1, `dB(S(1,1))` 6.6 GHz, `>= -7`, Weight 1
+  - Setup1 : Sweep1, `max(dB(S(1,1)))` 6.8–12 GHz, `<= -10`, Weight 1
+- 变量（Include / DOE Min–Max）: patch_r 4–12, slot_length 10–30, sw 0.5–1.5, lw 1.75–5.25, l1 8.15–24.45, l2 1–3, g1 8–24, g2 1.95–5.85, g3 2.6–7.8 mm
+- 开场九点: patch_r=5.6, slot_length=12, sw=1.5, lw=5.25, l1=10, l2=1.2, g1=8.5, g2=2.0, g3=2.6
+- 已确认不是 ASO 邻域: 前三个 OSF 点 `g1` 约 21.3 / 23.8 / 21.8 mm（盒子 8–24），`patch_r` 约 4.8 / 8.9 / 6.9 mm，不是开场附近单变量微扰
+- 启动脚本: `scratch/_start_dxdoe.py`（COM 挂 26068；前一次假 AMO Desktop 32212 已杀掉）
+- 最终变量: 未钉点。147 点里 **0** 组同时满足三条标量 Goal（6.6 GHz \(S_{11}>-7\) 且两侧通带 \(\max\le-10\)）
+- 性能摘要（Optimetrics 表，不是最低 \(S_{11}\)）:
+  - 6.6 GHz 抬过 −7 dB: **16/147**；这 16 个两侧通带全失败（低端 0 个 ≤−10，高端 0 个 ≤−10）
+  - 低端 2.5–6.3 GHz \(\max\le-10\): 39/147
+  - 高端 6.8–12 GHz \(\max\le-10\): 12/147
+  - 两侧通带同时 ≤−10: **6/147**，但这 6 个在 6.6 GHz 仍 ≤−10（通带里没有阻带）
+  - 最好 Cost=11.0（var 57）: 6.6 GHz −10.07 dB，低端 −11.1，高端 −8.75 — 缺口不够、高端也没到
+  - 两侧通带最好的一组（var 105）: 低 −11.2 / 高 −10.2，但 6.6 GHz 是 −10.89 dB，没有阻带
+- 表: `table.csv`
+- 俯视图：导体是否探出基板:

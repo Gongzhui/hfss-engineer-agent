@@ -17,6 +17,8 @@ references/
 *.sqlite3
 
 .tmp_e2e_gui/
+.tmp_amo/
+.tmp_dxamo/
 batch.log
 scratch/
 cases/*/preview/
