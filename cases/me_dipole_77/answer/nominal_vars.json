@@ -1,0 +1,23 @@
+{
+  "w": {"expression": "1.55mm", "evaluated": "1.55mm"},
+  "h": {"expression": "0.508mm", "evaluated": "0.508mm"},
+  "tcop": {"expression": "0.0175mm", "evaluated": "0.0175mm"},
+  "l1": {"expression": "1.15mm", "evaluated": "1.15mm"},
+  "l2": {"expression": "0.55mm", "evaluated": "0.55mm"},
+  "gndw": {"expression": "18mm", "evaluated": "18mm"},
+  "r1": {"expression": "0.125mm", "evaluated": "0.125mm"},
+  "via_offset": {"expression": "l2/2+d1", "evaluated": "l2/2+d1"},
+  "viagap": {"expression": "0.55mm", "evaluated": "0.55mm"},
+  "ws": {"expression": "wp+g3", "evaluated": "wp+g3"},
+  "ls": {"expression": "lp+offset", "evaluated": "lp+offset"},
+  "wp": {"expression": "0.55mm", "evaluated": "0.55mm"},
+  "lp": {"expression": "0.85mm", "evaluated": "0.85mm"},
+  "e2": {"expression": "0.19mm", "evaluated": "0.19mm"},
+  "offset": {"expression": "-0.01mm", "evaluated": "-0.01mm"},
+  "e1": {"expression": "0.16mm", "evaluated": "0.16mm"},
+  "lsub": {"expression": "0.08mm", "evaluated": "0.08mm"},
+  "d": {"expression": "-0.01mm", "evaluated": "-0.01mm"},
+  "d1": {"expression": "0.27mm", "evaluated": "0.27mm"},
+  "g3": {"expression": "0.15mm", "evaluated": "0.15mm"},
+  "g4": {"expression": "0.05mm", "evaluated": "0.05mm"}
+}

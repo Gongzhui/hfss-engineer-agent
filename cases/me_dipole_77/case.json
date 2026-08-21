@@ -1,0 +1,41 @@
+{
+  "case_id": "me_dipole_77",
+  "version": 3,
+  "description": "P02 PTH magneto-electric dipole retargeted to 77 GHz. Nominal is the user-corrected project. Sandbox is that project with seven independent knobs detuned by the user. ws=wp+g3 and ls=lp+offset are dependent.",
+  "source": {
+    "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\cases\\me_dipole_77\\sandbox\\me_dipole_77.aedt",
+    "design_name": "77GHZantenna",
+    "setup": "Setup1",
+    "sweep": "Sweep",
+    "port": "1",
+    "citation": "K. B. Ng, H. Wong, K. K. So, C. H. Chan, and K. M. Luk, \"60 GHz Plated Through Hole Printed Magneto-Electric Dipole Antenna,\" IEEE Trans. Antennas Propag., vol. 60, no. 7, pp. 3129–3136, Jul. 2012 (P02); this project is a 77 GHz retarget, not a 1:1 60 GHz replica."
+  },
+  "variables": [
+    {"name": "l1", "unit": "mm", "min": 0.6, "max": 2.0},
+    {"name": "l2", "unit": "mm", "min": 0.25, "max": 1.0},
+    {"name": "w", "unit": "mm", "min": 0.8, "max": 2.5},
+    {"name": "wp", "unit": "mm", "min": 0.25, "max": 1.0},
+    {"name": "lp", "unit": "mm", "min": 0.4, "max": 1.2},
+    {"name": "d1", "unit": "mm", "min": 0.10, "max": 0.45},
+    {"name": "g3", "unit": "mm", "min": 0.05, "max": 0.40},
+    {"name": "e1", "unit": "mm", "min": 0.05, "max": 0.35}
+  ],
+  "perturbation": {
+    "l1": "0.9mm",
+    "l2": "0.7mm",
+    "w": "1.8mm",
+    "wp": "0.4mm",
+    "lp": "1mm",
+    "d1": "0.2mm",
+    "g3": "0.3mm"
+  },
+  "metrics": {
+    "band_ghz": [60.0, 100.0],
+    "primary": "s11_at_77ghz_and_rel_bw",
+    "thresholds": {
+      "s11_db": -10.0,
+      "rel_bw_min": 0.25
+    },
+    "notes": "Exam frozen: nearest sweep point to 77 GHz must be S11<=-10 dB and that contiguous passband relative BW 2(fH-fL)/(fH+fL) >= 0.25. Keys: eval/keys/me_dipole_77.json."
+  }
+}

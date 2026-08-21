@@ -1,0 +1,17 @@
+{
+  "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\cases\\me_dipole_77\\sandbox\\me_dipole_77.aedt",
+  "project_name": "me_dipole_77",
+  "design_name": "77GHZantenna",
+  "default_setup": "Setup1",
+  "default_sweep": "Sweep",
+  "parameters": [
+    {"name": "l1", "unit": "mm", "min": 0.6, "max": 2.0},
+    {"name": "l2", "unit": "mm", "min": 0.25, "max": 1.0},
+    {"name": "w", "unit": "mm", "min": 0.8, "max": 2.5},
+    {"name": "wp", "unit": "mm", "min": 0.25, "max": 1.0},
+    {"name": "lp", "unit": "mm", "min": 0.4, "max": 1.2},
+    {"name": "d1", "unit": "mm", "min": 0.10, "max": 0.45},
+    {"name": "g3", "unit": "mm", "min": 0.05, "max": 0.40},
+    {"name": "e1", "unit": "mm", "min": 0.05, "max": 0.35}
+  ]
+}

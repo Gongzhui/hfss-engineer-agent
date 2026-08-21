@@ -185,3 +185,45 @@ def test_parse_duration_units() -> None:
     assert score.parse_duration("6m32s (2026-08-17T13:45:58Z → 13:52:30Z)") == 392
     assert score.parse_duration("") is None
     assert score.parse_duration("not-a-time") is None
+
+
+def test_me_dipole_nominal_passes_match_spec() -> None:
+    score = _load_score()
+    tmp = REPO / "eval" / "exams" / "me_dipole_77" / "runs" / "_pytest_nom"
+    tmp.mkdir(parents=True, exist_ok=True)
+    src = REPO / "cases" / "me_dipole_77" / "results" / "s11.csv"
+    (tmp / "s11.csv").write_bytes(src.read_bytes())
+    try:
+        payload = score.score_exam("me_dipole_77", tmp)
+        assert payload["pass"] is True
+        end = payload["verdict"]["end"]
+        assert end["checks"]["center_matched"] is True
+        assert end["checks"]["rel_bw_ok"] is True
+        assert end["relative_bw"] >= 0.25
+        assert end["s11_at_nearest_db"] <= -10.0
+        assert payload["verdict"]["start"]["pass"] is False
+        assert payload["verdict"]["nominal_reference"]["pass"] is True
+        assert "relative bandwidth" in payload["pass_fail_note"]
+    finally:
+        (tmp / "s11.csv").unlink(missing_ok=True)
+        tmp.rmdir()
+
+
+def test_me_dipole_sandbox_fails_match_spec() -> None:
+    score = _load_score()
+    tmp = REPO / "eval" / "exams" / "me_dipole_77" / "runs" / "_pytest"
+    tmp.mkdir(parents=True, exist_ok=True)
+    src = REPO / "cases" / "me_dipole_77" / "results" / "s11_sandbox.csv"
+    (tmp / "s11.csv").write_bytes(src.read_bytes())
+    try:
+        payload = score.score_exam("me_dipole_77", tmp)
+        assert payload["pass"] is False
+        checks = payload["verdict"]["end"]["checks"]
+        assert checks["center_matched"] is False
+        assert checks["rel_bw_ok"] is False
+        assert payload["end"]["s11_min_informational"][1] > -10.0
+        assert payload["protocol"]["on_time"] is False
+    finally:
+        (tmp / "s11.csv").unlink(missing_ok=True)
+        tmp.rmdir()
+

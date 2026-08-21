@@ -1,0 +1,1 @@
+Detuned copy for Host Agent sessions. Save As from the user-corrected `nominal/`, then seven independent knobs changed (`l1`, `l2`, `w`, `wp`, `lp`, `d1`, `g3`). `ws=wp+g3` and `ls=lp+offset` follow. Do not save over `nominal/`.

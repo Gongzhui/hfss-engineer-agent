@@ -30,4 +30,5 @@ cases/<id>/
 | id | Status | Open |
 |---|---|---|
 | `uwb_circular_notch` | Ported nominal solved; sandbox detuned (9 params, `lw` included) | Host Agent exam: `eval/exams/uwb_circular_notch/` (6.6 GHz stopband, width ≤ 0.5 GHz, envelope rel BW ≥ 130%; 3 h solve time). Keep `nominal/` + `answer/` closed |
+| `me_dipole_77` | P02 PTH ME-dipole retargeted to 77 GHz; sandbox seven knobs detuned | Host Agent exam: `eval/exams/me_dipole_77/` (77 GHz inside a −10 dB band, rel BW ≥ 25%; 4 h solve time). Keep `nominal/` + `answer/` closed |
 | `siw_feed_l1` | Still under `benchmark/cases/siw_feed_l1/` (vendor example) | sandbox there |

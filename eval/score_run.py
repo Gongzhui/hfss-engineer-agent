@@ -152,6 +152,57 @@ def metrics(
     }
 
 
+def nearest_s11(rows: list[tuple[float, float]], f0: float) -> tuple[float, float] | None:
+    if not rows:
+        return None
+    return min(rows, key=lambda item: (abs(item[0] - f0), item[0]))
+
+
+def band_containing(
+    bands: list[tuple[float, float]], freq: float
+) -> tuple[float, float] | None:
+    for lo, hi in bands:
+        if lo <= freq <= hi:
+            return (lo, hi)
+    return None
+
+
+def grade_match_spec(
+    rows: list[tuple[float, float]],
+    spec: dict[str, Any],
+    *,
+    thr: float = THR,
+) -> dict[str, Any]:
+    """Pass if the -10 dB band that covers center_ghz has relative BW above the floor."""
+    target = float(spec["center_ghz"])
+    rel_min = float(spec["rel_bw_min"])
+    center_max = float(spec.get("s11_at_center_max_db", thr))
+    bands = minus10_bands(rows, thr)
+    near = nearest_s11(rows, target)
+    near_f, near_db = (None, None) if near is None else near
+    band = None if near_f is None else band_containing(bands, near_f)
+    rel = None
+    if band is not None and (band[0] + band[1]) != 0:
+        rel = 2.0 * (band[1] - band[0]) / (band[0] + band[1])
+    checks = {
+        "center_matched": (
+            near_db is not None
+            and near_db <= center_max
+            and band is not None
+        ),
+        "rel_bw_ok": rel is not None and rel >= rel_min,
+    }
+    return {
+        "center_ghz": target,
+        "nearest_ghz": None if near_f is None else round(near_f, 3),
+        "s11_at_nearest_db": None if near_db is None else round(near_db, 2),
+        "band_ghz": None if band is None else [round(band[0], 3), round(band[1], 3)],
+        "relative_bw": None if rel is None else round(rel, 3),
+        "checks": checks,
+        "pass": all(checks.values()),
+    }
+
+
 def grade_spec(
     rows: list[tuple[float, float]],
     spec: dict[str, Any],
@@ -159,6 +210,8 @@ def grade_spec(
     lo: float,
     hi: float,
 ) -> dict[str, Any]:
+    if str(spec.get("kind") or "notch") == "match":
+        return grade_match_spec(rows, spec)
     target = float(spec["notch_center_ghz"])
     m = metrics(rows, lo=lo, hi=hi, notch_target_ghz=target)
     notch = m["notch"]
@@ -180,7 +233,8 @@ def grade_spec(
     checks = {
         "occupied_stopped": occupied_ok,
         "notch_center_ok": (
-            center is not None and abs(center - target) <= float(spec.get("notch_center_tol_ghz", 0.0))
+            center is not None
+            and abs(center - target) <= float(spec.get("notch_center_tol_ghz", 0.0))
         ),
         "notch_width_ok": (
             width is not None and width_min <= width <= width_max
@@ -351,7 +405,13 @@ def score_exam(exam_id: str, run_dir: Path) -> dict[str, Any]:
     key = json.loads(key_path.read_text(encoding="utf-8"))
     lo, hi = key.get("design_band_ghz") or [DESIGN_LO, DESIGN_HI]
     spec = key.get("spec")
-    target = 6.0 if spec is None else float(spec["notch_center_ghz"])
+    kind = "notch" if spec is None else str(spec.get("kind") or "notch")
+    if spec is None:
+        target = 6.0
+    elif kind == "match":
+        target = float(spec["center_ghz"])
+    else:
+        target = float(spec["notch_center_ghz"])
     end_rows = load_s11(resolve_s11(run_dir))
     start_path = run_dir / "round-000-s11.csv"
     if not start_path.is_file():
@@ -377,15 +437,25 @@ def score_exam(exam_id: str, run_dir: Path) -> dict[str, Any]:
             "nominal_reference": grade_spec(nom_rows, spec, lo=lo, hi=hi),
         }
         payload["pass"] = payload["verdict"]["end"]["pass"]
-        payload["pass_fail_note"] = (
-            "Pass if the stopband is at the stated center, the peak (and the "
-            "occupied point) is above notch_peak_min_db, the gap is no wider "
-            "than the max width, and the envelope relative bandwidth meets "
-            "the floor. Passband edges stay at -10 dB. s11_min is "
-            "informational and must not decide pass/fail. Nominal is the "
-            "known-good reference, not a number to copy. The time budget is "
-            "protocol.on_time and does not decide pass."
-        )
+        if kind == "match":
+            payload["pass_fail_note"] = (
+                "Pass if a continuous S11<=-10 dB band covers the stated "
+                "center (nearest sweep point) and that band's relative "
+                "bandwidth 2(fH-fL)/(fH+fL) meets rel_bw_min. s11_min is "
+                "informational and must not decide pass/fail. Nominal is the "
+                "known-good reference, not a number to copy. The time budget "
+                "is protocol.on_time and does not decide pass."
+            )
+        else:
+            payload["pass_fail_note"] = (
+                "Pass if the stopband is at the stated center, the peak (and the "
+                "occupied point) is above notch_peak_min_db, the gap is no wider "
+                "than the max width, and the envelope relative bandwidth meets "
+                "the floor. Passband edges stay at -10 dB. s11_min is "
+                "informational and must not decide pass/fail. Nominal is the "
+                "known-good reference, not a number to copy. The time budget is "
+                "protocol.on_time and does not decide pass."
+            )
     limit = key.get("time_limit_hours")
     if limit is not None:
         budget = str(key.get("time_budget") or "wall")
