@@ -1,6 +1,6 @@
 # 调参日志模板
 
-复制到 `runs/<run-id>/hfss-tuning-log.md`。只写假设、矩阵设置、从一簇曲线读到的影响。不要自评分数，不要猜标称尺寸。`started` / `stopped` 用本机系统时钟（北京时间）。本场预算是 **求解时间合计 4 小时**：只计 `parametric_start` / `analyze_start` 到 `done`；看图、写日志、导出不算。每轮写 `solve_time`，自己加总到 `solve_total`。累计满了必须写下 `stopped` 并交卷。未达标且还能再开一轮时不要写停。
+复制到 `runs/<run-id>/hfss-tuning-log.md`。只写假设、矩阵设置、从一簇曲线读到的影响。不要自评分数，不要猜标称尺寸。`started` / `stopped` 用本机系统时钟（北京时间）。本场预算是 **求解时间合计 8 小时**：只计 `parametric_start` / `analyze_start` 到 `done`；看图、写日志、导出不算。每轮写 `solve_time`，自己加总到 `solve_total`。累计满了必须写下 `stopped` 并交卷。未达标且还能再开一轮时不要写停。
 
 分组和每轴点数必须是针对**本结构这一轮**的判断。对照例子不是默认值；换到另一副天线仍能原样粘贴的理由不合格。
 
@@ -9,7 +9,7 @@
 
 - started:  # 格式 YYYY-MM-DD HH:MM:SS，如 2026-08-21 23:37:17；不要跟括号注释
 - stopped:  # 同上
-- solve_total:  # 自己把各轮 solve_time 加总；上限 4 小时
+- solve_total:  # 自己把各轮 solve_time 加总；上限 8 小时
 - session project_path:
 - allowlist: ./allowlist.json
 
@@ -35,5 +35,5 @@
 - 哪个量影响大 / 影响什么:
 - 模型看起来有没有错（`variables_set` 之后看过；该藏的藏、该 fit 的 fit）:
 - 哪个量可先钉死:
-- 下一轮：换组、收窄、把互斥量放进同一张联合矩阵；仅两项达标或再开一轮会超 4 小时才停:
+- 下一轮：换组、收窄、把互斥量放进同一张联合矩阵；仅两项达标或再开一轮会超 8 小时才停:
 ```
