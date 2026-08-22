@@ -334,6 +334,26 @@ def _prewarm_imports() -> None:
 
 
 def main() -> None:
+    # Crash observability: the MCP host only keeps an in-memory stderr tail,
+    # so a hard crash (e.g. native COM fault) leaves no evidence. Persist a
+    # startup line per process and a faulthandler dump under the data dir.
+    try:
+        import faulthandler
+        import os
+        from datetime import datetime, timezone
+
+        from hfss_mcp.config import default_data_dir
+
+        log_dir = default_data_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        crash = open(log_dir / "server-crash.log", "a", encoding="utf-8")
+        faulthandler.enable(crash)
+        with open(log_dir / "server-lifecycle.log", "a", encoding="utf-8") as fh:
+            fh.write(
+                f"{datetime.now(timezone.utc).isoformat()} start pid={os.getpid()}\n"
+            )
+    except Exception:
+        pass
     _prewarm_imports()
     mcp.run(transport="stdio")
 

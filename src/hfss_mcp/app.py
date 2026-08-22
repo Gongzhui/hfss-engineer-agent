@@ -331,7 +331,35 @@ class AppContext:
             )
         return {"ok": True, "snapshot": payload}
 
+    def _solve_running(self) -> dict[str, Any] | None:
+        with self._job_lock:
+            for job in self._jobs.values():
+                if job["state"] == JobState.RUNNING.value:
+                    return job
+        return None
+
+    def _guard_no_solve(self, tool: str) -> None:
+        """Fail fast instead of queueing behind a running sweep in AEDT.
+
+        AEDT defers mutating RunScript calls until the current solve ends.
+        A deferred call occupies AEDT's COM queue, so every later call -
+        including analyze_status progress polls - stalls behind it for the
+        whole sweep. Report the conflict immediately instead.
+        """
+        job = self._solve_running()
+        if job is None:
+            return
+        raise JobError(
+            f"{tool} is blocked while a solve is running: AEDT defers this "
+            "call until the sweep ends and every later call would queue "
+            "behind it. Poll analyze_status, peek with report_export, or "
+            "wait for done. Set variables BEFORE parametric_start.",
+            code="solve_in_progress",
+            details={"job_id": job.get("job_id"), "state": job.get("state")},
+        )
+
     def variables_set(self, parameters: list[dict[str, Any]]) -> dict[str, Any]:
+        self._guard_no_solve("variables_set")
         allowlist = self._require_allowlist()
         self._ensure_session()
         values = [ParameterValue.model_validate(item) for item in parameters]
@@ -609,6 +637,7 @@ class AppContext:
         setup: str | None = None,
         sweeps: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        self._guard_no_solve("parametric_create")
         allowlist = self._require_allowlist()
         self._ensure_session()
         formatted, points = self._format_parametric_sweeps(list(sweeps or []))
@@ -826,6 +855,7 @@ class AppContext:
         parametric: str | None = None,
         quantity: str | None = None,
     ) -> dict[str, Any]:
+        self._guard_no_solve("report_create")
         known = {item["id"] for item in REPORT_TYPES}
         if report_type not in known:
             raise PolicyError(
