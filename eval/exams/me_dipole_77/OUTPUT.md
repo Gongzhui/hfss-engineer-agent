@@ -7,8 +7,8 @@
 ```markdown
 # me_dipole_77 调参日志
 
-- started:
-- stopped:
+- started:  # 格式 YYYY-MM-DD HH:MM:SS，如 2026-08-21 23:37:17；不要跟括号注释
+- stopped:  # 同上
 - solve_total:  # 自己把各轮 solve_time 加总；上限 4 小时
 - session project_path:
 - allowlist: ./allowlist.json
@@ -29,7 +29,7 @@
 - 变量与采样点（含乘积；若受 256 点上限而拆组/减密，写明）:
 - Optimetrics 名:
 - job_id:
-- solve_time:  # 本轮求解，例如 12m30s 或 750s；job 的 started_at → finished_at
+- solve_time:  # 本轮求解，如 12m30s 或 2h19m 或 750s；只写时长本身，注释/起止时刻另起一行，前面不要加 ≈
 - 组合表: round-00N-table.csv
 - 一簇 S11: round-00N-s11.csv（freq_ghz,variation,s11_db；不要用开场那张单迹冒充）
 - 哪个量影响大 / 影响什么:

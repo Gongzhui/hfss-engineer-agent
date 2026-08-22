@@ -255,6 +255,7 @@ def parse_when(raw: str) -> datetime | None:
     s = " ".join(raw.strip().split())
     if not s:
         return None
+    s = re.split(r"[\(（]", s, maxsplit=1)[0].strip()  # drop (北京时间) etc.
     s = s.replace("北京时间", "").strip()
     if re.match(r"\d{4}-\d{2}-\d{2} ", s) and "T" not in s:
         bits = s.split()
@@ -284,7 +285,8 @@ def _log_field(text: str, name: str) -> str | None:
 def parse_duration(raw: str) -> float | None:
     """Parse a logged solve duration into seconds. None if blank or unreadable."""
     s = " ".join((raw or "").split("#", 1)[0].split())
-    s = s.split("(", 1)[0].strip()
+    s = re.split(r"[\(（]", s, maxsplit=1)[0].strip()  # drop (notes) and （注释）
+    s = re.sub(r"^[≈~约\s]+", "", s)  # tolerate approximate markers
     if not s:
         return None
     s = re.sub(r"hours?", "h", s, flags=re.I)
