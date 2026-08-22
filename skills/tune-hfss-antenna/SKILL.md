@@ -23,6 +23,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - **每次改完参数都要看模型。** 怎么看是你的判断（看哪几个零件、什么角度、看几张都不是清单），但有一条底线：模型已经不像原来那副天线，这组点就不能留。可用的看图工具见「看模型」一节。
 - `variables_set` 的参数键是 `name` 或 `variable`；`parametric_create` 的扫参键同样是 `variable` 或 `name`。两种写法等价。
 - `parametric_start` / `analyze_start` 的 `ok: true` **只表示任务已受理**，不是扫完。看 `done`。未 `done` 就必须 `analyze_status`（里面有 Message Manager 最近几行，这就是进度）。`failed` 时读 `job.error` 和 `messages`，不要空等。
+- `analyze_status` 返回 `job_not_found`：job 注册表在 MCP 服务内存里，宿主（idle 超时）重启过服务就会丢句柄。此时**不要重开扫**——AEDT 里的扫描还在跑，改用 `report_export` 数迹线/`optimetrics_list` 判断扫完。根治法：宿主的 mcp.json 给 hfss-mcp 设 `lifecycle: "keep-alive"`。
 - **禁止** `trial_*` / `run_*`。
 - 不自动保存。有明显进展才 `project_save(mode="save_as")`。用户说「直接保存」才 `mode="save"`。
 - 推理写在 `hfss-tuning-log.md`。开扫前必须写清：**为什么是这一组、为什么是这些采样点**。写不出结构理由就还没到 `parametric_create`。

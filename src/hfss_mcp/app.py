@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import threading
 from pathlib import Path
@@ -73,6 +74,65 @@ class AppContext:
         self._parametric_vars: dict[str, list[str]] = {}
         self._variables_dirty: bool = False
         self._view_hidden: set[str] = set()
+        # State that must survive an MCP host idle-restart of this process.
+        self._state_file = self.data_dir / "session-state.json"
+        self._persisted_allowlist_path: str | None = None
+        self._persisted_hidden: dict[str, list[str]] = {}
+        self._load_state()
+
+    def _load_state(self) -> None:
+        try:
+            raw = json.loads(self._state_file.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(raw, dict):
+            return
+        path = raw.get("allowlist_path")
+        if isinstance(path, str) and path.strip():
+            self._persisted_allowlist_path = path
+        hidden = raw.get("view_hidden")
+        if isinstance(hidden, dict):
+            self._persisted_hidden = {
+                str(k): [str(x) for x in v if str(x).strip()]
+                for k, v in hidden.items()
+                if isinstance(v, list)
+            }
+
+    def _save_state(self) -> None:
+        payload = {
+            "allowlist_path": self._persisted_allowlist_path,
+            "view_hidden": {k: sorted(v) for k, v in self._persisted_hidden.items()},
+        }
+        try:
+            self._state_file.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
+
+    def _session_key(self) -> str | None:
+        if self.is_fake:
+            if self._fake is None:
+                return None
+            return f"{self._fake._project_name}::{self._fake._design_name}"
+        if self._live is None:
+            return None
+        return f"{self._live.project_name}::{self._live.design_name}"
+
+    def _restore_view_hidden(self) -> None:
+        key = self._session_key()
+        if key and not self._view_hidden and key in self._persisted_hidden:
+            self._view_hidden = set(self._persisted_hidden[key])
+
+    def _persist_view_hidden(self) -> None:
+        key = self._session_key()
+        if key is None:
+            return
+        if self._view_hidden:
+            self._persisted_hidden[key] = sorted(self._view_hidden)
+        else:
+            self._persisted_hidden.pop(key, None)
+        self._save_state()
 
     @property
     def is_fake(self) -> bool:
@@ -179,6 +239,9 @@ class AppContext:
         else:
             raise PolicyError("pass path or allowlist", code="allowlist_required")
         self._allowlist = loaded
+        if path:
+            self._persisted_allowlist_path = str(Path(path).resolve())
+            self._save_state()
         if not self._allowlist_matches_session(loaded):
             if self._live is not None or self._fake is not None:
                 self._drop_session()
@@ -192,6 +255,13 @@ class AppContext:
         }
 
     def _require_allowlist(self) -> Allowlist:
+        if self._allowlist is None and self._persisted_allowlist_path:
+            # The MCP host may have restarted this process (idle timeout);
+            # silently reload the last allowlist instead of failing the call.
+            try:
+                self._allowlist = load_allowlist_file(self._persisted_allowlist_path)
+            except Exception:
+                pass
         if self._allowlist is None:
             raise PolicyError(
                 "load an allowlist first (allowlist_load)",
@@ -228,6 +298,7 @@ class AppContext:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"FAKE_PROJECT\n")
             self._fake.attach_project(path, allowlist.design_name)
+            self._restore_view_hidden()
             return
         if self._live is not None:
             return
@@ -237,6 +308,7 @@ class AppContext:
             design_name=allowlist.design_name,
             project_path=allowlist.project_path,
         )
+        self._restore_view_hidden()
 
     def snapshot(self) -> dict[str, Any]:
         self._ensure_session()
@@ -351,7 +423,16 @@ class AppContext:
     def analyze_status(self, job_id: str) -> dict[str, Any]:
         rec = self._jobs.get(job_id)
         if rec is None:
-            raise JobError(f"job not found: {job_id}", code="job_not_found")
+            raise JobError(
+                f"job not found: {job_id}",
+                code="job_not_found",
+                details={
+                    "hint": "jobs are in-memory; if the MCP host restarted this "
+                    "server (idle timeout), the solve keeps running inside AEDT. "
+                    "Recover by polling report_export / optimetrics_list, and set "
+                    "lifecycle=keep-alive for hfss-mcp in the host mcp.json."
+                },
+            )
         return self._job_payload(rec)
 
     def _job_payload(self, rec: dict[str, Any]) -> dict[str, Any]:
@@ -396,7 +477,13 @@ class AppContext:
     def analyze_cancel(self, job_id: str) -> dict[str, Any]:
         rec = self._jobs.get(job_id)
         if rec is None:
-            raise JobError(f"job not found: {job_id}", code="job_not_found")
+            raise JobError(
+                f"job not found: {job_id}",
+                code="job_not_found",
+                details={
+                    "hint": "jobs are in-memory and do not survive a server restart"
+                },
+            )
         if rec["state"] != JobState.RUNNING.value:
             return {"ok": True, "cancelled": False, "job": rec}
         rec["state"] = JobState.CANCEL_REQUESTED.value
@@ -915,6 +1002,7 @@ class AppContext:
         self._ensure_session()
         if self.is_fake:
             self._view_hidden.update(cleaned)
+            self._persist_view_hidden()
             return {
                 "ok": True,
                 "hidden": sorted(self._view_hidden),
@@ -924,6 +1012,7 @@ class AppContext:
         assert self._live is not None
         raw = self._live.view_set_visible(cleaned, show=False)
         self._view_hidden.update(raw["names"])
+        self._persist_view_hidden()
         return {
             "ok": True,
             "hidden": sorted(self._view_hidden),
@@ -949,6 +1038,7 @@ class AppContext:
             else:
                 shown = cleaned
                 self._view_hidden.difference_update(cleaned)
+            self._persist_view_hidden()
             return {
                 "ok": True,
                 "hidden": sorted(self._view_hidden),
@@ -963,6 +1053,7 @@ class AppContext:
             self._view_hidden.clear()
         else:
             self._view_hidden.difference_update(raw["names"])
+        self._persist_view_hidden()
         return {
             "ok": True,
             "hidden": sorted(self._view_hidden),

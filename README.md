@@ -75,11 +75,20 @@ uv run hfss-mcp
       "env": {
         "HFSS_MCP_ADAPTER": "pyaedt",
         "HFSS_MCP_AEDT_VERSION": "2023.2"
-      }
+      },
+      "lifecycle": "keep-alive"
     }
   }
 }
 ```
+
+Set `lifecycle: "keep-alive"` (or an `idleTimeout` of hours) on hosts that
+support it. Long sweeps are watched with sleeps between polls; if the host
+idle-closes the stdio server (pi-mcp-adapter default: 10 minutes), the job
+registry / allowlist / view-hide bookkeeping — all in-memory — are lost while
+AEDT keeps solving unattended. The server self-heals allowlist and view-hide
+state from `~/.hfss-mcp/session-state.json` after a restart, but job handles
+cannot be resurrected.
 
 ## MCP tools
 
