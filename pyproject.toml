@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "hfss-mcp"
 version = "0.1.0"
-description = "A constrained MCP bridge for AI-assisted HFSS simulation and antenna tuning"
+description = "Host Agent skill + constrained tools so an LLM tunes HFSS antennas like an engineer (joint Parametric), not a script runner"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [

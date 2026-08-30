@@ -1,10 +1,10 @@
-# HFSS MCP
+# HFSS Engineer Agent
 
-Constrained MCP bridge for AI-assisted HFSS antenna tuning on **Ansys Electronics Desktop**. Arbitrary script execution is **not** exposed.
+Turn a Host Agent into an **HFSS antenna engineer**: decide which knobs are coupled, run joint **Optimetrics Parametric** matrices on a live Desktop, read the family of \(S_{11}\) curves, and repeat. Grouping and sample density are the agent's call — not a baked N, not genetic/PSO, and not one-factor-at-a-time value jumps.
 
-**Live path (V1):** attach the user's already-open AEDT over COM (ROT). Host Agent judges which knobs are coupled **this structure this round**, runs HFSS **Optimetrics Parametric** as a joint matrix, reads the family of curves, and repeats. Grouping and sample density are the agent's call, not a baked N. `variables_set` pins a matrix row afterwards — it is not the inner loop. No genetic / PSO Optimization. Curves as CSV from Results, geometry as `view_capture`. No autosave. Constitution: `docs/ADR-002-ENGINEER-SESSION-MODEL.md`.
+This is **not** a generic HFSS/PyAEDT code-execution MCP (including the official-style “run any script” bridges). Arbitrary script execution is **not** exposed. The product is a **Skill + constrained tool surface**: attach the already-open AEDT over COM, pin allowlisted variables, export Results the human can see, and look at the model after each write. MCP is the I/O layer. Constitution: `docs/ADR-002-ENGINEER-SESSION-MODEL.md`.
 
-V0 optimizer tools (`trial_*`, `run_*`, workspace copies, exclusive worker Desktops) are **removed** from the MCP surface.
+The Python package / MCP server entry remains `hfss-mcp` for existing host configs.
 
 ## Documents
 
