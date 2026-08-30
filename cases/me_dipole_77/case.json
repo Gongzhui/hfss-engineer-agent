@@ -34,8 +34,8 @@
     "primary": "s11_at_77ghz_and_rel_bw",
     "thresholds": {
       "s11_db": -10.0,
-      "rel_bw_min": 0.25
+      "rel_bw_min": 0.30
     },
-    "notes": "Exam frozen: nearest sweep point to 77 GHz must be S11<=-10 dB and that contiguous passband relative BW 2(fH-fL)/(fH+fL) >= 0.25. Keys: eval/keys/me_dipole_77.json."
+    "notes": "Exam frozen: nearest sweep point to 77 GHz must be S11<=-10 dB and that contiguous passband relative BW 2(fH-fL)/(fH+fL) >= 0.30. Solve budget 24 h. Keys: eval/keys/me_dipole_77.json."
   }
 }

@@ -199,7 +199,7 @@ def test_me_dipole_nominal_passes_match_spec() -> None:
         end = payload["verdict"]["end"]
         assert end["checks"]["center_matched"] is True
         assert end["checks"]["rel_bw_ok"] is True
-        assert end["relative_bw"] >= 0.25
+        assert end["relative_bw"] >= 0.30
         assert end["s11_at_nearest_db"] <= -10.0
         assert payload["verdict"]["start"]["pass"] is False
         assert payload["verdict"]["nominal_reference"]["pass"] is True

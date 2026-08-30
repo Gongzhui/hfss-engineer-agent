@@ -146,3 +146,7 @@ src/hfss_mcp/          # MCP server
 skills/tune-hfss-antenna/   # Host Agent skill + plot script
 benchmark/             # leak-free cases and eval runner
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
