@@ -630,22 +630,24 @@ class LiveDesign:
         """
         existing_names = {str(item.get("name") or "") for item in self.list_optimetrics()}
         reused = name in existing_names
+        sync = [int(x) for x in (sync_indices or [])]
+        sync_set = set(sync)
+        zip_group = 1 if len(sync) >= 2 else 0
         sweep_parts = []
-        for item in sweeps:
+        for index, item in enumerate(sweeps):
+            # HFSS zips sweeps that share a non-zero Synchronize group id.
+            # Sweep Operations 'Sync:= [0, 1]' is the wrong knob — that stays Cartesian.
+            group = zip_group if index in sync_set else 0
             sweep_parts.append(
                 "["
                 + "'NAME:SweepDefinition', "
                 + f"'Variable:=', {item['variable']!r}, "
                 + f"'Data:=', {item['data']!r}, "
-                + "'OffsetF1:=', False, 'Synchronize:=', 0"
+                + f"'OffsetF1:=', False, 'Synchronize:=', {group}"
                 + "]"
             )
         sweeps_literal = "[" + ", ".join(sweep_parts) + "]"
-        sync = [int(x) for x in (sync_indices or [])]
-        if len(sync) >= 2:
-            sweep_ops = f"['NAME:Sweep Operations', 'Sync:=', {sync!r}]"
-        else:
-            sweep_ops = "['NAME:Sweep Operations']"
+        sweep_ops = "['NAME:Sweep Operations']"
         raw = self._script(
             "\n".join(
                 [
