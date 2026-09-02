@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Plot S11 from a Results CSV (or leftover Touchstone) into SVG. stdlib only."""
+"""Plot S11 from a Results CSV (or leftover Touchstone).
+
+Default output is PNG so Host Agents can `read` the figure. SVG remains available
+via --format svg (stdlib-only path, no matplotlib required).
+"""
 
 from __future__ import annotations
 
@@ -251,31 +255,86 @@ def write_svg(
         parts.append(
             f'<polyline fill="none" stroke="{color}" stroke-width="1.6" points="{pts}"/>'
         )
+        short = label if len(label) <= 48 else label[:45] + "..."
         parts.append(
             f'<text x="{x0 + 8:.1f}" y="{y0 + 16 + i * 14:.1f}" font-size="11" '
-            f'font-family="sans-serif" fill="{color}">{label}</text>'
+            f'font-family="sans-serif" fill="{color}">{short}</text>'
         )
     parts.append("</svg>")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(parts), encoding="utf-8")
 
 
+def write_png(
+    series: list[tuple[str, list[float], list[float], str]],
+    out: Path,
+    mark_ghz: float | None,
+) -> None:
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise SystemExit(
+            "PNG output needs matplotlib. Run with: "
+            "uv run --with matplotlib python .../plot_s11.py ... "
+            "or pass --format svg"
+        ) from exc
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(8.5, 4.8))
+    for label, freqs, dbs, _ in series:
+        short = label if len(label) <= 60 else label[:57] + "..."
+        ax.plot(freqs, dbs, lw=1.4, label=short)
+    if mark_ghz is not None:
+        ax.axvline(mark_ghz, color="#dc2626", ls="--", lw=1.0, label=f"{mark_ghz:g} GHz")
+    ax.axhline(-10.0, color="#6b7280", ls=":", lw=0.9)
+    ax.set_xlabel("GHz")
+    ax.set_ylabel("S11 (dB)")
+    ax.grid(True, alpha=0.3)
+    if len(series) <= 16:
+        ax.legend(fontsize=7, loc="best")
+    fig.tight_layout()
+    fig.savefig(out, dpi=140)
+    plt.close(fig)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plot S11 from a Results CSV to SVG")
+    parser = argparse.ArgumentParser(
+        description="Plot S11 from a Results CSV (PNG by default; SVG optional)"
+    )
     parser.add_argument("curve", type=Path, help="primary freq_ghz,s11_db CSV (or leftover .s1p)")
     parser.add_argument("--overlay", type=Path, action="append", default=[], help="extra traces")
     parser.add_argument("--mark-ghz", type=float, default=None, help="vertical marker")
-    parser.add_argument("--out", type=Path, default=None, help="output .svg")
+    parser.add_argument("--out", type=Path, default=None, help="output path")
+    parser.add_argument(
+        "--format",
+        choices=("png", "svg"),
+        default="png",
+        help="output format (default: png, readable by Host Agent vision)",
+    )
     args = parser.parse_args()
     series: list[tuple[str, list[float], list[float], str]] = []
     paths = [args.curve, *args.overlay]
     for path in paths:
-        for label, freqs, dbs in parse_s11_series(path):
+        parsed = (
+            [(path.name, *parse_touchstone_s11_db(path))]
+            if path.suffix.lower() in {".s1p", ".s2p", ".s3p", ".s4p", ".snp"}
+            else parse_s11_series(path)
+        )
+        for label, freqs, dbs in parsed:
             series.append((label, freqs, dbs, str(path)))
             min_i = min(range(len(dbs)), key=lambda i: dbs[i])
             print(f"{label}: min {dbs[min_i]:.3f} dB @ {freqs[min_i]:.3f} GHz")
-    out = args.out or args.curve.with_suffix(".svg")
-    write_svg(series, out, args.mark_ghz)
+    fmt = args.format
+    if args.out is not None and args.out.suffix.lower() in {".svg", ".png"}:
+        fmt = args.out.suffix.lower().lstrip(".")
+    out = args.out or args.curve.with_suffix(f".{fmt}")
+    if fmt == "svg":
+        write_svg(series, out, args.mark_ghz)
+    else:
+        write_png(series, out, args.mark_ghz)
     print(f"wrote {out}")
 
 

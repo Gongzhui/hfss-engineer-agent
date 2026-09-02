@@ -1,18 +1,18 @@
 ---
 name: tune-hfss-antenna
-description: Tune allowlisted parameters on an existing HFSS/AEDT antenna via hfss-mcp. Inner loop is a joint Optimetrics Parametric of knobs that are coupled in this structure this round — grouping and sample density are the agent's call, not a fixed recipe. Diagnose from the family of curves, not one-point jumps. Use when recovering matching, tuning S11, tuning reflection-phase states, or running an eval exam. Do not use to build geometry from scratch.
+description: Tune allowlisted parameters on an existing HFSS/AEDT antenna via hfss-mcp. Inner loop is a joint Optimetrics Parametric of knobs that are coupled in this structure this round — grouping and sample density are the agent's call, not a fixed recipe. Diagnose from the family of curves and impedance, not one-point jumps. Use when recovering matching, tuning S11, tuning reflection-phase states, or running an eval exam. Do not use to build geometry from scratch.
 ---
 
 # Tune HFSS antenna
 
-Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在 HFSS 前会做的事：按**这一副结构、这一轮问题**判断哪些量相互耦合，用自带的 **Optimetrics → Parametric** 做联合矩阵，在 Results 里看**一簇**曲线，冻结不敏感的量，再决定下一组或把范围收窄。不要一次把一个参数改成另一个值再 Analyze。不要遗传/粒子群。手续对匹配天线和相位单元通用，只换观察量。
+Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在 HFSS 前会做的事：按**这一副结构、这一轮问题**判断哪些量相互耦合，用自带的 **Optimetrics → Parametric** 做联合矩阵，在 Results 里看**一簇**曲线（必要时看阻抗），冻结不敏感的量，再决定下一组或把范围收窄。不要一次把一个参数改成另一个值再 Analyze。不要遗传/粒子群。手续对匹配天线和相位单元通用，只换观察量。
 
 两种常见题目共用同一套手续，只换观察量：
 
 | 题目 | 看什么 |
 |---|---|
-| 小型辐射天线的匹配 | Modal S11 的 −10 dB 频段、必要时 Smith / `terminal_z`。某个频点再深没有加分。 |
-| 2-bit 等单元的反射相位 | 各状态下相位是否大约隔 90°。 |
+| 小型辐射天线的匹配 | Modal S11 的 −10 dB 频段 **与** `terminal_z`（默认都看）。某个频点再深没有加分。 |
+| 2-bit 等单元的反射相位 | 各状态下相位是否大约隔 90°；匹配仍差时再看 S11 / Z。 |
 
 ## Hard rules
 
@@ -27,7 +27,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - **钉固定量必须在 `parametric_start` 之前完成。** 求解进行中调用 `variables_set` / `parametric_create` / `report_create` 会被服务器直接拒绝（`solve_in_progress`）——这是保护：AEDT 会把它们推迟到扫完才执行，期间连 `analyze_status` 都会排在后面卡死。求解中只发 `analyze_status`（进度）和 `report_export`（数迹线，允许）。
 - **禁止** `trial_*` / `run_*`。
 - 不自动保存。有明显进展才 `project_save(mode="save_as")`。用户说「直接保存」才 `mode="save"`。
-- 推理写在 `hfss-tuning-log.md`。开扫前必须写清：**为什么是这一组、为什么是这些采样点**。写不出结构理由就还没到 `parametric_create`。
+- 推理写在 `hfss-tuning-log.md`。开扫前必须写清：**为什么是这一组、为什么是这些采样点、本轮上下文向量、覆盖表更新**。写不出结构理由就还没到 `parametric_create`。纯微扰「碰运气」不是结构理由。
 - **不要并行调用 hfss-mcp 的 HFSS 工具。** AEDT 的 COM / `RunScript` 同一时刻只能进一个；并行 `health`+`snapshot` 或几个 `report_*` 会在 `SetActiveProject` 上卡死。同一轮里这些调用要串行。求解期间轮询 `analyze_status` 除外。
 
 ## 看模型
@@ -38,17 +38,67 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - `view_hide(names)` / `view_show`：纯记账的排除名单。被排除的物体之后每张截图都完全不渲染（适合辐射盒、大地板、基板、接头这类占画面的东西——以**这一副**为准，工具不会替你猜哪个是空气盒）。不动用户的 GUI；`view_show(all_objects=true)` 清空名单。
 - `view_capture`：`orientation` 只能是 isometric/top/bottom/front/back/left/right（其它值直接被拒）；传 `fit=["零件名"]` 则这一张**只渲染**这些零件并框满它们，适合盯某一块铜。不传就渲染「全部 − 排除名单」。
 
+## Phases (do not skip)
+
+手续分四个阶段。阶段之间有**硬门槛**；没有完成门槛就不要进入下一阶段。分组和点数仍由你按本结构决定——这里规定的是**顺序与停止条件**，不是默认 N。
+
+### 1. 侦察（Recon）
+
+目标：每个白名单量都至少在一张**跨其整个允许区间**的矩阵里出现过一次；其它量用开场值或区间中值，不要用已知很差的值当背景。
+
+- 开场：`variable_map`，把涉及白名单量的表达式抄进日志，写成不等式（例如 `ws = wp + g3` → `wp + g3 ≤ l1 − margin`）。之后每钉一个约束里的量，同时写出它对其它量可行域的影响。
+- 分组仍由你定（按几何块、馈电/辐射体等），但**侦察完成**的客观定义是：覆盖表上每个白名单量都有「已试 min–max」，且两端都摸到过白名单边界附近（或写明被约束卡住的真实可达端点）。
+- **在侦察完成之前，禁止把任何量钉死为最终值。** 可以临时 `variables_set` 换背景再扫下一组，但日志里标成「临时背景」，不是钉死。
+- 带宽类题目：侦察阶段结束前至少对当前最好的一两个点导过一次 `terminal_z`。
+
+### 2. 定性（Qualify）
+
+目标：写出每个量大致搬什么（哪条边、深度、R、X）和方向，**必须同时引用一簇 |S11| 和 Z**。
+
+- 模式身份：用 Im Z 过零次数 / R–X 形态判断，不要用 |S11| 鼓包数当谐振个数。
+- 低边 / 高边判读写进日志：R 不够 → 倾向辐射体尺寸或耦合强弱；X 没配平 → 倾向谐振位置量。这是通用判据，不是某一副天线的配方。
+- 若一整簇曲线**没有一条**进入目标通带（例如没有任何点 ≤ −10 dB），**禁止**根据彼此之间零点几 dB 的差异钉点——那种差不是梯度，只能读频率位置和 Z 的走向。
+
+### 3. 联合收敛（Joint）
+
+目标：把定性阶段判定为互相耦合的量放进**同一张**联合矩阵；这时才允许正式钉死。
+
+- 钉死必须带**上下文**：日志写清「在哪些其它白名单量取何值时钉的」。
+- 钉值是有条件的。当任一「上下文伙伴」（同一物理块，或出现在同一约束不等式里的量）相对钉定时移动超过其白名单区间的约 1/3，该钉值**失效**，必须重验。同一错误上下文里「确认三次」只算一次。
+- 带宽类题目：每一轮矩阵结束后，对**本轮最优点**再导一次 `terminal_z`（`report_create` + `report_export`，不花求解时间）。日志写 R/X 在目标频点和带边的含义。
+
+### 4. 精修（Refine）
+
+目标：只在最优点已经接近目标时加密。
+
+- 仅当最优点距目标大约只差 1–2 个频率栅格（或相对带宽只差很小一截）时，才允许轴跨度 < 白名单区间约 10% 的矩阵。
+- 精修轮次仍必须能写出结构理由（在收哪条边、为什么这个密度）。写不出就不要开。
+
+## Anti-stall（卡住时做什么）
+
+停手条件只有：观察量已经达标；或（考场）再开一轮会超过求解时间上限。
+
+**不准**用「连续两轮看不出新影响」「该问的耦合已经问完」「好像该停在某几轮」当停手理由。但「不准停」不等于「用越来越细的微扫填时间」。
+
+当连续两轮累计最优改善小于约 1 个频率栅格（或相对带宽几乎不动），**下一轮必须是逃逸矩阵**，不能继续精修：
+
+- 至少一个轴的跨度 ≥ 其白名单区间的约 1/2；**或**
+- 重新打开一个已钉量，并把它与约束伙伴 / 互斥伙伴放进同一张联合矩阵。
+
+逃逸矩阵跑完并写入日志后，才允许再回到联合收敛或精修。考场预算请把大约最后 1/4 留给可能的逃逸，不要在前期微扫里花光。
+
 ## Size the matrix (you decide)
 
 耦合个数、每轴点数都不是本文件里的常数。给建议值 Agent 就会照抄、不再想；所以这里**不设默认 N、不设默认每轴点数**。你必须自己从结构推出来，并写进日志。
 
 每一轮按这个顺序想，再调用工具：
 
-1. **这一轮的问题是什么**（搬低频匹配、辨阻带、收相位差……）。
-2. **哪些量现在是耦合的**（几何上是一套、上一簇曲线里一起动的）。耦合可能是 2 个，也可能是 4、5，一直到一张表里十来个。
-3. **这一轮扫几组、每组几个**。一组太大就拆成仍有物理意义的几组；一组不大就联合扫，不必拆。不要为了凑个数把不相关的量塞进来，也不要因为怕大而每次只动一个。
-4. **每轴取几个点、范围多宽**。够看出这一轮的趋势即可：范围还不清楚时疏一点、宽一点；已经知道敏感区间时再密、再窄。点数是判断，不是配方。
-5. **乘积能不能坐在机器前跑完**。`parametric_create` 会返回 `points`。当前 MCP **一轮最多 256 点**——这是防整张白名单阶乘的安全阀，不是推荐网格。四个耦合量的联合扫参应当进得去；十维 2^n 进不去，那就拆组。被上限卡住时写明，不要假装 256 就是好网格。
+1. **这一轮处于哪个阶段**（侦察 / 定性 / 联合 / 精修 / 逃逸），阶段门槛是否已满足。
+2. **这一轮的问题是什么**（搬低频匹配、辨阻带、收相位差……）。
+3. **哪些量现在是耦合的**（几何上是一套、上一簇曲线里一起动的；或约束把它们绑在一起）。
+4. **这一轮扫几组、每组几个**。一组太大就拆成仍有物理意义的几组；一组不大就联合扫，不必拆。不要为了凑个数把不相关的量塞进来，也不要因为怕大而每次只动一个。
+5. **每轴取几个点、范围多宽**。侦察：宽、疏、摸到区间端。定性/联合：够看出趋势。精修：才允许窄而密。逃逸：至少一个轴要宽。
+6. **乘积能不能坐在机器前跑完**。`parametric_create` 会返回 `points`——以导出表核对实际点数（LIN 在 stop 不落在步长格点上时可能比估算多 1）。当前 MCP **一轮最多 256 点**——这是防整张白名单阶乘的安全阀，不是推荐网格。被上限卡住时写明，不要假装 256 就是好网格。
 
 **这一轮不合格的矩阵：**
 
@@ -56,6 +106,8 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - 整张白名单一网打尽「图个全面」。
 - 分组/点数换到另一副天线也能原样粘贴——说明没针对本结构想。
 - 因为本 Skill 或别处出现过某个数字，就采用那个数字。
+- 侦察未完成就钉死；或精修阶段轴跨度已经窄到只剩噪声，却还没有逃逸过。
+- 一整族失配曲线里，凭零点几 dB 的差异钉点。
 
 **对照（不是默认。没有结构理由就抄这些数，等于没判断）：**
 
@@ -65,7 +117,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Tools
 
-`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`。钉点时 `variables_set`，随后再看模型。
+`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`；带宽题再对最优点 `report_create(report_type="terminal_z")` → `report_export`。钉点时 `variables_set`，随后再看模型。
 
 白名单：考场用该目录 `allowlist.json`；否则 `cases/uwb_circular_notch/allowlist.json`。
 
@@ -80,27 +132,29 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 ## Loop
 
 1. `health` / `session_list`。没有 Desktop 就让用户先打开工程。
-2. `allowlist_load`。`snapshot`。不熟则 `variable_map`，并自己 `view_hide` / `view_capture`。
-3. 写清这一轮在调匹配还是相位。按上一节排出分组和采样，写入日志，再 `parametric_create`（须在树上能看见；看返回的 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
-4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。看哪条曲线随哪个量动、哪个量几乎不动。
-5. 敏感的留下，不敏感的可以钉死。下一轮换一组，或同一组收窄加密。钉点时才 `variables_set`。**改完就看模型**（自己 `view_hide` / `view_capture(fit=…)`，看出几何错误就不要留这组点）。钉住之后如需单条曲线，再导出不含 family 的新报告（省略 `families`，或 `families=[]`）。不要复用开场那张 `S11` 来「钉死」。
-6. 重复。停手只有：观察量已经达标；或（考场）再开一轮会超过求解时间上限。没达标且时间还够，就必须再开一轮。上一轮看出互斥，下一轮把互斥的量放进同一张联合矩阵（或改中间值再问）。不要用「连续两轮看不出新的影响」「该问的耦合已经问完」「跑满某几轮」当停手理由，也不要只扫一次就交差。
+2. `allowlist_load`。`snapshot`。`variable_map` 抄约束；不熟则自己 `view_hide` / `view_capture`。
+3. 写清这一轮在调匹配还是相位，以及所处阶段。按上一节排出分组和采样；日志写入**本轮上下文向量**（全部白名单量当前值）和**覆盖表**（每个量至今试过的 min–max）。再 `parametric_create`（须在树上能看见；用导出表核对 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
+4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。用下面的画图脚本出 **PNG**（不要只出 SVG——宿主 `read` 往往读不了 SVG），**真正看图**，再写「图上看出了什么标量摘要里没有的东西」。带宽题对最优点导 `terminal_z` 并同样看图或读 R/X。
+5. 按阶段更新：侦察补覆盖；定性写作用与方向；联合收敛才正式钉死（带上下文）；该逃逸就逃逸。钉点时才 `variables_set`。**改完就看模型**。钉住之后如需单条曲线，再导出不含 family 的新报告。不要复用开场那张 `S11` 来「钉死」。
+6. 重复。停手只有：观察量已经达标；或（考场）再开一轮会超过求解时间上限。上一轮看出互斥，下一轮把互斥的量放进同一张联合矩阵（或改中间值再问）。连续两轮几乎无改善 → 逃逸，不是微扫。
+
+续跑时：先读日志里的覆盖表与各轮上下文向量，再读活模型。**活模型当前值不是任何一轮的求解记录**（可能是探针残留）。
 
 ## Diagnose
 
-从**一簇**曲线看谁在搬带宽、谁在搬通带中间的抬起，不要只看钉住之后的一条，也不要只看三个标量。曲线好看但模型已经错了的点，不要当答案。
+从**一簇**曲线看谁在搬带宽、谁在搬通带中间的抬起，不要只看钉住之后的一条，也不要只看三个标量。曲线好看但模型已经错了的点，不要当答案。带宽端点若贴着扫频上下限，在日志标明「可能被扫频截断」。
 
 - 匹配：\(S_{11}\le -10\,\mathrm{dB}\) 的穿越点。低频**整段**抬起，馈电/地板往往要进**同一组**矩阵，不要先整体缩放贴片。
 - 通带中间回到 −10 dB 以上的抬起才像阻带，不要和匹配失败混在一起。
-- 身份不清时看 Smith / `terminal_z`：宽频游走像匹配空洞，小环或急转像谐振器。
+- **带宽题默认看 `terminal_z`**（不是「身份不清时才看」）：宽频游走像匹配空洞，小环或急转像谐振器；低边 R 过小像辐射体偏短或耦合偏弱，不要只当电抗没配平。
 - 相位：四个态是否大约隔 90°，谁在转相位、谁在毁匹配。
 - 不要用单点跳跃代替矩阵。单点证伪（「改了某个量一次没动」）证据不足。
 
 ```bash
-uv run python skills/tune-hfss-antenna/scripts/plot_s11.py path/to/s11.csv --mark-ghz 60 --out hfss-tuning-artifacts/round-00N/s11.svg
+uv run --with matplotlib python skills/tune-hfss-antenna/scripts/plot_s11.py path/to/s11.csv --mark-ghz 60 --out hfss-tuning-artifacts/round-00N/s11.png
 ```
 
-`plot_s11.py` 画 `freq_ghz,s11_db` 或 `freq_ghz,variation,s11_db` 的一簇曲线。
+`plot_s11.py` 默认出 **PNG**（宿主可 `read`）。画 `freq_ghz,s11_db` 或 `freq_ghz,variation,s11_db` 的一簇曲线。需要矢量稿时再加 `--format svg`。
 
 ## Demo case
 
