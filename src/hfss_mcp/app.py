@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import re
+import shutil
 import threading
 from pathlib import Path
 from typing import Any
@@ -11,10 +13,12 @@ from typing import Any
 from hfss_mcp.adapter.fake import FakeAdapter
 from hfss_mcp.allowlist import Allowlist, assert_writable, load_allowlist_dict, load_allowlist_file
 from hfss_mcp.config import RuntimeConfig, load_runtime_config
+from hfss_mcp.constraints import assert_constraints, assert_constraints_on_rows
 from hfss_mcp.domain import JobState, ParameterValue, utc_now_iso
 from hfss_mcp.environment import inspect_environment
 from hfss_mcp.errors import AdapterError, HfssMcpError, JobError, PolicyError
 from hfss_mcp.ids import new_id
+from hfss_mcp.ledger import SolveLedger
 from hfss_mcp.live import (
     DEFAULT_REPORT_NAMES,
     FIELD_QUANTITIES,
@@ -29,8 +33,15 @@ from hfss_mcp.live import (
     last_progress_line,
     list_rot_sessions,
 )
-from hfss_mcp.metrics import csv_export_summary, normalize_exported_report_csv
+from hfss_mcp.metrics import (
+    csv_export_summary,
+    normalize_exported_report_csv,
+    render_s11_png,
+    summarize_modal_s_csv,
+    summarize_terminal_z_csv,
+)
 from hfss_mcp.session_discovery import discover_running_sessions
+from hfss_mcp.sweeps import cartesian_from_axes, expand_table_rows, lin_values, linc_values
 
 _FAKE_JPEG = bytes.fromhex(
     "ffd8ffe000104a46494600010100000100010000ffdb004300"
@@ -68,17 +79,22 @@ class AppContext:
         self._live: LiveDesign | None = None
         self._fake: FakeAdapter | None = None
         self._jobs: dict[str, dict[str, Any]] = {}
-        self._job_lock = threading.Lock()
+        self._job_lock = threading.RLock()
         self._reports: dict[str, dict[str, Any]] = {}
         self._analyze_thread: threading.Thread | None = None
         self._parametric_vars: dict[str, list[str]] = {}
+        self._parametric_meta: dict[str, dict[str, Any]] = {}
         self._variables_dirty: bool = False
         self._view_hidden: set[str] = set()
         # State that must survive an MCP host idle-restart of this process.
         self._state_file = self.data_dir / "session-state.json"
         self._persisted_allowlist_path: str | None = None
         self._persisted_hidden: dict[str, list[str]] = {}
+        self._ledger = SolveLedger(self.data_dir / "solve-ledger.jsonl")
         self._load_state()
+        restored = self._ledger.load_jobs()
+        if restored:
+            self._jobs.update(restored)
 
     def _load_state(self) -> None:
         try:
@@ -97,11 +113,17 @@ class AppContext:
                 for k, v in hidden.items()
                 if isinstance(v, list)
             }
+        meta = raw.get("parametric_meta")
+        if isinstance(meta, dict):
+            self._parametric_meta = {
+                str(k): dict(v) for k, v in meta.items() if isinstance(v, dict)
+            }
 
     def _save_state(self) -> None:
         payload = {
             "allowlist_path": self._persisted_allowlist_path,
             "view_hidden": {k: sorted(v) for k, v in self._persisted_hidden.items()},
+            "parametric_meta": self._parametric_meta,
         }
         try:
             self._state_file.write_text(
@@ -251,6 +273,7 @@ class AppContext:
             "project_name": loaded.project_name,
             "design_name": loaded.design_name,
             "parameters": [p.model_dump(by_alias=True) for p in loaded.parameters],
+            "constraints": list(loaded.constraints),
             "default_setup": loaded.default_setup,
         }
 
@@ -358,6 +381,151 @@ class AppContext:
             details={"job_id": job.get("job_id"), "state": job.get("state")},
         )
 
+    def _persist_jobs(self) -> None:
+        with self._job_lock:
+            snapshot = {key: dict(value) for key, value in self._jobs.items()}
+        self._ledger.save_jobs(snapshot)
+
+    def _variable_floats(self) -> dict[str, float]:
+        payload = self.snapshot()["snapshot"]
+        variables = payload.get("variables") or {}
+        out: dict[str, float] = {}
+        items = variables.items() if isinstance(variables, dict) else []
+        for name, item in items:
+            if isinstance(item, dict) and item.get("value") is not None:
+                try:
+                    out[str(name)] = float(item["value"])
+                except (TypeError, ValueError):
+                    continue
+            elif hasattr(item, "value"):
+                try:
+                    out[str(name)] = float(item.value)
+                except (TypeError, ValueError):
+                    continue
+        return out
+
+    def _geometry_failed(self, messages: list[str] | None) -> bool:
+        return any("body could not be created" in str(line).lower() for line in messages or [])
+
+    def _record_job_points(self, rec: dict[str, Any], *, geometry_failed: bool = False) -> None:
+        rows = list(rec.get("rows") or [])
+        context = rec.get("context") if isinstance(rec.get("context"), dict) else {}
+        if not rows:
+            if context:
+                rows = [dict(context)]
+            else:
+                return
+        source = str(rec.get("setup") or rec.get("kind") or "analyze")
+        for row in rows:
+            self._ledger.append_point(
+                {
+                    "project": rec.get("project"),
+                    "design": rec.get("design"),
+                    "source": source,
+                    "kind": rec.get("kind"),
+                    "job_id": rec.get("job_id"),
+                    "setup": rec.get("setup"),
+                    "variables": dict(row),
+                    "geometry_failed": bool(geometry_failed or rec.get("geometry_failed")),
+                    "started_at": rec.get("started_at"),
+                    "finished_at": rec.get("finished_at"),
+                }
+            )
+
+    def _new_job_record(
+        self,
+        *,
+        kind: str,
+        setup: str,
+        points: int | None = None,
+        context: dict[str, float] | None = None,
+        rows: list[dict[str, float]] | None = None,
+    ) -> dict[str, Any]:
+        allowlist = self._allowlist
+        rec: dict[str, Any] = {
+            "job_id": new_id("job_"),
+            "kind": kind,
+            "state": JobState.RUNNING.value,
+            "setup": setup,
+            "created_at": utc_now_iso(),
+            "started_at": utc_now_iso(),
+            "finished_at": None,
+            "error": None,
+            "project": None if allowlist is None else allowlist.project_name,
+            "design": None if allowlist is None else allowlist.design_name,
+            "source": setup,
+        }
+        if points is not None:
+            rec["points"] = points
+        if context is not None:
+            rec["context"] = dict(context)
+        if rows is not None:
+            rec["rows"] = [dict(row) for row in rows]
+        return rec
+
+    def _finish_job(
+        self,
+        rec: dict[str, Any],
+        *,
+        state: str,
+        error: dict[str, Any] | None = None,
+        geometry_failed: bool = False,
+        messages: list[str] | None = None,
+    ) -> None:
+        rec["state"] = state
+        rec["finished_at"] = utc_now_iso()
+        rec["error"] = error
+        if messages:
+            rec["messages"] = list(messages)[-8:]
+        if geometry_failed:
+            rec["geometry_failed"] = True
+        if state in {JobState.COMPLETED.value, JobState.FAILED.value}:
+            self._record_job_points(rec, geometry_failed=geometry_failed)
+        self._persist_jobs()
+
+    def _reconcile_running_job(self, rec: dict[str, Any]) -> None:
+        if rec.get("state") != JobState.RUNNING.value:
+            return
+        if self.is_fake:
+            return
+        try:
+            self._ensure_session()
+        except Exception:
+            return
+        if self._live is None:
+            return
+        try:
+            messages = self._live.read_messages(limit=48)
+        except Exception:
+            messages = []
+        rec["messages"] = messages[-8:]
+        fail = failure_message_for_setup(messages, str(rec.get("setup") or ""))
+        if not fail and rec.get("kind") == "parametric":
+            fail = crash_message(messages)
+        if fail:
+            self._finish_job(
+                rec,
+                state=JobState.FAILED.value,
+                error={"code": "hfss_message", "message": fail},
+                geometry_failed=self._geometry_failed(messages),
+                messages=messages,
+            )
+            return
+        if rec.get("kind") == "parametric":
+            try:
+                listed = self._optimetrics_setups()
+            except Exception:
+                return
+            match = next((item for item in listed if item.get("name") == rec.get("setup")), None)
+            if match and match.get("has_result"):
+                self._variables_dirty = False
+                self._finish_job(
+                    rec,
+                    state=JobState.COMPLETED.value,
+                    geometry_failed=self._geometry_failed(messages),
+                    messages=messages,
+                )
+
     def variables_set(self, parameters: list[dict[str, Any]]) -> dict[str, Any]:
         self._guard_no_solve("variables_set")
         allowlist = self._require_allowlist()
@@ -367,6 +535,10 @@ class AppContext:
             raise PolicyError("parameters must be non-empty", code="empty_parameters")
         for item in values:
             assert_writable(allowlist, item.name, item.value, item.unit)
+        merged = self._variable_floats()
+        for item in values:
+            merged[item.name] = item.value
+        assert_constraints(allowlist.constraints, merged, where="variables_set")
         if self.is_fake:
             assert self._fake is not None
             result = self._fake.set_variables(values)
@@ -406,43 +578,49 @@ class AppContext:
                     code="analyze_busy",
                     details={"job_id": running[0]["job_id"]},
                 )
-            job_id = new_id("job_")
-            rec: dict[str, Any] = {
-                "job_id": job_id,
-                "kind": "analyze",
-                "state": JobState.RUNNING.value,
-                "setup": setup_name,
-                "created_at": utc_now_iso(),
-                "started_at": utc_now_iso(),
-                "finished_at": None,
-                "error": None,
-            }
-            self._jobs[job_id] = rec
+            rec = self._new_job_record(
+                kind="analyze",
+                setup=setup_name,
+                points=1,
+                context=self._variable_floats(),
+                rows=[self._variable_floats()],
+            )
+            self._jobs[rec["job_id"]] = rec
+        self._persist_jobs()
 
         if self.is_fake:
             assert self._fake is not None
             self._fake.start_solve(setup_name)
-            rec["state"] = JobState.COMPLETED.value
-            rec["finished_at"] = utc_now_iso()
             self._variables_dirty = False
+            self._finish_job(rec, state=JobState.COMPLETED.value)
             return self._job_payload(rec)
 
         def _run() -> None:
             try:
                 assert self._live is not None
                 self._live.analyze(setup_name)
+                try:
+                    messages = self._live.read_messages(limit=48)
+                except Exception:
+                    messages = []
                 with self._job_lock:
-                    rec["state"] = JobState.COMPLETED.value
-                    rec["finished_at"] = utc_now_iso()
                     self._variables_dirty = False
+                    self._finish_job(
+                        rec,
+                        state=JobState.COMPLETED.value,
+                        geometry_failed=self._geometry_failed(messages),
+                        messages=messages,
+                    )
             except Exception as exc:
                 with self._job_lock:
-                    rec["state"] = JobState.FAILED.value
-                    rec["finished_at"] = utc_now_iso()
-                    rec["error"] = {
-                        "code": getattr(exc, "code", "analyze_failed"),
-                        "message": str(exc),
-                    }
+                    self._finish_job(
+                        rec,
+                        state=JobState.FAILED.value,
+                        error={
+                            "code": getattr(exc, "code", "analyze_failed"),
+                            "message": str(exc),
+                        },
+                    )
 
         self._analyze_thread = threading.Thread(target=_run, name="hfss-analyze", daemon=True)
         self._analyze_thread.start()
@@ -451,16 +629,21 @@ class AppContext:
     def analyze_status(self, job_id: str) -> dict[str, Any]:
         rec = self._jobs.get(job_id)
         if rec is None:
+            restored = self._ledger.load_jobs()
+            if job_id in restored:
+                rec = restored[job_id]
+                self._jobs[job_id] = rec
+        if rec is None:
             raise JobError(
                 f"job not found: {job_id}",
                 code="job_not_found",
                 details={
-                    "hint": "jobs are in-memory; if the MCP host restarted this "
-                    "server (idle timeout), the solve keeps running inside AEDT. "
-                    "Recover by polling report_export / optimetrics_list, and set "
-                    "lifecycle=keep-alive for hfss-mcp in the host mcp.json."
+                    "hint": "jobs persist under the data dir as jobs.json. If this "
+                    "id is missing, the solve may still be running in AEDT — poll "
+                    "report_export / optimetrics_list, or call solved_points_list."
                 },
             )
+        self._reconcile_running_job(rec)
         return self._job_payload(rec)
 
     def _job_payload(self, rec: dict[str, Any]) -> dict[str, Any]:
@@ -497,6 +680,9 @@ class AppContext:
                 rec["state"] = JobState.FAILED.value
                 rec["finished_at"] = utc_now_iso()
                 rec["error"] = {"code": "hfss_message", "message": fail}
+                rec["geometry_failed"] = self._geometry_failed(messages)
+                self._record_job_points(rec, geometry_failed=rec["geometry_failed"])
+                self._persist_jobs()
                 payload["done"] = True
                 payload["poll"] = None
         payload["job"] = rec
@@ -509,7 +695,9 @@ class AppContext:
                 f"job not found: {job_id}",
                 code="job_not_found",
                 details={
-                    "hint": "jobs are in-memory and do not survive a server restart"
+                    "hint": "jobs persist under the data dir as jobs.json. If this "
+                    "id is missing, the solve may still be running in AEDT — poll "
+                    "report_export / optimetrics_list, or call solved_points_list."
                 },
             )
         if rec["state"] != JobState.RUNNING.value:
@@ -543,16 +731,84 @@ class AppContext:
                 item["variables"] = list(cached)
         return {"ok": True, "setups": setups}
 
-    def _format_parametric_sweeps(
-        self, sweeps: list[dict[str, Any]]
-    ) -> tuple[list[dict[str, str]], int]:
+    def _build_parametric_plan(self, sweeps: list[dict[str, Any]]) -> dict[str, Any]:
         allowlist = self._require_allowlist()
         if not sweeps:
             raise PolicyError(
                 "parametric needs at least one sweep",
                 code="parametric_sweep_required",
             )
+        table_entries = [
+            raw
+            for raw in sweeps
+            if str(raw.get("variation") or "") == "table" or raw.get("rows")
+        ]
+        if table_entries and len(table_entries) != len(sweeps):
+            raise PolicyError(
+                "table variation must be the only sweep entry",
+                code="parametric_sweep_invalid",
+            )
+        current = self._variable_floats()
+        if table_entries:
+            return self._plan_table_sweep(table_entries[0], allowlist, current)
+        return self._plan_cartesian_sweeps(sweeps, allowlist, current)
+
+    def _plan_table_sweep(
+        self,
+        raw: dict[str, Any],
+        allowlist: Allowlist,
+        current: dict[str, float],
+    ) -> dict[str, Any]:
+        units = {p.name: p.unit for p in allowlist.parameters}
+        order, numeric_rows, unit_map = expand_table_rows(
+            list(raw.get("rows") or []),
+            allowed=allowlist.names(),
+            units=units,
+        )
+        for row in numeric_rows:
+            for name, value in row.items():
+                assert_writable(allowlist, name, value, unit_map[name])
+        swept = set(order)
+        context = {
+            name: current[name]
+            for name in allowlist.names()
+            if name not in swept and name in current
+        }
+        merged = [{**context, **row} for row in numeric_rows]
+        assert_constraints_on_rows(
+            allowlist.constraints, merged, where="parametric_create"
+        )
+        if len(numeric_rows) > PARAMETRIC_MAX_POINTS:
+            raise PolicyError(
+                f"parametric would run {len(numeric_rows)} points; max is {PARAMETRIC_MAX_POINTS}",
+                code="parametric_too_many_points",
+                details={"points": len(numeric_rows), "max": PARAMETRIC_MAX_POINTS},
+            )
+        formatted = [
+            {
+                "variable": name,
+                "data": " ".join(f"{row[name]}{unit_map[name]}" for row in numeric_rows),
+            }
+            for name in order
+        ]
+        return {
+            "formatted": formatted,
+            "points": len(numeric_rows),
+            "sync_indices": list(range(len(order))),
+            "table_rows": numeric_rows,
+            "rows": merged,
+            "context": context,
+            "variables": order,
+        }
+
+    def _plan_cartesian_sweeps(
+        self,
+        sweeps: list[dict[str, Any]],
+        allowlist: Allowlist,
+        current: dict[str, float],
+    ) -> dict[str, Any]:
         formatted: list[dict[str, str]] = []
+        axes: dict[str, list[float]] = {}
         total_points = 1
         for raw in sweeps:
             name = str(raw.get("variable") or raw.get("name") or "").strip()
@@ -577,7 +833,6 @@ class AppContext:
                 for value in values:
                     assert_writable(allowlist, name, value, unit)
                 data = " ".join(f"{value}{unit}" for value in values)
-                n_points = len(values)
             elif variation == "linear_step":
                 if any(k not in raw for k in ("start", "stop", "step")):
                     raise PolicyError(
@@ -591,8 +846,8 @@ class AppContext:
                     raise PolicyError("step must be > 0", code="parametric_sweep_invalid")
                 assert_writable(allowlist, name, start, unit)
                 assert_writable(allowlist, name, stop, unit)
-                n_points = int(round(abs(stop - start) / step)) + 1
                 lo, hi = (start, stop) if start <= stop else (stop, start)
+                values = lin_values(lo, hi, step)
                 data = f"LIN {lo}{unit} {hi}{unit} {step}{unit}"
             elif variation == "linear_count":
                 if any(k not in raw for k in ("start", "stop", "count")):
@@ -603,24 +858,21 @@ class AppContext:
                 start = float(raw["start"])
                 stop = float(raw["stop"])
                 count = int(raw["count"])
-                if count < 2:
-                    raise PolicyError(
-                        "linear_count needs count >= 2",
-                        code="parametric_sweep_invalid",
-                    )
+                values = linc_values(start, stop, count)
                 assert_writable(allowlist, name, start, unit)
                 assert_writable(allowlist, name, stop, unit)
-                n_points = count
                 lo, hi = (start, stop) if start <= stop else (stop, start)
                 data = f"LINC {lo}{unit} {hi}{unit} {count}"
             else:
                 raise PolicyError(
                     f"unsupported variation {variation!r}; "
-                    "use linear_step, linear_count, or values",
+                    "use linear_step, linear_count, values, or table",
                     code="parametric_variation_unsupported",
-                    details={"allowed": ["linear_step", "linear_count", "values"]},
+                    details={"allowed": ["linear_step", "linear_count", "values", "table"]},
                 )
+            n_points = len(values)
             total_points *= n_points
+            axes[name] = values
             formatted.append({"variable": name, "data": data})
         if total_points > PARAMETRIC_MAX_POINTS:
             raise PolicyError(
@@ -628,7 +880,26 @@ class AppContext:
                 code="parametric_too_many_points",
                 details={"points": total_points, "max": PARAMETRIC_MAX_POINTS},
             )
-        return formatted, total_points
+        cartesian = cartesian_from_axes(axes)
+        swept = set(axes)
+        context = {
+            name: current[name]
+            for name in allowlist.names()
+            if name not in swept and name in current
+        }
+        merged = [{**context, **row} for row in cartesian]
+        assert_constraints_on_rows(
+            allowlist.constraints, merged, where="parametric_create"
+        )
+        return {
+            "formatted": formatted,
+            "points": total_points,
+            "sync_indices": [],
+            "table_rows": cartesian,
+            "rows": merged,
+            "context": context,
+            "variables": list(axes.keys()),
+        }
 
     def parametric_create(
         self,
@@ -640,24 +911,44 @@ class AppContext:
         self._guard_no_solve("parametric_create")
         allowlist = self._require_allowlist()
         self._ensure_session()
-        formatted, points = self._format_parametric_sweeps(list(sweeps or []))
+        plan = self._build_parametric_plan(list(sweeps or []))
+        formatted = plan["formatted"]
+        points = int(plan["points"])
         setup_name = setup or allowlist.default_setup or "Setup1"
         report_name = name or f"Parametric_{formatted[0]['variable']}"
+        sync_indices = list(plan.get("sync_indices") or [])
         if self.is_fake:
             assert self._fake is not None
             rec = self._fake.create_parametric(
-                name=report_name, sim_setup=setup_name, sweeps=formatted
+                name=report_name,
+                sim_setup=setup_name,
+                sweeps=formatted,
+                sync_indices=sync_indices,
+                table_rows=list(plan.get("table_rows") or []),
             )
         else:
             assert self._live is not None
             rec = self._live.create_parametric(
-                name=report_name, sim_setup=setup_name, sweeps=formatted
+                name=report_name,
+                sim_setup=setup_name,
+                sweeps=formatted,
+                sync_indices=sync_indices,
             )
         rec["sim_setup"] = setup_name
         rec["sweeps"] = formatted
         rec["points"] = points
-        rec["variables"] = [item["variable"] for item in formatted]
+        rec["variables"] = list(plan["variables"])
+        rec["sync_indices"] = sync_indices
+        rec["context"] = dict(plan["context"])
         self._parametric_vars[report_name] = list(rec["variables"])
+        self._parametric_meta[report_name] = {
+            "variables": list(rec["variables"]),
+            "context": dict(plan["context"]),
+            "rows": [dict(row) for row in plan["rows"]],
+            "points": points,
+            "sync_indices": sync_indices,
+        }
+        self._save_state()
         return {"ok": True, "setup": rec}
 
     def parametric_start(self, name: str) -> dict[str, Any]:
@@ -675,6 +966,7 @@ class AppContext:
                 f"{name!r} is {match.get('setup_kind')}, not a parametric setup",
                 code="parametric_kind_unsupported",
             )
+        meta = self._parametric_meta.get(name) or {}
         with self._job_lock:
             running = [j for j in self._jobs.values() if j["state"] == JobState.RUNNING.value]
             if running:
@@ -683,44 +975,86 @@ class AppContext:
                     code="analyze_busy",
                     details={"job_id": running[0]["job_id"]},
                 )
-            job_id = new_id("job_")
-            rec: dict[str, Any] = {
-                "job_id": job_id,
-                "kind": "parametric",
-                "state": JobState.RUNNING.value,
-                "setup": name,
-                "created_at": utc_now_iso(),
-                "started_at": utc_now_iso(),
-                "finished_at": None,
-                "error": None,
-            }
-            self._jobs[job_id] = rec
+            rec = self._new_job_record(
+                kind="parametric",
+                setup=name,
+                points=meta.get("points"),
+                context=meta.get("context") or self._variable_floats(),
+                rows=list(meta.get("rows") or []),
+            )
+            self._jobs[rec["job_id"]] = rec
+        self._persist_jobs()
         if self.is_fake:
-            rec["state"] = JobState.COMPLETED.value
-            rec["finished_at"] = utc_now_iso()
             self._variables_dirty = False
+            self._finish_job(rec, state=JobState.COMPLETED.value)
             return self._job_payload(rec)
 
         def _run() -> None:
             try:
                 assert self._live is not None
                 self._live.analyze_parametric(name)
+                try:
+                    messages = self._live.read_messages(limit=48)
+                except Exception:
+                    messages = []
                 with self._job_lock:
-                    rec["state"] = JobState.COMPLETED.value
-                    rec["finished_at"] = utc_now_iso()
                     self._variables_dirty = False
+                    self._finish_job(
+                        rec,
+                        state=JobState.COMPLETED.value,
+                        geometry_failed=self._geometry_failed(messages),
+                        messages=messages,
+                    )
             except Exception as exc:
                 with self._job_lock:
-                    rec["state"] = JobState.FAILED.value
-                    rec["finished_at"] = utc_now_iso()
-                    rec["error"] = {
-                        "code": getattr(exc, "code", "analyze_failed"),
-                        "message": str(exc),
-                    }
+                    self._finish_job(
+                        rec,
+                        state=JobState.FAILED.value,
+                        error={
+                            "code": getattr(exc, "code", "analyze_failed"),
+                            "message": str(exc),
+                        },
+                    )
 
         self._analyze_thread = threading.Thread(target=_run, name="hfss-parametric", daemon=True)
         self._analyze_thread.start()
         return self._job_payload(rec)
+
+    def _annotate_parametric_table(
+        self,
+        dest: Path,
+        *,
+        context: dict[str, float],
+        swept: list[str],
+    ) -> dict[str, float]:
+        extra = {name: context[name] for name in context if name not in swept}
+        if not extra or not dest.is_file():
+            return extra
+        try:
+            rows = list(
+                csv.reader(dest.read_text(encoding="utf-8", errors="replace").splitlines())
+            )
+        except Exception:
+            return extra
+        if not rows:
+            return extra
+        header = [str(cell).strip() for cell in rows[0]]
+        extra_names = [name for name in extra if name not in header]
+        if not extra_names:
+            return extra
+        written = [header + extra_names]
+        for raw in rows[1:]:
+            if not raw or all(not str(cell).strip() for cell in raw):
+                continue
+            padded = [str(cell) for cell in raw]
+            if len(padded) < len(header):
+                padded.extend([""] * (len(header) - len(padded)))
+            padded = padded[: len(header)]
+            padded.extend(str(extra[name]) for name in extra_names)
+            written.append(padded)
+        with dest.open("w", encoding="utf-8", newline="") as fh:
+            csv.writer(fh).writerows(written)
+        return extra
 
     def parametric_export_table(self, name: str) -> dict[str, Any]:
         self._ensure_session()
@@ -731,7 +1065,18 @@ class AppContext:
         else:
             assert self._live is not None
             dest = self._live.export_parametric_table(name, dest)
-        return {"ok": True, "name": name, "path": str(dest), "format": "csv"}
+        meta = self._parametric_meta.get(name) or {}
+        swept = list(meta.get("variables") or self._parametric_vars.get(name) or [])
+        context = dict(meta.get("context") or {})
+        extra = self._annotate_parametric_table(dest, context=context, swept=swept)
+        return {
+            "ok": True,
+            "name": name,
+            "path": str(dest),
+            "format": "csv",
+            "context": extra,
+            "swept": swept,
+        }
 
     def report_types(self) -> dict[str, Any]:
         return {"ok": True, "types": REPORT_TYPES}
@@ -940,7 +1285,14 @@ class AppContext:
         self._reports[str(rec["report_id"])] = rec
         return {"ok": True, "report": rec}
 
-    def report_export(self, report_id: str) -> dict[str, Any]:
+    def report_export(
+        self,
+        report_id: str,
+        *,
+        path: str | None = None,
+        summarize: dict[str, Any] | bool | None = None,
+        png: bool = False,
+    ) -> dict[str, Any]:
         self._ensure_session()
         rec = self._reports.get(report_id)
         listed_item: dict[str, Any] | None = None
@@ -964,7 +1316,7 @@ class AppContext:
             )
         listed_name = str(listed_item.get("name") or report_id)
         if is_overlay:
-            dest = self.artifacts_dir / f"{new_id('art_')}_field_face.jpg"
+            dest = self._resolve_export_path(path, suffix=".jpg", default="field_face")
             if self.is_fake:
                 assert self._fake is not None
                 dest = self._fake.export_results_report(
@@ -973,12 +1325,13 @@ class AppContext:
             else:
                 assert self._live is not None
                 dest = self._live.export_field_overlay(listed_name, dest)
+            dest = self._copy_if_requested(dest, path, suffix=".jpg")
             out = rec or dict(listed_item)
             out["artifact"] = str(dest)
             out["format"] = "image"
             self._reports[listed_name] = out
             return {"ok": True, "report": out, "path": str(dest), "format": "image"}
-        dest = self.artifacts_dir / f"{new_id('art_')}_{kind or 'report'}.csv"
+        dest = self._resolve_export_path(path, suffix=".csv", default=str(kind or "report"))
         if self.is_fake:
             assert self._fake is not None
             dest = self._fake.export_results_report(
@@ -995,6 +1348,7 @@ class AppContext:
                 kind,
                 trace_names=list(listed_item.get("traces") or []),
             )
+        dest = self._copy_if_requested(dest, path, suffix=".csv")
         out = rec or {
             "report_id": listed_name,
             "name": listed_name,
@@ -1010,12 +1364,30 @@ class AppContext:
             "path": str(dest),
             "format": "csv",
         }
+        csv_shape: dict[str, Any] = {}
         if dest.suffix.lower() == ".csv":
-            summary = csv_export_summary(dest)
-            payload["traces"] = summary.get("traces")
-            payload["labeled"] = summary.get("labeled")
-            payload["csv_format"] = summary.get("format")
-            payload["header"] = summary.get("header")
+            csv_shape = csv_export_summary(dest)
+            payload["traces"] = csv_shape.get("traces")
+            payload["labeled"] = csv_shape.get("labeled")
+            payload["csv_format"] = csv_shape.get("format")
+            payload["header"] = csv_shape.get("header")
+        if summarize:
+            payload["summary"] = self._summarize_report(
+                dest, kind=kind, csv_shape=csv_shape, summarize=summarize
+            )
+        if png:
+            png_dest = dest.with_suffix(".png")
+            mark = None
+            if isinstance(summarize, dict) and summarize.get("target_ghz") is not None:
+                mark = float(summarize["target_ghz"])
+            try:
+                render_s11_png(dest, png_dest, mark_ghz=mark)
+                payload["png"] = str(png_dest)
+            except Exception as exc:
+                payload["png_error"] = {
+                    "code": getattr(exc, "code", "png_failed"),
+                    "message": str(exc),
+                }
         if self._variables_dirty:
             payload["stale_solution"] = True
             payload["note"] = (
@@ -1024,6 +1396,69 @@ class AppContext:
                 "family trace that already contains this point."
             )
         return payload
+
+    def _resolve_export_path(self, path: str | None, *, suffix: str, default: str) -> Path:
+        if path:
+            dest = Path(path)
+            if dest.suffix.lower() == "":
+                dest = dest.with_suffix(suffix)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            return dest
+        return self.artifacts_dir / f"{new_id('art_')}_{default}{suffix}"
+
+    def _copy_if_requested(self, dest: Path, path: str | None, *, suffix: str) -> Path:
+        if not path:
+            return dest
+        wanted = Path(path)
+        if wanted.suffix.lower() == "":
+            wanted = wanted.with_suffix(suffix)
+        wanted.parent.mkdir(parents=True, exist_ok=True)
+        if dest.resolve() != wanted.resolve() and dest.is_file():
+            shutil.copy2(dest, wanted)
+            return wanted
+        return dest
+
+    def _summarize_report(
+        self,
+        dest: Path,
+        *,
+        kind: str | None,
+        csv_shape: dict[str, Any],
+        summarize: dict[str, Any] | bool,
+    ) -> dict[str, Any]:
+        if summarize is True:
+            raise PolicyError(
+                "summarize needs an object with target_ghz",
+                code="summarize_args",
+            )
+        if not isinstance(summarize, dict):
+            raise PolicyError("summarize must be an object", code="summarize_args")
+        if summarize.get("target_ghz") is None:
+            raise PolicyError("summarize needs target_ghz", code="summarize_args")
+        target = float(summarize["target_ghz"])
+        threshold = float(summarize.get("threshold_db", -10.0))
+        fmt = csv_shape.get("format")
+        if kind == "terminal_z" or fmt == "terminal_z":
+            return summarize_terminal_z_csv(dest, target_ghz=target)
+        return summarize_modal_s_csv(
+            dest, target_ghz=target, threshold_db=threshold
+        )
+
+    def solved_points_list(
+        self,
+        *,
+        source: str | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        project = None
+        design = None
+        if self._allowlist is not None:
+            project = self._allowlist.project_name
+            design = self._allowlist.design_name
+        points = self._ledger.list_points(
+            project=project, design=design, source=source, limit=limit
+        )
+        return {"ok": True, "points": points, "count": len(points)}
 
     def view_hide(self, names: list[str]) -> dict[str, Any]:
         cleaned = [str(x).strip() for x in names if str(x).strip()]
@@ -1109,9 +1544,16 @@ class AppContext:
             )
         dest = self.artifacts_dir / f"view_{new_id('')[:10]}.jpg"
         keep = [str(x).strip() for x in (fit or isolate or []) if str(x).strip()]
+        hidden_in_fit = sorted({name for name in keep if name in self._view_hidden})
+        warning = None
+        if hidden_in_fit:
+            warning = (
+                "fit includes objects in the view_hide set: "
+                + ", ".join(hidden_in_fit)
+            )
         if self.is_fake:
             dest.write_bytes(_FAKE_JPEG)
-            return {
+            payload = {
                 "ok": True,
                 "path": str(dest),
                 "orientation": o,
@@ -1121,6 +1563,10 @@ class AppContext:
                 "selection": keep,
                 "missing": [],
             }
+            if warning:
+                payload["warning"] = warning
+                payload["hidden_in_fit"] = hidden_in_fit
+            return payload
         assert self._live is not None
         path, selection, fitted, missing = self._live.view_capture(
             dest,
@@ -1129,7 +1575,7 @@ class AppContext:
             isolate=None,
             hidden=sorted(self._view_hidden),
         )
-        return {
+        payload = {
             "ok": True,
             "path": str(path),
             "orientation": o,
@@ -1139,6 +1585,10 @@ class AppContext:
             "selection": selection,
             "missing": missing,
         }
+        if warning:
+            payload["warning"] = warning
+            payload["hidden_in_fit"] = hidden_in_fit
+        return payload
 
     def variable_map(self, names: list[str] | None = None) -> dict[str, Any]:
         allowlist = self._require_allowlist()
@@ -1198,8 +1648,9 @@ def build_allowlist_for_tests(
     parameters: list[dict[str, Any]] | None = None,
     setup: str = "Setup1",
     design_name: str = "HFSSDesign1",
+    constraints: list[str] | None = None,
 ) -> Allowlist:
-        return load_allowlist_dict(
+    return load_allowlist_dict(
         {
             "project_path": str(project_path.resolve(strict=False)),
             "project_name": project_path.stem,
@@ -1210,5 +1661,6 @@ def build_allowlist_for_tests(
                 {"name": "patch_w", "unit": "mm", "min": 1.0, "max": 50.0},
                 {"name": "patch_l", "unit": "mm", "min": 1.0, "max": 50.0},
             ],
+            "constraints": list(constraints or []),
         }
     )

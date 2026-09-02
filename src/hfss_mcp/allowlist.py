@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from hfss_mcp.constraints import constraint_names, parse_constraint
 from hfss_mcp.errors import ManifestError, PolicyError
 from hfss_mcp.ids import canonical_json_hash
 
@@ -52,6 +53,7 @@ class Allowlist(BaseModel):
     project_path: str | None = None
     default_setup: str | None = None
     default_sweep: str | None = None
+    constraints: list[str] = Field(default_factory=list)
 
     model_config = {"extra": "forbid"}
 
@@ -63,6 +65,21 @@ class Allowlist(BaseModel):
             raise ValueError("project_name and design_name must be non-empty")
         return text
 
+    @field_validator("constraints")
+    @classmethod
+    def _constraints_ok(cls, value: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for raw in value or []:
+            text = str(raw).strip()
+            if not text:
+                continue
+            try:
+                parse_constraint(text)
+            except PolicyError as exc:
+                raise ValueError(str(exc)) from exc
+            cleaned.append(text)
+        return cleaned
+
     @model_validator(mode="after")
     def _unique_params(self) -> Allowlist:
         names = [p.name for p in self.parameters]
@@ -70,6 +87,14 @@ class Allowlist(BaseModel):
             raise ValueError("parameter names must be unique")
         if not self.parameters:
             raise ValueError("allowlist needs at least one parameter")
+        known = set(names)
+        for expr in self.constraints:
+            unknown = constraint_names(expr) - known
+            if unknown:
+                raise ValueError(
+                    f"constraint {expr!r} references non-allowlisted "
+                    f"variable(s): {sorted(unknown)}"
+                )
         return self
 
     def param_map(self) -> dict[str, ParameterBound]:
@@ -113,6 +138,7 @@ def load_allowlist_dict(data: dict[str, Any]) -> Allowlist:
             "default_setup": source.get("setup"),
             "default_sweep": source.get("sweep"),
             "parameters": _as_parameters(list(data.get("variables") or [])),
+            "constraints": list(data.get("constraints") or []),
         }
     elif "parameters" in data:
         setups = data.get("allowed_setups") or []
@@ -125,6 +151,7 @@ def load_allowlist_dict(data: dict[str, Any]) -> Allowlist:
             "default_setup": data.get("default_setup") or setup0.get("setup"),
             "default_sweep": data.get("default_sweep") or setup0.get("sweep"),
             "parameters": _as_parameters(list(data.get("parameters") or [])),
+            "constraints": list(data.get("constraints") or []),
         }
     else:
         raise ManifestError("unrecognized allowlist JSON", code="allowlist_unrecognized")

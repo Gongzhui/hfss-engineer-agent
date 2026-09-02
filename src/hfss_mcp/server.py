@@ -33,6 +33,7 @@ PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "parametric_create",
     "parametric_start",
     "parametric_export_table",
+    "solved_points_list",
 )
 
 FORBIDDEN_TOOL_NAMES: frozenset[str] = frozenset(
@@ -195,13 +196,22 @@ def report_create(
 
 
 @mcp.tool()
-def report_export(report_id: str) -> dict[str, Any]:
+def report_export(
+    report_id: str,
+    path: str | None = None,
+    summarize: dict[str, Any] | None = None,
+    png: bool = False,
+) -> dict[str, Any]:
     """ExportToFile a Results report. CSV includes traces/labeled; may be stale.
 
     Family S11 uses GUI Export Data (one column per swept variable).
+    Optional path writes the CSV there. summarize={target_ghz, threshold_db}
+    adds per-trace band/FBW/edge flags. png=true renders a plot beside the CSV.
     """
     try:
-        return get_app().report_export(report_id)
+        return get_app().report_export(
+            report_id, path=path, summarize=summarize, png=png
+        )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
@@ -289,7 +299,12 @@ def parametric_create(
     setup: str | None = None,
     sweeps: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Create or edit an Optimetrics Parametric node. `variable` or `name`."""
+    """Create or edit an Optimetrics Parametric node. `variable` or `name`.
+
+    Cartesian: linear_step / linear_count / values per axis.
+    Explicit table: one entry {variation: "table", rows: [{l1: ..., l2: ...}, ...]}.
+    Table rows are zipped (not a product). Max 256 points.
+    """
     try:
         return get_app().parametric_create(name=name, setup=setup, sweeps=sweeps)
     except Exception as exc:  # noqa: BLE001
@@ -307,9 +322,24 @@ def parametric_start(name: str) -> dict[str, Any]:
 
 @mcp.tool()
 def parametric_export_table(name: str) -> dict[str, Any]:
-    """Export the parametric sweep table (ExportParametricSetupTable)."""
+    """Export the parametric sweep table (ExportParametricSetupTable).
+
+    Adds unswept allowlist values as context columns when this process created the setup.
+    """
     try:
         return get_app().parametric_export_table(name)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def solved_points_list(
+    source: str | None = None,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """List persisted solved (or failed) design points for this project/design."""
+    try:
+        return get_app().solved_points_list(source=source, limit=limit)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 

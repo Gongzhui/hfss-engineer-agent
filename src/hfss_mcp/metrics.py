@@ -301,7 +301,206 @@ def csv_export_summary(path: Path) -> dict[str, Any]:
         }
     if lowered[:2] == ["freq_ghz", "s11_db"]:
         return {"header": header, "traces": 1, "labeled": True, "format": "single"}
+    if lowered[:3] == ["freq_ghz", "re", "im"]:
+        return {"header": header, "traces": 1, "labeled": True, "format": "terminal_z"}
     return {"header": header, "traces": None, "labeled": False, "format": "raw"}
+
+
+def _band_containing(
+    freqs: list[float],
+    values: list[float],
+    *,
+    target: float,
+    threshold: float,
+) -> tuple[float, float] | None:
+    if not freqs:
+        return None
+    nearest_i = min(range(len(freqs)), key=lambda i: abs(freqs[i] - target))
+    if values[nearest_i] > threshold:
+        return None
+    lo = nearest_i
+    while lo > 0 and values[lo - 1] <= threshold:
+        lo -= 1
+    hi = nearest_i
+    while hi < len(values) - 1 and values[hi + 1] <= threshold:
+        hi += 1
+    return freqs[lo], freqs[hi]
+
+
+def summarize_modal_s_csv(
+    path: Path,
+    *,
+    target_ghz: float,
+    threshold_db: float = -10.0,
+) -> dict[str, Any]:
+    """Per-trace near-target / band / FBW / sweep-edge flags for Modal S CSVs."""
+    path = Path(path)
+    rows = list(csv.reader(path.read_text(encoding="utf-8", errors="replace").splitlines()))
+    if not rows:
+        return {"traces": []}
+    header = [cell.strip().lower() for cell in rows[0]]
+    series: dict[str, list[tuple[float, float]]] = {}
+    if header[:3] == ["freq_ghz", "variation", "s11_db"]:
+        for raw in rows[1:]:
+            if len(raw) < 3:
+                continue
+            try:
+                freq = float(raw[0])
+                db = float(raw[2])
+            except ValueError:
+                continue
+            series.setdefault(str(raw[1]), []).append((freq, db))
+    elif header[:2] == ["freq_ghz", "s11_db"]:
+        pts: list[tuple[float, float]] = []
+        for raw in rows[1:]:
+            if len(raw) < 2:
+                continue
+            try:
+                pts.append((float(raw[0]), float(raw[1])))
+            except ValueError:
+                continue
+        series["nominal"] = pts
+    else:
+        return {"traces": [], "note": "unsupported csv shape for modal_s summarize"}
+
+    out: list[dict[str, Any]] = []
+    for label, pts in series.items():
+        pts = sorted(pts, key=lambda item: item[0])
+        freqs = [p[0] for p in pts]
+        dbs = [p[1] for p in pts]
+        if not freqs:
+            continue
+        near_i = min(range(len(freqs)), key=lambda i: abs(freqs[i] - target_ghz))
+        band = _band_containing(freqs, dbs, target=target_ghz, threshold=threshold_db)
+        fbw = None
+        if band is not None and (band[0] + band[1]) != 0:
+            fbw = 2.0 * (band[1] - band[0]) / (band[1] + band[0])
+        min_i = min(range(len(dbs)), key=lambda i: dbs[i])
+        truncated = False
+        if band is not None:
+            truncated = abs(band[0] - freqs[0]) < 1e-9 or abs(band[1] - freqs[-1]) < 1e-9
+        out.append(
+            {
+                "variation": label,
+                "near_target_db": dbs[near_i],
+                "near_target_ghz": freqs[near_i],
+                "band_ghz": list(band) if band else None,
+                "fbw": fbw,
+                "min_db": dbs[min_i],
+                "min_ghz": freqs[min_i],
+                "band_truncated_by_sweep": truncated,
+                "touches_sweep_edge": truncated,
+                "sweep_ghz": [freqs[0], freqs[-1]],
+            }
+        )
+    return {
+        "target_ghz": target_ghz,
+        "threshold_db": threshold_db,
+        "traces": out,
+    }
+
+
+def summarize_terminal_z_csv(
+    path: Path,
+    *,
+    target_ghz: float,
+) -> dict[str, Any]:
+    path = Path(path)
+    rows = list(csv.reader(path.read_text(encoding="utf-8", errors="replace").splitlines()))
+    if not rows:
+        return {"points": []}
+    header = [cell.strip().lower() for cell in rows[0]]
+    if header[:3] != ["freq_ghz", "re", "im"]:
+        return {"points": [], "note": "unsupported csv shape for terminal_z summarize"}
+    pts: list[tuple[float, float, float]] = []
+    for raw in rows[1:]:
+        if len(raw) < 3:
+            continue
+        try:
+            pts.append((float(raw[0]), float(raw[1]), float(raw[2])))
+        except ValueError:
+            continue
+    if not pts:
+        return {"points": []}
+    near = min(pts, key=lambda item: abs(item[0] - target_ghz))
+    im_crossings = 0
+    for left, right in zip(pts, pts[1:], strict=False):
+        if left[2] == 0 or right[2] == 0 or (left[2] < 0) != (right[2] < 0):
+            if left[2] == 0 and right[2] == 0:
+                continue
+            im_crossings += 1
+    return {
+        "target_ghz": target_ghz,
+        "at_target": {"freq_ghz": near[0], "re": near[1], "im": near[2]},
+        "at_sweep_edges": {
+            "low": {"freq_ghz": pts[0][0], "re": pts[0][1], "im": pts[0][2]},
+            "high": {"freq_ghz": pts[-1][0], "re": pts[-1][1], "im": pts[-1][2]},
+        },
+        "im_zero_crossings": im_crossings,
+        "sweep_ghz": [pts[0][0], pts[-1][0]],
+    }
+
+
+def render_s11_png(path: Path, dest: Path, *, mark_ghz: float | None = None) -> Path:
+    """Best-effort PNG for Host Agent vision. Requires matplotlib."""
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise AdapterError(
+            "png export needs matplotlib in the hfss-mcp environment",
+            code="png_dependency_missing",
+        ) from exc
+
+    summary_shape = csv_export_summary(path)
+    rows = list(csv.reader(path.read_text(encoding="utf-8", errors="replace").splitlines()))
+    series: dict[str, list[tuple[float, float]]] = {}
+    fmt = summary_shape.get("format")
+    if fmt == "family":
+        for raw in rows[1:]:
+            if len(raw) < 3:
+                continue
+            try:
+                series.setdefault(str(raw[1]), []).append((float(raw[0]), float(raw[2])))
+            except ValueError:
+                continue
+    elif fmt == "single":
+        pts = []
+        for raw in rows[1:]:
+            if len(raw) < 2:
+                continue
+            try:
+                pts.append((float(raw[0]), float(raw[1])))
+            except ValueError:
+                continue
+        series["S11"] = pts
+    else:
+        raise AdapterError(
+            "png export only supports modal_s CSV shapes",
+            code="png_unsupported",
+        )
+
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(8.5, 4.8))
+    for label, pts in series.items():
+        pts = sorted(pts)
+        short = label if len(label) <= 56 else label[:53] + "..."
+        ax.plot([p[0] for p in pts], [p[1] for p in pts], lw=1.3, label=short)
+    if mark_ghz is not None:
+        ax.axvline(mark_ghz, color="#dc2626", ls="--", lw=1.0)
+    ax.axhline(-10.0, color="#6b7280", ls=":", lw=0.9)
+    ax.set_xlabel("GHz")
+    ax.set_ylabel("S11 (dB)")
+    ax.grid(True, alpha=0.3)
+    if 0 < len(series) <= 16:
+        ax.legend(fontsize=7, loc="best")
+    fig.tight_layout()
+    fig.savefig(dest, dpi=140)
+    plt.close(fig)
+    return dest
 
 
 def normalize_exported_report_csv(

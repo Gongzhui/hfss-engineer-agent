@@ -621,8 +621,13 @@ class LiveDesign:
         name: str,
         sim_setup: str,
         sweeps: list[dict[str, str]],
+        sync_indices: list[int] | None = None,
     ) -> dict[str, Any]:
-        """Insert or edit an OptiParametric setup under Optimetrics. Never delete."""
+        """Insert or edit an OptiParametric setup under Optimetrics. Never delete.
+
+        ``sync_indices`` (e.g. ``[0, 1, 2]``) asks HFSS to zip those sweeps
+        instead of taking their Cartesian product — used for explicit point tables.
+        """
         existing_names = {str(item.get("name") or "") for item in self.list_optimetrics()}
         reused = name in existing_names
         sweep_parts = []
@@ -636,12 +641,18 @@ class LiveDesign:
                 + "]"
             )
         sweeps_literal = "[" + ", ".join(sweep_parts) + "]"
+        sync = [int(x) for x in (sync_indices or [])]
+        if len(sync) >= 2:
+            sweep_ops = f"['NAME:Sweep Operations', 'Sync:=', {sync!r}]"
+        else:
+            sweep_ops = "['NAME:Sweep Operations']"
         raw = self._script(
             "\n".join(
                 [
                     f"name = {name!r}",
                     f"sim_setup = {sim_setup!r}",
                     f"sweep_defs = {sweeps_literal}",
+                    f"sweep_ops = {sweep_ops}",
                     f"reused = {reused!r}",
                     "opt = oDesign.GetModule('Optimetrics')",
                     "arg = [",
@@ -651,7 +662,7 @@ class LiveDesign:
                     "    ['NAME:StartingPoint'],",
                     "    'Sim. Setups:=', [sim_setup],",
                     "    ['NAME:Sweeps'] + sweep_defs,",
-                    "    ['NAME:Sweep Operations'],",
+                    "    sweep_ops,",
                     "    ['NAME:Goals'],",
                     "]",
                     "if reused:",
@@ -677,6 +688,7 @@ class LiveDesign:
             "setup_kind": "parametric",
             "sim_setup": sim_setup,
             "sweeps": sweeps,
+            "sync_indices": sync,
         }
 
     def export_parametric_table(self, name: str, dest: Path) -> Path:

@@ -269,6 +269,8 @@ class FakeAdapter:
         name: str,
         sim_setup: str,
         sweeps: list[dict[str, str]],
+        sync_indices: list[int] | None = None,
+        table_rows: list[dict[str, float]] | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             if not self._attached:
@@ -283,6 +285,8 @@ class FakeAdapter:
                 "variables": [item["variable"] for item in sweeps],
                 "sim_setup": sim_setup,
                 "sweeps": copy.deepcopy(sweeps),
+                "sync_indices": list(sync_indices or []),
+                "table_rows": copy.deepcopy(table_rows or []),
                 "created": existing is None,
                 "reused": existing is not None,
                 "edited": existing is not None,
@@ -307,9 +311,19 @@ class FakeAdapter:
                 )
             dest = Path(dest)
             dest.parent.mkdir(parents=True, exist_ok=True)
-            variables = rec.get("variables") or ["var"]
+            variables = list(rec.get("variables") or ["var"])
+            rows = list(rec.get("table_rows") or [])
             header = "*," + ",".join(str(v) for v in variables)
-            dest.write_text(header + "\n1,1.0\n", encoding="utf-8")
+            lines = [header]
+            if rows:
+                for index, row in enumerate(rows, start=1):
+                    cells = [str(index)]
+                    for var in variables:
+                        cells.append(str(row.get(var, "")))
+                    lines.append(",".join(cells))
+            else:
+                lines.append("1," + ",".join("1.0" for _ in variables))
+            dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
             rec["has_result"] = True
             return dest
 
