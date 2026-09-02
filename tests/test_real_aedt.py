@@ -262,3 +262,29 @@ def test_live_com_attach_snapshot_and_set(tmp_path: Path) -> None:
         ctx.close()
     still_after = {s["process_id"] for s in list_rot_sessions(version="2023.2")}
     assert pid_before & still_after, "closing AppContext must not quit AEDT"
+
+
+def test_live_session_list_and_snapshot_without_allowlist(tmp_path: Path) -> None:
+    if not _aedt_available():
+        pytest.skip("AEDT 2023 R2 not installed")
+    _ensure_user_style_desktop()
+    opened = _pick_open_sandbox()
+    project_name = str(opened.get("project_name") or "")
+    designs = [str(x) for x in (opened.get("designs") or []) if str(x).strip()]
+    design_name = designs[0] if designs else None
+    ctx = AppContext(data_dir=tmp_path / "hfss_mcp_data", use_fake=False)
+    try:
+        listed = ctx.session_list()
+        assert listed["ok"] is True
+        assert project_name in listed["open_projects"]
+        snap = ctx.snapshot()
+        assert snap["ok"] is True
+        assert snap["bound"]["project_name"] == project_name
+        assert snap["allowlist_loaded"] is False
+        attached = ctx.session_attach(
+            project_name=project_name,
+            design_name=design_name,
+        )
+        assert attached["bound"]["project_name"] == project_name
+    finally:
+        ctx.close()

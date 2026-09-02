@@ -21,7 +21,6 @@ from hfss_mcp.com_session import (
     list_com_projects,
     load_win32_client,
     normalize_aedt_version,
-    open_project_on_desktop,
 )
 from hfss_mcp.domain import ParameterValue, utc_now_iso
 from hfss_mcp.errors import AdapterError
@@ -1444,11 +1443,6 @@ def attach_live(
             if str(item.get("project_name") or "").lower() == target_name.lower():
                 match = item
                 break
-        if match is None and project_path and Path(project_path).is_file():
-            desktop = get_desktop(version=version, process_id=pid, create_if_missing=False)
-            opened = open_project_on_desktop(desktop, Path(project_path), design_name or "")
-            match = opened
-            target_name = str(opened.get("project_name") or target_name)
         if match is None:
             raise AdapterError(
                 f"Project {target_name!r} is not open in AEDT PID {pid}",
@@ -1456,6 +1450,8 @@ def attach_live(
                 details={
                     "project_name": target_name,
                     "open_projects": [p.get("project_name") for p in projects],
+                    "hint": "Open it in the GUI, or session_attach an already-open project. "
+                    "hfss-mcp will not reopen a closed file behind your back.",
                 },
             )
     else:

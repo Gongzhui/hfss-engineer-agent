@@ -94,10 +94,11 @@ cannot be resurrected.
 
 | Tool | Kind | Notes |
 |---|---|---|
-| `health` | read | Adapter + COM-visible sessions (does not launch AEDT) |
-| `session_list` | read | ROT desktops and open projects |
-| `allowlist_load` | policy | Slim JSON / old manifest / `case.json` |
-| `snapshot` | read | Variables, setups, identity. No screenshot |
+| `health` | read | Adapter + COM-visible sessions, `bound`, `open_projects` (does not launch AEDT) |
+| `session_list` | read | ROT desktops, open projects, GUI `active`, MCP `bound` |
+| `session_attach` | session | Bind to an already-open GUI project. Never reopens a closed file |
+| `allowlist_load` | policy | Slim JSON / old manifest / `case.json`. Live: that project must currently be open |
+| `snapshot` | read | Follows the GUI active project. Variables, setups, identity. No screenshot |
 | `variables_set` | mutate | Partial allowlisted update; `name` or `variable`; no solve; no save; returns `needs_solve` |
 | `analyze_start` / `analyze_status` / `analyze_cancel` | job | `ok` on start = accepted, not solved. Status includes Message Manager lines |
 | `report_types` / `report_list` / `report_create` / `report_export` | reports | List/create/export **Results** plots. After a parametric, pass `parametric` so that matrix is All and other swept vars stay Nominal. Omit / `families=[]` pins all known parametric vars. Reusing a name to apply families/pins → `report_exists`. `report_export` is GUI Export Data (`ExportToFile` 3rd arg False): variable columns become `variation`. Includes `traces`/`labeled`/`csv_format`; `stale_solution` if unsaved `variables_set`. `modal_s` is Modal `dB(S(1,1))`. `field_face` takes `face`, `frequency`, and `quantity` (`Mag_E` or `Mag_Jsurf`). |
@@ -118,7 +119,7 @@ Writable variables only: project/design identity, name/unit/min/max, optional de
 
 ## Safety model
 
-- Attaches the already-open COM Desktop. Will not start a second AEDT, and will not quit yours on MCP exit.
+- Attaches the already-open COM Desktop. Reads follow the GUI active project; `session_attach` switches bind. Will not reopen a closed file, start a second AEDT, or quit yours on MCP exit.
 - Writes only allowlisted variables. Does not insert designs, edit geometry, or autosave.
 - Analyze cancel will not kill the user's `ansysedt.exe`.
 - Policy rejections happen in code before mutation.

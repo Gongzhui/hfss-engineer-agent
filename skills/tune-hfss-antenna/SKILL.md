@@ -117,7 +117,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Tools
 
-`health` → `session_list` → `allowlist_load` → `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`；带宽题再对最优点 `report_create(report_type="terminal_z")` → `report_export`。钉点时 `variables_set`，随后再看模型。
+`health` → `session_list` → 必要时 `session_attach` → `allowlist_load`（必须对应当前打开的工程）→ `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`；带宽题再对最优点 `report_create(report_type="terminal_z")` → `report_export`。钉点时 `variables_set`，随后再看模型。
 
 白名单：考场用该目录 `allowlist.json`；否则 `cases/uwb_circular_notch/allowlist.json`。
 
@@ -131,8 +131,8 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Loop
 
-1. `health` / `session_list`。没有 Desktop 就让用户先打开工程。
-2. `allowlist_load`。`snapshot`。`variable_map` 抄约束；不熟则自己 `view_hide` / `view_capture`。
+1. `health` / `session_list`。看 `open_projects`、`active`、`bound`。没有 Desktop 就让用户先打开工程。用户换了工程时 MCP **不会**跟着去打开已关掉的文件；`snapshot` / 看图会跟 GUI 当前活动工程。若 `bound` 不是眼前这份，或返回了 `allowlist_dropped`，对 `open_projects` 里的名字调用 `session_attach(project_name=...)`。
+2. `allowlist_load` **必须**是当前打开工程的白名单。关掉上一份再打开下一份之后，旧白名单会被丢掉；改参会报 `allowlist_project_not_open` / `allowlist_not_loaded`。不要对已关闭工程的 allowlist 硬调。然后 `snapshot`。`variable_map` 抄约束；不熟则自己 `view_hide` / `view_capture`。
 3. 写清这一轮在调匹配还是相位，以及所处阶段。按上一节排出分组和采样；日志写入**本轮上下文向量**（全部白名单量当前值）和**覆盖表**（每个量至今试过的 min–max）。再 `parametric_create`（须在树上能看见；用导出表核对 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
 4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。用下面的画图脚本出 **PNG**（不要只出 SVG——宿主 `read` 往往读不了 SVG），**真正看图**，再写「图上看出了什么标量摘要里没有的东西」。带宽题对最优点导 `terminal_z` 并同样看图或读 R/X。
 5. 按阶段更新：侦察补覆盖；定性写作用与方向；联合收敛才正式钉死（带上下文）；该逃逸就逃逸。钉点时才 `variables_set`。**改完就看模型**。钉住之后如需单条曲线，再导出不含 family 的新报告。不要复用开场那张 `S11` 来「钉死」。

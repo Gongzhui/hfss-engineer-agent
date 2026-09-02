@@ -13,6 +13,7 @@ from hfss_mcp.environment import discover_aedt_installations_legacy
 PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "health",
     "session_list",
+    "session_attach",
     "allowlist_load",
     "snapshot",
     "variables_set",
@@ -84,9 +85,24 @@ def health() -> dict[str, Any]:
 
 @mcp.tool()
 def session_list() -> dict[str, Any]:
-    """List COM-visible Electronics Desktop sessions and open projects."""
+    """List COM-visible Desktops, open projects, the GUI active project, and MCP bind."""
     try:
         return get_app().session_list()
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def session_attach(
+    project_name: str | None = None,
+    design_name: str | None = None,
+) -> dict[str, Any]:
+    """Bind MCP to an already-open GUI project. Never reopens a closed file."""
+    try:
+        return get_app().session_attach(
+            project_name=project_name,
+            design_name=design_name,
+        )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
@@ -105,7 +121,7 @@ def allowlist_load(
 
 @mcp.tool()
 def snapshot() -> dict[str, Any]:
-    """JSON snapshot of the attached live design: variables, setups, identity. No screenshot."""
+    """JSON snapshot of the GUI active design (follows the open project). No screenshot."""
     try:
         return get_app().snapshot()
     except Exception as exc:  # noqa: BLE001

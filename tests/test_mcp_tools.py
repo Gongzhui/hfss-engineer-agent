@@ -23,6 +23,7 @@ from hfss_mcp.server import (
     report_export,
     report_list,
     report_types,
+    session_attach,
     session_list,
     set_app,
     snapshot,
@@ -70,6 +71,10 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
             allowlist=build_allowlist_for_tests(project).model_dump(mode="json", by_alias=True)
         )
         assert loaded["ok"] is True
+
+        attached = session_attach()
+        assert attached["ok"] is True
+        assert attached["bound"]["project_name"] == "ant"
 
         snap = snapshot()
         assert snap["ok"] is True

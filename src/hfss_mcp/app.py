@@ -196,6 +196,166 @@ class AppContext:
             return Path(have).resolve(strict=False) == Path(wanted).resolve(strict=False)
         return True
 
+    def _gui_projects(self) -> list[dict[str, Any]]:
+        if self.is_fake:
+            if self._fake is None or not getattr(self._fake, "_attached", False):
+                return []
+            return [
+                {
+                    "process_id": None,
+                    "project_name": self._fake._project_name,
+                    "designs": [self._fake._design_name],
+                    "project_file": str(self._fake._project_path),
+                    "is_active_project": True,
+                }
+            ]
+        try:
+            sessions = list_rot_sessions(version=self.config.aedt_version)
+        except Exception:
+            return []
+        out: list[dict[str, Any]] = []
+        for sess in sessions:
+            for item in sess.get("projects") or []:
+                rec = dict(item)
+                rec["process_id"] = sess.get("process_id")
+                out.append(rec)
+        return out
+
+    def _find_open_project(
+        self,
+        project_name: str | None,
+        project_path: str | None = None,
+    ) -> dict[str, Any] | None:
+        projects = self._gui_projects()
+        if project_name:
+            want = project_name.strip().lower()
+            for item in projects:
+                if str(item.get("project_name") or "").lower() == want:
+                    return item
+            if project_path:
+                stem = Path(project_path).stem.lower()
+                for item in projects:
+                    if str(item.get("project_name") or "").lower() == stem:
+                        return item
+            return None
+        active = next((item for item in projects if item.get("is_active_project")), None)
+        if active is not None:
+            return active
+        if len(projects) == 1:
+            return projects[0]
+        return None
+
+    def _drop_stale_live(self) -> None:
+        if self.is_fake or self._live is None:
+            return
+        if self._find_open_project(self._live.project_name, self._live.project_path) is None:
+            self._drop_session()
+
+    def _detach_stale_allowlist(self) -> str | None:
+        if self.is_fake or self._allowlist is None:
+            return None
+        if self._find_open_project(
+            self._allowlist.project_name, self._allowlist.project_path
+        ) is not None:
+            return None
+        dropped = self._allowlist.project_name
+        self._allowlist = None
+        return dropped
+
+    def _try_restore_allowlist(self) -> None:
+        if self._allowlist is not None or not self._persisted_allowlist_path:
+            return
+        try:
+            loaded = load_allowlist_file(self._persisted_allowlist_path)
+        except Exception:
+            return
+        if self.is_fake:
+            self._allowlist = loaded
+            return
+        if self._find_open_project(loaded.project_name, loaded.project_path) is None:
+            return
+        if self._live is not None:
+            self._allowlist = loaded
+            if not self._allowlist_matches_session(loaded):
+                self._allowlist = None
+            return
+        active = self._find_open_project(None)
+        active_name = str((active or {}).get("project_name") or "")
+        if active_name and active_name.lower() != loaded.project_name.lower():
+            return
+        self._allowlist = loaded
+
+    def _bound_public(self) -> dict[str, Any] | None:
+        if self.is_fake and self._fake is not None:
+            return {
+                "project_name": self._fake._project_name,
+                "design_name": self._fake._design_name,
+                "project_path": str(self._fake._project_path),
+            }
+        if self._live is None:
+            return None
+        return {
+            "project_name": self._live.project_name,
+            "design_name": self._live.design_name,
+            "project_path": self._live.project_path,
+            "process_id": self._live.process_id,
+        }
+
+    def _open_project_names(self) -> list[str]:
+        names: list[str] = []
+        for item in self._gui_projects():
+            name = str(item.get("project_name") or "").strip()
+            if name and name not in names:
+                names.append(name)
+        return names
+
+    def _attach_gui(
+        self,
+        *,
+        project_name: str | None = None,
+        design_name: str | None = None,
+    ) -> None:
+        target = self._find_open_project(project_name)
+        if target is None:
+            names = self._open_project_names()
+            if project_name:
+                raise AdapterError(
+                    f"Project {project_name!r} is not open. Open projects: {names or '(none)'}",
+                    code="project_not_open",
+                    details={"project_name": project_name, "open_projects": names},
+                )
+            if len(names) > 1:
+                raise AdapterError(
+                    "Multiple projects are open; pass project_name to session_attach",
+                    code="aedt_session_ambiguous",
+                    details={"open_projects": names},
+                )
+            sessions: list[Any] = []
+            try:
+                sessions = list_rot_sessions(version=self.config.aedt_version)
+            except Exception:
+                sessions = []
+            if not sessions:
+                raise AdapterError(
+                    "No COM-visible AEDT Desktop is running. Start Electronics Desktop "
+                    "and keep the project open, then retry. This server will not launch "
+                    "a second Desktop.",
+                    code="aedt_not_running",
+                )
+            raise AdapterError(
+                "AEDT is running but no project is open",
+                code="no_open_project",
+            )
+        designs = [str(x) for x in (target.get("designs") or []) if str(x).strip()]
+        chosen_design = design_name or (designs[0] if designs else None)
+        self._live = attach_live(
+            version=self.config.aedt_version,
+            process_id=target.get("process_id"),
+            project_name=str(target.get("project_name") or ""),
+            design_name=chosen_design,
+        )
+        self._restore_view_hidden()
+
     def health(self) -> dict[str, Any]:
         env = inspect_environment()
         preferred = env.preferred
@@ -206,6 +366,11 @@ class AppContext:
         )
         from hfss_mcp import __version__ as pkg_version
 
+        if not self.is_fake:
+            self._drop_stale_live()
+        self._try_restore_allowlist()
+        if not self.is_fake:
+            self._detach_stale_allowlist()
         rot = []
         if not self.is_fake:
             try:
@@ -225,6 +390,8 @@ class AppContext:
                 self._fake is not None and getattr(self._fake, "_attached", False)
             ),
             "gui_process_id": None if self._live is None else self._live.process_id,
+            "bound": self._bound_public(),
+            "open_projects": self._open_project_names(),
             "allowlist_loaded": self._allowlist is not None,
             "data_dir": str(self.data_dir),
             "environment": env.to_public_dict(),
@@ -238,16 +405,83 @@ class AppContext:
 
     def session_list(self) -> dict[str, Any]:
         if self.is_fake:
-            return {"ok": True, "connection_mode": "in_process_fake", "sessions": [], "count": 0}
+            return {
+                "ok": True,
+                "connection_mode": "in_process_fake",
+                "sessions": [],
+                "count": 0,
+                "bound": self._bound_public(),
+                "open_projects": self._open_project_names(),
+                "allowlist_loaded": self._allowlist is not None,
+            }
+        self._drop_stale_live()
+        self._try_restore_allowlist()
+        dropped = self._detach_stale_allowlist()
         rot = list_rot_sessions(version=self.config.aedt_version)
         discovery = discover_running_sessions(version=self.config.aedt_version)
-        return {
+        active = self._find_open_project(None)
+        payload: dict[str, Any] = {
             "ok": True,
             "connection_mode": "com_attach_live",
             "sessions": rot,
             "count": len(rot),
             "lock_discovery": discovery.to_public_dict(),
+            "bound": self._bound_public(),
+            "active": (
+                None
+                if active is None
+                else {
+                    "project_name": active.get("project_name"),
+                    "designs": active.get("designs") or [],
+                    "project_file": active.get("project_file") or active.get("project_path"),
+                    "process_id": active.get("process_id"),
+                }
+            ),
+            "open_projects": self._open_project_names(),
+            "allowlist_loaded": self._allowlist is not None,
         }
+        if dropped:
+            payload["allowlist_dropped"] = dropped
+            payload["note"] = (
+                f"allowlist was for {dropped!r}, which is no longer open. "
+                "session_attach the project in the GUI, then allowlist_load."
+            )
+        return payload
+
+    def session_attach(
+        self,
+        project_name: str | None = None,
+        design_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Bind MCP to an already-open GUI project. Never reopens a closed file."""
+        if self.is_fake:
+            self._ensure_session(write=True)
+            return {
+                "ok": True,
+                "bound": self._bound_public(),
+                "allowlist_loaded": self._allowlist is not None,
+                "open_projects": self._open_project_names(),
+                "note": "demo_fake has no GUI project switch",
+            }
+        self._drop_session()
+        self._attach_gui(project_name=project_name, design_name=design_name)
+        dropped = None
+        if self._allowlist is not None and not self._allowlist_matches_session(self._allowlist):
+            dropped = self._allowlist.project_name
+            self._allowlist = None
+        payload: dict[str, Any] = {
+            "ok": True,
+            "bound": self._bound_public(),
+            "allowlist_loaded": self._allowlist is not None,
+            "open_projects": self._open_project_names(),
+        }
+        if dropped:
+            payload["allowlist_dropped"] = dropped
+            payload["note"] = (
+                f"dropped allowlist for {dropped!r}; allowlist_load for "
+                f"{(self._bound_public() or {}).get('project_name')}"
+            )
+        return payload
 
     def allowlist_load(
         self,
@@ -260,6 +494,21 @@ class AppContext:
             loaded = load_allowlist_dict(allowlist)
         else:
             raise PolicyError("pass path or allowlist", code="allowlist_required")
+        if not self.is_fake:
+            self._drop_stale_live()
+            if self._find_open_project(loaded.project_name, loaded.project_path) is None:
+                names = self._open_project_names()
+                raise PolicyError(
+                    f"allowlist is for {loaded.project_name!r}, which is not open. "
+                    f"Open projects: {names or '(none)'}. "
+                    "Open that project in AEDT, or session_attach the GUI project "
+                    "and load its allowlist.",
+                    code="allowlist_project_not_open",
+                    details={
+                        "allowlist_project": loaded.project_name,
+                        "open_projects": names,
+                    },
+                )
         self._allowlist = loaded
         if path:
             self._persisted_allowlist_path = str(Path(path).resolve())
@@ -267,6 +516,11 @@ class AppContext:
         if not self._allowlist_matches_session(loaded):
             if self._live is not None or self._fake is not None:
                 self._drop_session()
+        if not self.is_fake and self._find_open_project(loaded.project_name, loaded.project_path):
+            self._attach_gui(
+                project_name=loaded.project_name,
+                design_name=loaded.design_name,
+            )
         return {
             "ok": True,
             "allowlist_id": loaded.allowlist_id(),
@@ -275,16 +529,15 @@ class AppContext:
             "parameters": [p.model_dump(by_alias=True) for p in loaded.parameters],
             "constraints": list(loaded.constraints),
             "default_setup": loaded.default_setup,
+            "bound": self._bound_public(),
+            "open_projects": self._open_project_names(),
         }
 
     def _require_allowlist(self) -> Allowlist:
-        if self._allowlist is None and self._persisted_allowlist_path:
-            # The MCP host may have restarted this process (idle timeout);
-            # silently reload the last allowlist instead of failing the call.
-            try:
-                self._allowlist = load_allowlist_file(self._persisted_allowlist_path)
-            except Exception:
-                pass
+        if not self.is_fake:
+            self._drop_stale_live()
+            self._detach_stale_allowlist()
+        self._try_restore_allowlist()
         if self._allowlist is None:
             raise PolicyError(
                 "load an allowlist first (allowlist_load)",
@@ -292,49 +545,86 @@ class AppContext:
             )
         return self._allowlist
 
-    def _ensure_session(self) -> None:
-        allowlist = self._require_allowlist()
-        if not self._allowlist_matches_session(allowlist):
-            self._drop_session()
-        if self.is_fake:
-            if self._fake is None:
-                self._fake = FakeAdapter(
-                    project_path=Path(allowlist.project_path)
+    def _ensure_session(self, *, write: bool = True) -> None:
+        if not self.is_fake:
+            self._drop_stale_live()
+            self._detach_stale_allowlist()
+        if write:
+            allowlist = self._require_allowlist()
+            if not self.is_fake:
+                hit = self._find_open_project(allowlist.project_name, allowlist.project_path)
+                if hit is None:
+                    names = self._open_project_names()
+                    raise PolicyError(
+                        f"allowlist project {allowlist.project_name!r} is not open. "
+                        f"Open projects: {names or '(none)'}. "
+                        "session_attach the GUI project, then allowlist_load.",
+                        code="allowlist_project_not_open",
+                        details={
+                            "allowlist_project": allowlist.project_name,
+                            "open_projects": names,
+                        },
+                    )
+            if not self._allowlist_matches_session(allowlist):
+                self._drop_session()
+            if self.is_fake:
+                if self._fake is None:
+                    self._fake = FakeAdapter(
+                        project_path=Path(allowlist.project_path)
+                        if allowlist.project_path
+                        else Path(r"C:\fake\projects") / f"{allowlist.project_name}.aedt",
+                        project_name=allowlist.project_name,
+                        design_name=allowlist.design_name,
+                        variables={
+                            p.name: ParameterValue(
+                                name=p.name,
+                                value=(p.min_value + p.max_value) / 2.0,
+                                unit=p.unit,
+                            )
+                            for p in allowlist.parameters
+                        },
+                        setups=[allowlist.default_setup or "Setup1"],
+                    )
+                path = (
+                    Path(allowlist.project_path)
                     if allowlist.project_path
-                    else Path(r"C:\fake\projects") / f"{allowlist.project_name}.aedt",
+                    else self._fake._project_path
+                )
+                if not path.is_file():
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b"FAKE_PROJECT\n")
+                self._fake.attach_project(path, allowlist.design_name)
+                self._restore_view_hidden()
+                return
+            if self._live is None:
+                self._attach_gui(
                     project_name=allowlist.project_name,
                     design_name=allowlist.design_name,
-                    variables={
-                        p.name: ParameterValue(
-                            name=p.name, value=(p.min_value + p.max_value) / 2.0, unit=p.unit
-                        )
-                        for p in allowlist.parameters
-                    },
-                    setups=[allowlist.default_setup or "Setup1"],
                 )
-            path = (
-                Path(allowlist.project_path)
-                if allowlist.project_path
-                else self._fake._project_path
-            )
-            if not path.is_file():
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b"FAKE_PROJECT\n")
-            self._fake.attach_project(path, allowlist.design_name)
-            self._restore_view_hidden()
             return
-        if self._live is not None:
+
+        if self.is_fake:
+            self._require_allowlist()
+            self._ensure_session(write=True)
             return
-        self._live = attach_live(
-            version=self.config.aedt_version,
-            project_name=allowlist.project_name,
-            design_name=allowlist.design_name,
-            project_path=allowlist.project_path,
-        )
-        self._restore_view_hidden()
+        self._follow_active_gui()
+        if self._allowlist is not None and self._live is not None:
+            if not self._allowlist_matches_session(self._allowlist):
+                self._allowlist = None
+
+    def _follow_active_gui(self) -> None:
+        if self.is_fake:
+            return
+        self._drop_stale_live()
+        active = self._find_open_project(None)
+        name = str((active or {}).get("project_name") or "")
+        if self._live is not None and (not name or self._live.project_name != name):
+            self._drop_session()
+        if self._live is None:
+            self._attach_gui()
 
     def snapshot(self) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         if self.is_fake:
             assert self._fake is not None
             snap = self._fake.snapshot()
@@ -342,17 +632,24 @@ class AppContext:
         else:
             assert self._live is not None
             payload = self._live.snapshot()
-        allowlist = self._require_allowlist()
-        if payload.get("design_name") and payload["design_name"] != allowlist.design_name:
-            raise PolicyError(
-                "attached design does not match allowlist",
-                code="design_identity_mismatch",
-                details={
-                    "expected": allowlist.design_name,
-                    "actual": payload.get("design_name"),
-                },
+        if self._allowlist is not None and not self._allowlist_matches_session(self._allowlist):
+            dropped = self._allowlist.project_name
+            self._allowlist = None
+        else:
+            dropped = None
+        out: dict[str, Any] = {
+            "ok": True,
+            "snapshot": payload,
+            "bound": self._bound_public(),
+            "allowlist_loaded": self._allowlist is not None,
+        }
+        if dropped:
+            out["allowlist_dropped"] = dropped
+            out["note"] = (
+                f"GUI project does not match allowlist {dropped!r}; "
+                "allowlist_load for the open project before mutations."
             )
-        return {"ok": True, "snapshot": payload}
+        return out
 
     def _solve_running(self) -> dict[str, Any] | None:
         with self._job_lock:
@@ -489,7 +786,7 @@ class AppContext:
         if self.is_fake:
             return
         try:
-            self._ensure_session()
+            self._ensure_session(write=False)
         except Exception:
             return
         if self._live is None:
@@ -721,7 +1018,7 @@ class AppContext:
         return self._live.list_optimetrics()
 
     def optimetrics_list(self) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         setups = self._optimetrics_setups()
         for item in setups:
             if item.get("variables"):
@@ -1057,7 +1354,7 @@ class AppContext:
         return extra
 
     def parametric_export_table(self, name: str) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         dest = self.artifacts_dir / f"{new_id('art_')}_parametric.csv"
         if self.is_fake:
             assert self._fake is not None
@@ -1103,7 +1400,7 @@ class AppContext:
         return DEFAULT_REPORT_NAMES.get(report_type, report_type)
 
     def report_list(self) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         if self.is_fake:
             assert self._fake is not None
             reports = self._fake.list_reports()
@@ -1293,7 +1590,7 @@ class AppContext:
         summarize: dict[str, Any] | bool | None = None,
         png: bool = False,
     ) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         rec = self._reports.get(report_id)
         listed_item: dict[str, Any] | None = None
         if self.is_fake:
@@ -1464,7 +1761,7 @@ class AppContext:
         cleaned = [str(x).strip() for x in names if str(x).strip()]
         if not cleaned:
             raise PolicyError("names must be non-empty", code="empty_parameters")
-        self._ensure_session()
+        self._ensure_session(write=False)
         if self.is_fake:
             self._view_hidden.update(cleaned)
             self._persist_view_hidden()
@@ -1495,7 +1792,7 @@ class AppContext:
                 "pass names or all_objects=true",
                 code="empty_parameters",
             )
-        self._ensure_session()
+        self._ensure_session(write=False)
         if self.is_fake:
             if all_objects:
                 shown = sorted(self._view_hidden)
@@ -1534,7 +1831,7 @@ class AppContext:
         fit: list[str] | None = None,
         isolate: list[str] | None = None,
     ) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         o = (orientation or "isometric").strip().lower()
         if o not in VIEW_ORIENTATIONS:
             raise PolicyError(
@@ -1611,7 +1908,7 @@ class AppContext:
         return {"ok": True, **payload}
 
     def project_save(self, mode: str = "save_as", path: str | None = None) -> dict[str, Any]:
-        self._ensure_session()
+        self._ensure_session(write=False)
         if mode not in {"save", "save_as"}:
             raise PolicyError("mode must be save or save_as", code="save_mode_invalid")
         if mode == "save_as" and not path:
