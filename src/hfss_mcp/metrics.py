@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import math
 import re
 from pathlib import Path
@@ -149,6 +150,20 @@ def _is_s11_header(header: str) -> bool:
     return "db(s(1,1))" in lowered or "db(s11)" in lowered or lowered == "s11_db"
 
 
+def _is_expression_header(header: str) -> bool:
+    """True for Y-trace headers like dB(S(1,1)) / cang_deg_val(S(1,1)), not swept vars."""
+    if _is_freq_header(header):
+        return False
+    lowered = (header or "").lower().strip()
+    if lowered in {"variation", "theta", "phi", "freq", "freq_ghz", "s11_db", "value", "re", "im"}:
+        return False
+    name, _unit = _header_name_unit(header)
+    compact = name.lower().replace(" ", "")
+    if "(" in compact and ")" in compact:
+        return True
+    return compact in {"s11_db", "value"}
+
+
 def _variation_value_columns(
     headers: list[str], freq_i: int
 ) -> list[tuple[int, str, str]]:
@@ -156,6 +171,8 @@ def _variation_value_columns(
     cols: list[tuple[int, str, str]] = []
     for index, header in enumerate(headers):
         if index == freq_i or _is_s11_header(header) or _is_freq_header(header):
+            continue
+        if _is_expression_header(header):
             continue
         lowered = header.lower()
         if lowered in {"variation", "theta", "phi"}:
@@ -303,6 +320,23 @@ def csv_export_summary(path: Path) -> dict[str, Any]:
         return {"header": header, "traces": 1, "labeled": True, "format": "single"}
     if lowered[:3] == ["freq_ghz", "re", "im"]:
         return {"header": header, "traces": 1, "labeled": True, "format": "terminal_z"}
+    if lowered[:3] == ["freq_ghz", "variation", "value"]:
+        labels = {row[1] for row in rows[1:] if len(row) >= 3}
+        return {
+            "header": header,
+            "traces": len(labels),
+            "labeled": True,
+            "format": "expression_family",
+        }
+    if lowered[:2] == ["freq_ghz", "value"]:
+        return {"header": header, "traces": 1, "labeled": True, "format": "expression"}
+    if lowered[:1] == ["freq_ghz"] and len(header) > 2:
+        return {
+            "header": header,
+            "traces": len(header) - 1,
+            "labeled": True,
+            "format": "multi",
+        }
     return {"header": header, "traces": None, "labeled": False, "format": "raw"}
 
 
@@ -503,15 +537,46 @@ def render_s11_png(path: Path, dest: Path, *, mark_ghz: float | None = None) -> 
     return dest
 
 
+def _is_classic_s11_db_header(header: str) -> bool:
+    lowered = (header or "").lower().replace(" ", "")
+    return "db(s(1,1))" in lowered or "db(s11)" in lowered or lowered == "s11_db"
+
+
+def _expression_columns(headers: list[str]) -> list[tuple[int, str]]:
+    """Y-expression columns: anything that looks like f(...), not Freq/vars."""
+    cols: list[tuple[int, str]] = []
+    for i, header in enumerate(headers):
+        if _is_freq_header(header):
+            continue
+        lowered = header.lower()
+        if lowered in {"variation", "theta", "phi"}:
+            continue
+        name, _unit = _header_name_unit(header)
+        compact = name.lower().replace(" ", "")
+        if "(" in compact and ")" in compact:
+            cols.append((i, name.strip() or header.strip()))
+            continue
+        if compact in {"s11_db", "value"}:
+            cols.append((i, name.strip() or "value"))
+    return cols
+
+
+def _csv_safe_header(text: str) -> str:
+    return re.sub(r"[,\n\r]+", " ", str(text)).strip() or "value"
+
+
 def normalize_exported_report_csv(
     path: Path,
     report_type: str | None = None,
     trace_names: list[str] | None = None,
+    expressions: list[str] | None = None,
 ) -> Path:
     """Rewrite a ReportSetup CSV into the Skill's stable columns when possible.
 
     Prefer the GUI Export Data table (one column per swept variable, then Freq,
     then the quantity). GetTraceNames is only a fallback for stacked dumps.
+    Classic single-trace dB(S(1,1)) keeps freq_ghz[,variation],s11_db. Other
+    expressions keep value / wide expression columns — never forced to s11_db.
     """
     path = Path(path)
     first_line = next(
@@ -528,16 +593,71 @@ def normalize_exported_report_csv(
         return _relabel_placeholder_variations(path, trace_names)
     if head[:2] == ["freq_ghz", "s11_db"] and "variation" not in lowered_head:
         return path
+    if lowered_head[:3] == ["freq_ghz", "re", "im"]:
+        return path
+    if lowered_head[:1] == ["freq_ghz"] and "value" in lowered_head:
+        return path
     headers, rows = parse_hfss_report_table(path)
     joined = " ".join(headers).lower()
     kind = report_type
-    if kind is None:
-        if "dB(S(1,1))".lower() in joined or "dB(S11)".lower() in joined:
+    expr_list = [str(x) for x in (expressions or []) if str(x).strip()]
+    header_exprs = _expression_columns(headers)
+    header_expr_names = [label for _i, label in header_exprs]
+
+    def _expr_base(label: str) -> str:
+        text = label.split(" - ", 1)[0].strip().lower().replace(" ", "")
+        return re.sub(r"\[\]$", "", text).strip()
+
+    # Prefer header shape over report_type guess: multi-Y or non-dB(S11) must not
+    # go through the classic s11_db path (phase columns used to be mistaken for
+    # swept variables). Same-base dB(S11) family columns stay on modal_s.
+    if len(header_exprs) > 1:
+        bases = {_expr_base(n) for n in header_expr_names}
+        if bases <= {"db(s(1,1))", "db(s11)"}:
             kind = "modal_s"
-        elif "re(z" in joined or "im(z" in joined:
+        elif bases == {"re(z(1,1))", "im(z(1,1))"} or bases == {
+            "re(zt(1,1))",
+            "im(zt(1,1))",
+        }:
+            kind = "terminal_z"
+        else:
+            kind = "curve_expr"
+            if not expr_list:
+                expr_list = header_expr_names
+    elif len(header_exprs) == 1 and not _is_classic_s11_db_header(header_expr_names[0]):
+        kind = "curve_expr"
+        if not expr_list:
+            expr_list = header_expr_names
+    elif kind in {None, "curve", "modal_s"}:
+        if "dB(S(1,1))".lower() in joined or "dB(S11)".lower() in joined:
+            if not expr_list or (
+                len(expr_list) == 1
+                and expr_list[0].lower().replace(" ", "") in {"db(s(1,1))", "db(s11)"}
+            ):
+                kind = "modal_s"
+        elif "re(z" in joined and "im(z" in joined:
             kind = "terminal_z"
         elif "theta" in joined or "gain" in joined:
             kind = "farfield_2d"
+        else:
+            kind = "curve"
+    # Non-classic modal expressions from explicit create args.
+    if kind in {"modal_s", "curve"} and expr_list:
+        classic_s11 = len(expr_list) == 1 and expr_list[0].lower().replace(" ", "") in {
+            "db(s(1,1))",
+            "db(s11)",
+        }
+        classic_z = {e.lower().replace(" ", "") for e in expr_list} == {
+            "re(z(1,1))",
+            "im(z(1,1))",
+        } or {e.lower().replace(" ", "") for e in expr_list} == {
+            "re(zt(1,1))",
+            "im(zt(1,1))",
+        }
+        if classic_z:
+            kind = "terminal_z"
+        elif not classic_s11:
+            kind = "curve_expr"
     if kind == "modal_s":
         freq_i = _col_index(headers, "freq")
         if freq_i is None:
@@ -627,6 +747,88 @@ def normalize_exported_report_csv(
                 safe = label.replace(",", " ")
                 lines.append(f"{freq:.6g},{safe},{row[db_i]:.6g}")
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
+    if kind == "curve_expr":
+        freq_i = _col_index(headers, "freq")
+        if freq_i is None:
+            freq_i = 0
+        unit = _header_unit(headers[freq_i] if headers else "", "GHz")
+        y_cols = _expression_columns(headers)
+        if not y_cols and expr_list:
+            # Fall back to trailing columns after Freq / vars.
+            for i, header in enumerate(headers):
+                if i == freq_i or _is_freq_header(header):
+                    continue
+                y_cols.append((i, _csv_safe_header(header)))
+        if not y_cols:
+            return path
+        var_cols = [
+            col
+            for col in _variation_value_columns(headers, freq_i)
+            if col[0] not in {i for i, _ in y_cols}
+        ]
+        # Drop false-positive variation cols that are actually expressions.
+        var_cols = [
+            col
+            for col in var_cols
+            if not _is_classic_s11_db_header(col[1])
+            and "(" not in col[1]
+        ]
+        if len(y_cols) == 1 and not var_cols:
+            lines = ["freq_ghz,value"]
+            yi = y_cols[0][0]
+            for row in rows:
+                if max(freq_i, yi) >= len(row):
+                    continue
+                lines.append(
+                    f"{_freq_to_ghz(row[freq_i], unit):.6g},{row[yi]:.6g}"
+                )
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return path
+        if len(y_cols) == 1 and var_cols:
+            yi = y_cols[0][0]
+            lines = ["freq_ghz,variation,value"]
+            for row in rows:
+                if max(freq_i, yi, max(c[0] for c in var_cols)) >= len(row):
+                    continue
+                tag = _combo_label(var_cols, row).replace(",", " ")
+                lines.append(
+                    f"{_freq_to_ghz(row[freq_i], unit):.6g},{tag},{row[yi]:.6g}"
+                )
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return path
+        # Wide multi-Y table (quote headers so S(1,1) commas survive).
+        y_headers = [str(label).strip() or "value" for _i, label in y_cols]
+        buf = io.StringIO()
+        writer = csv.writer(buf, lineterminator="\n")
+        if var_cols:
+            writer.writerow(["freq_ghz", "variation", *y_headers])
+            for row in rows:
+                needed = max(
+                    freq_i, max(c[0] for c in var_cols), max(i for i, _ in y_cols)
+                )
+                if needed >= len(row):
+                    continue
+                tag = _combo_label(var_cols, row).replace(",", " ")
+                writer.writerow(
+                    [
+                        f"{_freq_to_ghz(row[freq_i], unit):.6g}",
+                        tag,
+                        *[f"{row[i]:.6g}" for i, _ in y_cols],
+                    ]
+                )
+        else:
+            writer.writerow(["freq_ghz", *y_headers])
+            for row in rows:
+                if max(freq_i, max(i for i, _ in y_cols)) >= len(row):
+                    continue
+                writer.writerow(
+                    [
+                        f"{_freq_to_ghz(row[freq_i], unit):.6g}",
+                        *[f"{row[i]:.6g}" for i, _ in y_cols],
+                    ]
+                )
+        path.write_text(buf.getvalue(), encoding="utf-8")
         return path
     if kind == "terminal_z":
         freq_i = _col_index(headers, "freq")

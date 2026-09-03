@@ -19,8 +19,10 @@ from hfss_mcp.server import (
     parametric_export_table,
     parametric_start,
     project_save,
+    report_catalog,
     report_create,
     report_export,
+    report_get,
     report_list,
     report_types,
     session_attach,
@@ -113,7 +115,18 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         assert status["job"]["state"] == "completed"
 
         types = report_types()
-        assert any(item["id"] == "modal_s" for item in types["types"])
+        assert any(item["id"] == "curve" for item in types["types"])
+        assert any(item["id"] == "field_face" for item in types["types"])
+        cats = report_catalog()
+        assert cats["level"] == "category"
+        assert cats["categories"] == ["S Parameter", "Z Parameter"]
+        qtys = report_catalog(category="S Parameter")
+        assert qtys["level"] == "quantity"
+        assert "S(1,1)" in qtys["quantities"]
+        fns = report_catalog(category="S Parameter", quantity="S(1,1)")
+        assert fns["level"] == "function"
+        assert "dB" in fns["functions"]
+        assert "cang_deg" in fns["functions"]
         listed_empty = report_list()
         assert listed_empty["ok"] is True
         assert listed_empty["reports"] == []
@@ -123,6 +136,13 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         created = report_create(report_type="modal_s", setup="Setup1")
         assert created["report"]["name"] == "S11"
         assert created["report"]["in_results"] is True
+        assert created["report"]["expressions"] == ["dB(S(1,1))"]
+        assert created.get("deprecated_alias") is True
+        got = report_get("S11")
+        assert got["ok"] is True
+        assert got["report"]["expressions"] == ["dB(S(1,1))"]
+        assert got["report"]["quantities"] == ["S(1,1)"]
+        assert got["report"]["functions"] == ["dB"]
         listed = report_list()
         assert any(item["name"] == "S11" for item in listed["reports"])
         exported = report_export(created["report"]["report_id"])
@@ -130,6 +150,26 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         assert exported["csv_format"] == "single"
         assert exported["traces"] == 1
         assert Path(exported["path"]).is_file()
+        phase = report_create(
+            category="S Parameter",
+            quantity=["S(1,1)", "S(2,2)"],
+            function="cang_deg",
+            name="phase_diff",
+            setup="Setup1",
+        )
+        assert phase["ok"] is True
+        assert phase["report"]["expressions"] == [
+            "cang_deg(S(1,1))",
+            "cang_deg(S(2,2))",
+        ]
+        phase_out = report_export(phase["report"]["report_id"])
+        phase_header = Path(phase_out["path"]).read_text(encoding="utf-8").splitlines()[0]
+        assert "s11_db" not in phase_header
+        assert "cang_deg" in phase_header or phase_out["csv_format"] in {
+            "multi",
+            "expression",
+            "raw",
+        }
 
         pictured = view_capture()
         assert Path(pictured["path"]).is_file()

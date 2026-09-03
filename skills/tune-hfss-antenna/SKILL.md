@@ -117,7 +117,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Tools
 
-`health` → `session_list` → 必要时 `session_attach` → `allowlist_load`（必须对应当前打开的工程）→ `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告 `report_create(..., parametric=<该矩阵名>)` → `report_export`；带宽题再对最优点 `report_create(report_type="terminal_z")` → `report_export`。钉点时 `variables_set`，随后再看模型。
+`health` → `session_list` → 必要时 `session_attach` → `allowlist_load`（必须对应当前打开的工程）→ `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告：先 `report_catalog`（需要时逐层问 Category→Quantity→Function；Category 只有 S Parameter / Z Parameter），再 `report_create(category=..., quantity=..., function=..., parametric=<该矩阵名>)` → `report_export`。匹配默认 `S Parameter` + `S(1,1)` + `dB`；带宽题对最优点再 `Z Parameter` + `Z(1,1)` + `function=["re","im"]`。Quantity/Function 可多选（Y = 笛卡尔积）。读取已有图（含用户自建）用 `report_get(name)`。旧别名 `modal_s` / `terminal_z` 仍可用但不推荐。钉点时 `variables_set`，随后再看模型。
 
 白名单：考场用该目录 `allowlist.json`；否则 `cases/uwb_circular_notch/allowlist.json`。
 

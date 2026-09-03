@@ -10,6 +10,14 @@ from typing import Any
 from hfss_mcp.domain import DesignSnapshot, ParameterValue, utc_now_iso
 from hfss_mcp.errors import AdapterError
 from hfss_mcp.ids import sha256_hex
+from hfss_mcp.report_trace import (
+    CURVE_CATEGORIES,
+    MODAL_TRACE_FUNCTIONS,
+    compose_y_expressions,
+    expressions_to_trace_parts,
+    normalize_category,
+    parse_name_list,
+)
 
 
 class FakeAdapter:
@@ -119,27 +127,115 @@ class FakeAdapter:
         with self._lock:
             return [copy.deepcopy(item) for item in self._results_reports + self._field_overlays]
 
+    def get_report(self, name: str) -> dict[str, Any]:
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            rec = next((x for x in self._results_reports if x["name"] == name), None)
+            if rec is None:
+                raise AdapterError(
+                    f"report {name!r} is not under Results; create it first",
+                    code="report_not_in_results",
+                    details={"name": name},
+                )
+            expressions = list(rec.get("expressions") or [])
+            quantities, functions, cleaned = expressions_to_trace_parts(expressions)
+            return {
+                "name": name,
+                "report_id": name,
+                "in_results": True,
+                "tree": "Results",
+                "solution_data": "Modal Solution Data",
+                "display_type": "Rectangular Plot",
+                "solution": (
+                    f"{rec.get('setup') or 'Setup1'} : {rec.get('sweep') or 'Sweep'}"
+                    if rec.get("sweep")
+                    else f"{rec.get('setup') or 'Setup1'} : LastAdaptive"
+                ),
+                "category": rec.get("category"),
+                "quantities": quantities or list(rec.get("quantities") or []),
+                "functions": functions or list(rec.get("functions") or []),
+                "expressions": cleaned or expressions,
+                "traces": list(rec.get("traces") or cleaned or expressions),
+                "families": {
+                    var: ["All"] for var in (rec.get("family_variables") or [])
+                }
+                | {var: ["Nominal"] for var in (rec.get("nominal_variables") or [])},
+                "properties": {},
+                "trace_details": [],
+            }
+
+    def report_catalog(
+        self,
+        *,
+        category: str | None = None,
+        quantity: str | None = None,
+        setup: str = "Setup1",
+        sweep: str | None = None,
+    ) -> dict[str, Any]:
+        _ = setup, sweep
+        with self._lock:
+            if not self._attached:
+                raise AdapterError("no project attached", code="not_attached")
+            cat = normalize_category(category)
+            if cat is None:
+                return {"level": "category", "categories": list(CURVE_CATEGORIES)}
+            if cat not in CURVE_CATEGORIES:
+                raise AdapterError(
+                    f"category {category!r} is not allowed",
+                    code="report_category_unknown",
+                    details={"allowed": list(CURVE_CATEGORIES)},
+                )
+            quantities = (
+                ["S(1,1)", "S(1,2)", "S(2,1)", "S(2,2)"]
+                if cat == "S Parameter"
+                else ["Z(1,1)", "Z(1,2)", "Z(2,1)", "Z(2,2)"]
+            )
+            qty_anchor = str(quantity).strip() if quantity else ""
+            if not qty_anchor:
+                return {
+                    "level": "quantity",
+                    "category": cat,
+                    "quantities": quantities,
+                }
+            if qty_anchor not in quantities:
+                raise AdapterError(
+                    f"quantity {qty_anchor!r} is not available under {cat!r}",
+                    code="report_quantity_unknown",
+                    details={"category": cat, "allowed": quantities},
+                )
+            return {
+                "level": "function",
+                "category": cat,
+                "quantity": qty_anchor,
+                "functions": list(MODAL_TRACE_FUNCTIONS),
+            }
+
     def create_results_report(
         self,
         *,
-        report_type: str,
         name: str,
         setup: str,
         sweep: str | None,
+        category: str | None = None,
+        quantities: list[str] | None = None,
+        functions: list[str] | None = None,
         frequency: str | None = None,
         face: str | None = None,
         family_variables: list[str] | None = None,
         nominal_variables: list[str] | None = None,
         quantity: str | None = None,
+        report_type: str | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             if not self._attached:
                 raise AdapterError("no project attached", code="not_attached")
-            if report_type == "field_face":
+            kind = report_type or "curve"
+            if kind == "field_face":
                 rec = {
                     "name": name,
                     "report_id": name,
-                    "report_type": report_type,
+                    "report_type": kind,
                     "setup": setup,
                     "sweep": sweep,
                     "frequency": frequency,
@@ -158,6 +254,52 @@ class FakeAdapter:
                     return out
                 self._field_overlays.append(rec)
                 return copy.deepcopy(rec)
+            if kind == "farfield_2d":
+                family = [str(v) for v in (family_variables or []) if str(v).strip()]
+                nominal = [
+                    str(v)
+                    for v in (nominal_variables or [])
+                    if str(v).strip() and str(v).strip() not in family
+                ]
+                existing = next((x for x in self._results_reports if x["name"] == name), None)
+                if existing:
+                    return {
+                        **copy.deepcopy(existing),
+                        "created": False,
+                        "reused": True,
+                        "in_results": True,
+                    }
+                report_rec = {
+                    "name": name,
+                    "report_id": name,
+                    "report_type": "farfield_2d",
+                    "setup": setup,
+                    "sweep": sweep,
+                    "frequency": frequency,
+                    "in_results": True,
+                    "tree": "Results",
+                    "created": True,
+                    "reused": False,
+                    "family_variables": family,
+                    "nominal_variables": nominal,
+                    "families_applied": bool(family),
+                    "expressions": ["dB(GainTotal)"],
+                }
+                self._results_reports.append(report_rec)
+                return copy.deepcopy(report_rec)
+            cat = normalize_category(category)
+            if cat not in CURVE_CATEGORIES:
+                raise AdapterError(
+                    f"category {category!r} is not allowed",
+                    code="report_category_unknown",
+                    details={"allowed": list(CURVE_CATEGORIES)},
+                )
+            qty = parse_name_list(quantities if quantities is not None else quantity)
+            fns = parse_name_list(functions)
+            try:
+                expressions = compose_y_expressions(qty, fns)
+            except ValueError as exc:
+                raise AdapterError(str(exc), code="report_trace_args") from exc
             family = [str(v) for v in (family_variables or []) if str(v).strip()]
             nominal = [
                 str(v)
@@ -179,10 +321,15 @@ class FakeAdapter:
                     "reused": True,
                     "in_results": True,
                 }
+            primary = expressions[0]
             report_rec: dict[str, Any] = {
                 "name": name,
                 "report_id": name,
-                "report_type": report_type,
+                "report_type": kind,
+                "category": cat,
+                "quantities": qty,
+                "functions": fns,
+                "expressions": expressions,
                 "setup": setup,
                 "sweep": sweep,
                 "frequency": frequency,
@@ -195,8 +342,8 @@ class FakeAdapter:
                 "families_applied": bool(family),
                 "traces": (
                     [
-                        f"dB(S(1,1)) [] - {family[0]}='lo'",
-                        f"dB(S(1,1)) [] - {family[0]}='hi'",
+                        f"{primary} [] - {family[0]}='lo'",
+                        f"{primary} [] - {family[0]}='hi'",
                     ]
                     if family
                     else []
@@ -211,6 +358,7 @@ class FakeAdapter:
         dest: Path,
         *,
         report_type: str | None = None,
+        expressions: list[str] | None = None,
     ) -> Path:
         with self._lock:
             rec = next((x for x in self._results_reports if x["name"] == name), None)
@@ -227,21 +375,41 @@ class FakeAdapter:
             if kind == "field_face":
                 dest.write_bytes(b"\xff\xd8\xff\xd9")
                 return dest
+            exprs = list(
+                expressions
+                or (rec or {}).get("expressions")
+                or ["dB(S(1,1))"]
+            )
             families = list((rec or {}).get("family_variables") or [])
-            if kind == "terminal_z":
-                dest.write_text("freq_ghz,re,im\n1.0,40.0,12.0\n2.4,50.0,2.0\n", encoding="utf-8")
-            elif kind == "farfield_2d":
+            if kind == "farfield_2d":
                 dest.write_text(
                     "theta_deg,db_gain_total\n-180,-12.0\n0,5.0\n180,-12.0\n",
                     encoding="utf-8",
                 )
-            elif families:
-                # GUI Export Data, Separate Columns unchecked: one column per var.
-                combo_lo = {var: 10.0 if index == 0 else 11.0 for index, var in enumerate(families)}
-                combo_hi = {var: 11.0 if index == 0 else 13.0 for index, var in enumerate(families)}
+                return dest
+            if (
+                len(exprs) == 2
+                and {e.lower().replace(" ", "") for e in exprs}
+                == {"re(z(1,1))", "im(z(1,1))"}
+            ):
+                dest.write_text(
+                    "freq_ghz,re,im\n1.0,40.0,12.0\n2.4,50.0,2.0\n",
+                    encoding="utf-8",
+                )
+                return dest
+            if families and len(exprs) == 1 and exprs[0].lower().replace(" ", "") in {
+                "db(s(1,1))",
+                "db(s11)",
+            }:
+                combo_lo = {
+                    var: 10.0 if index == 0 else 11.0 for index, var in enumerate(families)
+                }
+                combo_hi = {
+                    var: 11.0 if index == 0 else 13.0 for index, var in enumerate(families)
+                }
                 header = [f"{var} [mm]" for var in families] + [
                     "Freq [GHz]",
-                    "dB(S(1,1)) []",
+                    f"{exprs[0]} []",
                 ]
                 freqs = (1.0, 2.4, 3.0)
                 dbs = ((-5.0, -12.0, -8.0), (-4.0, -9.0, -7.0))
@@ -252,11 +420,23 @@ class FakeAdapter:
                         cells.extend([str(freq), str(db)])
                         lines.append(",".join(cells))
                 dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            else:
+                return dest
+            if len(exprs) == 1 and exprs[0].lower().replace(" ", "") in {
+                "db(s(1,1))",
+                "db(s11)",
+            }:
                 dest.write_text(
                     "freq_ghz,s11_db\n1.0,-5.0\n2.4,-12.0\n3.0,-8.0\n",
                     encoding="utf-8",
                 )
+                return dest
+            # Generic modal export: Freq + one column per expression.
+            header = ["Freq [GHz]"] + [f"{expr} []" for expr in exprs]
+            lines = [",".join(f'"{item}"' for item in header)]
+            for freq, value in ((1.0, -5.0), (2.4, -12.0), (3.0, -8.0)):
+                cells = [str(freq)] + [str(value + index) for index, _ in enumerate(exprs)]
+                lines.append(",".join(cells))
+            dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
             return dest
 
     def list_optimetrics(self) -> list[dict[str, Any]]:

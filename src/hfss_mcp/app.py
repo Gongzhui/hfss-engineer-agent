@@ -40,6 +40,12 @@ from hfss_mcp.metrics import (
     summarize_modal_s_csv,
     summarize_terminal_z_csv,
 )
+from hfss_mcp.report_trace import (
+    CURVE_CATEGORIES,
+    compose_y_expressions,
+    normalize_category,
+    parse_name_list,
+)
 from hfss_mcp.session_discovery import discover_running_sessions
 from hfss_mcp.sweeps import cartesian_from_axes, expand_table_rows, lin_values, linc_values
 
@@ -1378,6 +1384,37 @@ class AppContext:
     def report_types(self) -> dict[str, Any]:
         return {"ok": True, "types": REPORT_TYPES}
 
+    def report_catalog(
+        self,
+        *,
+        category: str | None = None,
+        quantity: str | None = None,
+        setup: str | None = None,
+        sweep: str | None = None,
+    ) -> dict[str, Any]:
+        """Progressive Category → Quantity → Function (returns only the next level)."""
+        allowlist = self._require_allowlist()
+        self._ensure_session(write=False)
+        setup_name = setup or allowlist.default_setup or "Setup1"
+        sweep_name = sweep or allowlist.default_sweep
+        if self.is_fake:
+            assert self._fake is not None
+            payload = self._fake.report_catalog(
+                category=category,
+                quantity=quantity,
+                setup=setup_name,
+                sweep=sweep_name,
+            )
+        else:
+            assert self._live is not None
+            payload = self._live.report_catalog(
+                category=category,
+                quantity=quantity,
+                setup=setup_name,
+                sweep=sweep_name,
+            )
+        return {"ok": True, **payload}
+
     def _default_report_name(
         self,
         report_type: str,
@@ -1386,6 +1423,8 @@ class AppContext:
         face: str | None,
         frequency: str | None,
         quantity: str | None = None,
+        category: str | None = None,
+        expressions: list[str] | None = None,
     ) -> str:
         if name:
             return name
@@ -1397,6 +1436,11 @@ class AppContext:
         if report_type == "farfield_2d" and frequency:
             freq_part = re.sub(r"[^\w]+", "_", str(frequency)).strip("_")
             return f"{DEFAULT_REPORT_NAMES['farfield_2d']}_{freq_part}"
+        if expressions:
+            joined = "_".join(expressions[:2])
+            return re.sub(r"[^\w]+", "_", joined).strip("_")[:48] or "Trace"
+        if category:
+            return DEFAULT_REPORT_NAMES.get(category, "Trace")
         return DEFAULT_REPORT_NAMES.get(report_type, report_type)
 
     def report_list(self) -> dict[str, Any]:
@@ -1408,6 +1452,24 @@ class AppContext:
             assert self._live is not None
             reports = self._live.list_reports()
         return {"ok": True, "reports": reports}
+
+    def report_get(self, name: str) -> dict[str, Any]:
+        """Full settings for an existing Results report (MCP- or user-created)."""
+        self._ensure_session(write=False)
+        report_name = str(name or "").strip()
+        if not report_name:
+            raise PolicyError("report name is required", code="report_name_required")
+        if self.is_fake:
+            assert self._fake is not None
+            report = self._fake.get_report(report_name)
+        else:
+            assert self._live is not None
+            report = self._live.get_report(report_name)
+        # Keep a thin cache so later export can reuse expressions.
+        cached = self._reports.get(report_name) or {}
+        merged = {**cached, **report}
+        self._reports[report_name] = merged
+        return {"ok": True, "report": merged}
 
     def _known_parametric_variable_names(self) -> list[str]:
         seen: list[str] = []
@@ -1486,8 +1548,11 @@ class AppContext:
 
     def report_create(
         self,
-        report_type: str,
+        report_type: str | None = None,
         *,
+        category: str | None = None,
+        quantity: str | list[str] | None = None,
+        function: str | list[str] | None = None,
         name: str | None = None,
         setup: str | None = None,
         sweep: str | None = None,
@@ -1495,63 +1560,51 @@ class AppContext:
         frequency: str | None = None,
         families: list[str] | None = None,
         parametric: str | None = None,
-        quantity: str | None = None,
     ) -> dict[str, Any]:
         self._guard_no_solve("report_create")
-        known = {item["id"] for item in REPORT_TYPES}
-        if report_type not in known:
-            raise PolicyError(
-                f"unknown report type {report_type!r}",
-                code="report_type_unknown",
-                details={"allowed": sorted(known)},
-            )
         allowlist = self._require_allowlist()
-        field_quantity = "Mag_E"
-        if report_type == "field_face":
+        deprecated_alias = False
+        kind = str(report_type or "").strip() or None
+        cat = normalize_category(category)
+        quantities = parse_name_list(quantity)
+        functions = parse_name_list(function)
+
+        if kind == "field_face":
             if not face or not frequency:
                 raise PolicyError(
                     "field_face needs face and frequency",
                     code="field_export_args",
                 )
-            field_quantity = quantity or "Mag_E"
+            field_quantity = (quantities[0] if quantities else None) or "Mag_E"
             if field_quantity not in FIELD_QUANTITIES:
                 raise PolicyError(
                     f"unknown field quantity {field_quantity!r}",
                     code="field_quantity_unknown",
                     details={"allowed": sorted(FIELD_QUANTITIES)},
                 )
-        self._ensure_session()
-        report_name = self._default_report_name(
-            report_type,
-            name=name,
-            face=face,
-            frequency=frequency,
-            quantity=field_quantity if report_type == "field_face" else None,
-        )
-        setup_name = setup or allowlist.default_setup or "Setup1"
-        sweep_name = sweep or allowlist.default_sweep
-        family_variables: list[str] = []
-        nominal_variables: list[str] = []
-        if report_type != "field_face":
-            family_variables, nominal_variables = self._report_variation_plan(
-                families=families, parametric=parametric
-            )
-        if self.is_fake:
-            assert self._fake is not None
-            rec = self._fake.create_results_report(
-                report_type=report_type,
-                name=report_name,
-                setup=setup_name,
-                sweep=sweep_name,
-                frequency=frequency,
+            self._ensure_session()
+            report_name = self._default_report_name(
+                "field_face",
+                name=name,
                 face=face,
-                family_variables=family_variables,
-                nominal_variables=nominal_variables,
-                quantity=field_quantity if report_type == "field_face" else None,
+                frequency=frequency,
+                quantity=field_quantity,
             )
-        else:
-            assert self._live is not None
-            if report_type == "field_face":
+            setup_name = setup or allowlist.default_setup or "Setup1"
+            sweep_name = sweep or allowlist.default_sweep
+            if self.is_fake:
+                assert self._fake is not None
+                rec = self._fake.create_results_report(
+                    report_type="field_face",
+                    name=report_name,
+                    setup=setup_name,
+                    sweep=sweep_name,
+                    frequency=frequency,
+                    face=face,
+                    quantity=field_quantity,
+                )
+            else:
+                assert self._live is not None
                 rec = self._live.create_field_overlay(
                     name=report_name,
                     face=str(face),
@@ -1560,9 +1613,31 @@ class AppContext:
                     sweep=sweep_name,
                     quantity=field_quantity,
                 )
-            else:
-                rec = self._live.create_results_report(
-                    report_type=report_type,
+            rec["report_id"] = rec.get("name") or report_name
+            rec["report_type"] = "field_face"
+            rec["face"] = face
+            rec["frequency"] = frequency
+            rec["quantity"] = field_quantity
+            self._reports[str(rec["report_id"])] = rec
+            return {"ok": True, "report": rec}
+
+        if kind == "farfield_2d":
+            self._ensure_session()
+            setup_name = setup or allowlist.default_setup or "Setup1"
+            sweep_name = sweep or allowlist.default_sweep
+            family_variables, nominal_variables = self._report_variation_plan(
+                families=families, parametric=parametric
+            )
+            report_name = self._default_report_name(
+                "farfield_2d",
+                name=name,
+                face=face,
+                frequency=frequency,
+            )
+            if self.is_fake:
+                assert self._fake is not None
+                rec = self._fake.create_results_report(
+                    report_type="farfield_2d",
                     name=report_name,
                     setup=setup_name,
                     sweep=sweep_name,
@@ -1570,17 +1645,138 @@ class AppContext:
                     family_variables=family_variables,
                     nominal_variables=nominal_variables,
                 )
-        rec["report_id"] = rec.get("name") or report_name
-        rec["report_type"] = report_type
-        rec["face"] = face
-        rec["frequency"] = frequency
-        if report_type != "field_face":
+            else:
+                assert self._live is not None
+                rec = self._live.create_farfield_report(
+                    name=report_name,
+                    setup=setup_name,
+                    sweep=sweep_name,
+                    frequency=frequency,
+                    family_variables=family_variables,
+                    nominal_variables=nominal_variables,
+                )
+            rec["report_id"] = rec.get("name") or report_name
+            rec["report_type"] = "farfield_2d"
+            rec["face"] = face
+            rec["frequency"] = frequency
             rec["family_variables"] = list(rec.get("family_variables") or family_variables)
             rec["nominal_variables"] = list(rec.get("nominal_variables") or nominal_variables)
-        if report_type == "field_face":
-            rec["quantity"] = field_quantity
+            self._reports[str(rec["report_id"])] = rec
+            return {"ok": True, "report": rec}
+
+        # Deprecated aliases keep exams/Skill working while agents migrate.
+        if kind == "modal_s":
+            deprecated_alias = True
+            cat = cat or "S Parameter"
+            if not quantities:
+                quantities = ["S(1,1)"]
+            if not functions:
+                functions = ["dB"]
+            if name is None:
+                name = "S11"
+            kind = "curve"
+        elif kind == "terminal_z":
+            deprecated_alias = True
+            cat = cat or "Z Parameter"
+            if not quantities:
+                quantities = ["Z(1,1)"]
+            if not functions:
+                functions = ["re", "im"]
+            if name is None:
+                name = "Z11"
+            kind = "curve"
+        elif kind in {None, "curve", ""}:
+            kind = "curve"
+        elif kind not in {item["id"] for item in REPORT_TYPES}:
+            raise PolicyError(
+                f"unknown report type {report_type!r}; "
+                "use category/quantity/function via report_catalog",
+                code="report_type_unknown",
+                details={"allowed": [item["id"] for item in REPORT_TYPES] + ["modal_s", "terminal_z"]},
+            )
+
+        if cat not in CURVE_CATEGORIES:
+            raise PolicyError(
+                "curve reports need category ('S Parameter' or 'Z Parameter'); "
+                "call report_catalog() first",
+                code="report_category_required",
+                details={"allowed": list(CURVE_CATEGORIES)},
+            )
+        if not quantities or not functions:
+            raise PolicyError(
+                "curve reports need quantity and function "
+                "(lists allowed; Y = function × quantity)",
+                code="report_trace_args",
+                details={"category": cat},
+            )
+        try:
+            expressions = compose_y_expressions(quantities, functions)
+        except ValueError as exc:
+            raise PolicyError(str(exc), code="report_trace_args") from exc
+
+        self._ensure_session()
+        setup_name = setup or allowlist.default_setup or "Setup1"
+        sweep_name = sweep or allowlist.default_sweep
+        family_variables, nominal_variables = self._report_variation_plan(
+            families=families, parametric=parametric
+        )
+        report_name = self._default_report_name(
+            kind,
+            name=name,
+            face=face,
+            frequency=frequency,
+            category=cat,
+            expressions=expressions,
+        )
+        if self.is_fake:
+            assert self._fake is not None
+            rec = self._fake.create_results_report(
+                report_type=kind,
+                name=report_name,
+                setup=setup_name,
+                sweep=sweep_name,
+                frequency=frequency,
+                category=cat,
+                quantities=quantities,
+                functions=functions,
+                family_variables=family_variables,
+                nominal_variables=nominal_variables,
+            )
+        else:
+            assert self._live is not None
+            rec = self._live.create_results_report(
+                name=report_name,
+                setup=setup_name,
+                sweep=sweep_name,
+                frequency=frequency,
+                category=cat,
+                quantities=quantities,
+                functions=functions,
+                family_variables=family_variables,
+                nominal_variables=nominal_variables,
+                report_type=kind,
+            )
+        rec["report_id"] = rec.get("name") or report_name
+        rec["report_type"] = kind
+        rec["category"] = cat
+        rec["quantities"] = quantities
+        rec["functions"] = functions
+        rec["expressions"] = list(rec.get("expressions") or expressions)
+        rec["face"] = face
+        rec["frequency"] = frequency
+        rec["family_variables"] = list(rec.get("family_variables") or family_variables)
+        rec["nominal_variables"] = list(rec.get("nominal_variables") or nominal_variables)
+        if deprecated_alias:
+            rec["deprecated_alias"] = True
         self._reports[str(rec["report_id"])] = rec
-        return {"ok": True, "report": rec}
+        out: dict[str, Any] = {"ok": True, "report": rec}
+        if deprecated_alias:
+            out["deprecated_alias"] = True
+            out["note"] = (
+                "report_type aliases modal_s/terminal_z are deprecated; "
+                "prefer category/quantity/function from report_catalog"
+            )
+        return out
 
     def report_export(
         self,
@@ -1629,21 +1825,44 @@ class AppContext:
             self._reports[listed_name] = out
             return {"ok": True, "report": out, "path": str(dest), "format": "image"}
         dest = self._resolve_export_path(path, suffix=".csv", default=str(kind or "report"))
+        expressions = list(
+            (rec or {}).get("expressions")
+            or listed_item.get("expressions")
+            or []
+        )
+        if not expressions and not is_overlay:
+            try:
+                inspected = self.report_get(listed_name)["report"]
+                expressions = list(inspected.get("expressions") or [])
+                if inspected.get("report_type") and not kind:
+                    kind = inspected.get("report_type")
+                if inspected.get("category") and kind in {None, "curve"}:
+                    kind = "curve"
+                rec = {**(rec or {}), **inspected}
+            except Exception:
+                pass
         if self.is_fake:
             assert self._fake is not None
             dest = self._fake.export_results_report(
-                listed_name, dest, report_type=kind
+                listed_name,
+                dest,
+                report_type=kind,
+                expressions=expressions,
             )
         else:
             assert self._live is not None
             dest = self._live.export_results_report(
-                listed_name, dest, report_type=kind
+                listed_name,
+                dest,
+                report_type=kind,
+                expressions=expressions,
             )
         if dest.suffix.lower() == ".csv":
             dest = normalize_exported_report_csv(
                 dest,
                 kind,
                 trace_names=list(listed_item.get("traces") or []),
+                expressions=expressions,
             )
         dest = self._copy_if_requested(dest, path, suffix=".csv")
         out = rec or {

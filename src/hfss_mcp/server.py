@@ -21,7 +21,9 @@ PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "analyze_status",
     "analyze_cancel",
     "report_types",
+    "report_catalog",
     "report_list",
+    "report_get",
     "report_create",
     "report_export",
     "view_hide",
@@ -166,9 +168,28 @@ def analyze_cancel(job_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 def report_types() -> dict[str, Any]:
-    """Finite HFSS report-type catalog (details live in the Skill)."""
+    """Surfaces: curve via report_catalog, or field_face. Keep this list short."""
     try:
         return get_app().report_types()
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+def report_catalog(
+    category: str | None = None,
+    quantity: str | None = None,
+    setup: str | None = None,
+    sweep: str | None = None,
+) -> dict[str, Any]:
+    """Progressive Category → Quantity → Function. Returns only the next level."""
+    try:
+        return get_app().report_catalog(
+            category=category,
+            quantity=quantity,
+            setup=setup,
+            sweep=sweep,
+        )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
@@ -183,8 +204,20 @@ def report_list() -> dict[str, Any]:
 
 
 @mcp.tool()
+def report_get(name: str) -> dict[str, Any]:
+    """Read full settings of an existing Results report (incl. user-created)."""
+    try:
+        return get_app().report_get(name)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
 def report_create(
-    report_type: str,
+    report_type: str | None = None,
+    category: str | None = None,
+    quantity: str | list[str] | None = None,
+    function: str | list[str] | None = None,
     name: str | None = None,
     setup: str | None = None,
     sweep: str | None = None,
@@ -192,12 +225,18 @@ def report_create(
     frequency: str | None = None,
     families: list[str] | None = None,
     parametric: str | None = None,
-    quantity: str | None = None,
 ) -> dict[str, Any]:
-    """Create a Results or Field Overlays plot. Pick a new name to apply families."""
+    """Create a Results plot. Curves: category + quantity + function (both multi-ok).
+
+    quantity/function may be a string or list; Y = cartesian Function × Quantity.
+    Call report_catalog first. field_face still uses report_type + face + frequency.
+    """
     try:
         return get_app().report_create(
             report_type,
+            category=category,
+            quantity=quantity,
+            function=function,
             name=name,
             setup=setup,
             sweep=sweep,
@@ -205,7 +244,6 @@ def report_create(
             frequency=frequency,
             families=families,
             parametric=parametric,
-            quantity=quantity,
         )
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
