@@ -7,6 +7,8 @@ import json
 import re
 import shutil
 import threading
+import time
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +90,10 @@ class AppContext:
         self._job_lock = threading.RLock()
         self._reports: dict[str, dict[str, Any]] = {}
         self._analyze_thread: threading.Thread | None = None
+        self._owned_job_ids: set[str] = set()
+        self._progress_thread: threading.Thread | None = None
+        self._progress_job_id: str | None = None
+        self._next_progress_refresh = 0.0
         self._parametric_vars: dict[str, list[str]] = {}
         self._parametric_meta: dict[str, dict[str, Any]] = {}
         self._variables_dirty: bool = False
@@ -764,6 +770,9 @@ class AppContext:
             rec["context"] = dict(context)
         if rows is not None:
             rec["rows"] = [dict(row) for row in rows]
+        if self._live is not None:
+            rec["process_id"] = self._live.process_id
+        self._owned_job_ids.add(str(rec["job_id"]))
         return rec
 
     def _finish_job(
@@ -775,11 +784,19 @@ class AppContext:
         geometry_failed: bool = False,
         messages: list[str] | None = None,
     ) -> None:
+        if state == JobState.COMPLETED.value and messages:
+            failure = failure_message_for_setup(messages, str(rec.get("setup") or ""))
+            if not failure and rec.get("kind") == "parametric":
+                failure = crash_message(messages)
+            if failure:
+                state = JobState.FAILED.value
+                error = {"code": "hfss_message", "message": failure}
         rec["state"] = state
         rec["finished_at"] = utc_now_iso()
         rec["error"] = error
         if messages:
             rec["messages"] = list(messages)[-8:]
+            rec["messages_updated_at"] = utc_now_iso()
         if geometry_failed:
             rec["geometry_failed"] = True
         if state in {JobState.COMPLETED.value, JobState.FAILED.value}:
@@ -787,47 +804,66 @@ class AppContext:
         self._persist_jobs()
 
     def _reconcile_running_job(self, rec: dict[str, Any]) -> None:
-        if rec.get("state") != JobState.RUNNING.value:
-            return
+        """Refresh a restored job from disk only; never enter AEDT from a poll.
+
+        GUI discovery shares the RunScript lock held throughout a solve. Even
+        direct COM can stall. has_result also means *partial/old* results, not
+        completion. Only the owning solve worker publishes terminal state.
+        """
+        job_id = str(rec["job_id"])
+        if rec.get("state") == JobState.RUNNING.value and job_id not in self._owned_job_ids:
+            restored = self._ledger.load_jobs().get(job_id)
+            if restored is not None:
+                with self._job_lock:
+                    rec.update(restored)
+
+    def _request_progress_refresh(self, rec: dict[str, Any]) -> None:
+        """At most one background COM read, even if that read never returns."""
+        live = self._live
         if self.is_fake:
             return
-        try:
-            self._ensure_session(write=False)
-        except Exception:
+        if not rec.get("project") or not rec.get("design"):
             return
-        if self._live is None:
-            return
-        try:
-            messages = self._live.read_messages(limit=48)
-        except Exception:
-            messages = []
-        rec["messages"] = messages[-8:]
-        fail = failure_message_for_setup(messages, str(rec.get("setup") or ""))
-        if not fail and rec.get("kind") == "parametric":
-            fail = crash_message(messages)
-        if fail:
-            self._finish_job(
-                rec,
-                state=JobState.FAILED.value,
-                error={"code": "hfss_message", "message": fail},
-                geometry_failed=self._geometry_failed(messages),
-                messages=messages,
-            )
-            return
-        if rec.get("kind") == "parametric":
-            try:
-                listed = self._optimetrics_setups()
-            except Exception:
+        if live is not None and (
+            (live.project_name, live.design_name) != (rec.get("project"), rec.get("design"))
+            or (rec.get("process_id") and live.process_id != rec["process_id"])
+        ):
+            live = None
+        with self._job_lock:
+            if self._progress_thread is not None and self._progress_thread.is_alive():
                 return
-            match = next((item for item in listed if item.get("name") == rec.get("setup")), None)
-            if match and match.get("has_result"):
-                self._variables_dirty = False
-                self._finish_job(
-                    rec,
-                    state=JobState.COMPLETED.value,
-                    geometry_failed=self._geometry_failed(messages),
-                    messages=messages,
-                )
+            if time.monotonic() < self._next_progress_refresh:
+                return
+            self._next_progress_refresh = time.monotonic() + 2.0
+            self._progress_job_id = str(rec["job_id"])
+
+            def refresh() -> None:
+                try:
+                    # Restored jobs attach in this background reader only, pinned
+                    # to their own project/design, never following the GUI tab.
+                    target = live or attach_live(
+                        version=self.config.aedt_version,
+                        process_id=rec.get("process_id"),
+                        project_name=str(rec["project"]),
+                        design_name=str(rec["design"]),
+                    )
+                    messages = target.read_messages(limit=48)
+                except Exception as exc:
+                    with self._job_lock:
+                        rec["messages_error"] = str(exc)
+                    return
+                with self._job_lock:
+                    rec["messages"] = messages[-24:]
+                    rec["messages_updated_at"] = utc_now_iso()
+                    rec.pop("messages_error", None)
+                    progress = last_progress_line(messages)
+                    if progress:
+                        rec["progress"] = progress
+
+            self._progress_thread = threading.Thread(
+                target=refresh, name="hfss-progress", daemon=True
+            )
+            self._progress_thread.start()
 
     def variables_set(self, parameters: list[dict[str, Any]]) -> dict[str, Any]:
         self._guard_no_solve("variables_set")
@@ -950,7 +986,10 @@ class AppContext:
         return self._job_payload(rec)
 
     def _job_payload(self, rec: dict[str, Any]) -> dict[str, Any]:
-        """ok means the tool call worked. done means HFSS finished or failed."""
+        """Return a cache snapshot immediately; no synchronous GUI/COM calls."""
+        self._request_progress_refresh(rec)
+        with self._job_lock:
+            rec = deepcopy(rec)
         state = str(rec.get("state") or "")
         done = state in {JobState.COMPLETED.value, JobState.FAILED.value}
         running = state == JobState.RUNNING.value
@@ -961,34 +1000,24 @@ class AppContext:
             "poll": "analyze_status" if running else None,
             "job_id": rec.get("job_id"),
             "job": rec,
+            "status_source": "worker" if rec.get("job_id") in self._owned_job_ids else "persisted",
+            "state_verified": not running or rec.get("job_id") in self._owned_job_ids,
+            "messages": list(rec.get("messages") or []),
+            "messages_updated_at": rec.get("messages_updated_at"),
+            "messages_refresh_pending": (
+                self._progress_job_id == rec.get("job_id")
+                and self._progress_thread is not None
+                and self._progress_thread.is_alive()
+            ),
         }
-        if self.is_fake or self._live is None:
-            payload["messages"] = list(rec.get("messages") or [])
-            return payload
-        try:
-            messages = self._live.read_messages(limit=24)
-        except Exception:
-            messages = []
-        payload["messages"] = messages
-        rec["messages"] = messages[-8:]
-        progress = last_progress_line(messages)
-        if progress:
-            payload["progress"] = progress
-            rec["progress"] = progress
-        if running:
-            fail = failure_message_for_setup(messages, str(rec.get("setup") or ""))
-            if not fail and rec.get("kind") == "parametric":
-                fail = crash_message(messages)
-            if fail:
-                rec["state"] = JobState.FAILED.value
-                rec["finished_at"] = utc_now_iso()
-                rec["error"] = {"code": "hfss_message", "message": fail}
-                rec["geometry_failed"] = self._geometry_failed(messages)
-                self._record_job_points(rec, geometry_failed=rec["geometry_failed"])
-                self._persist_jobs()
-                payload["done"] = True
-                payload["poll"] = None
-        payload["job"] = rec
+        if rec.get("progress"):
+            payload["progress"] = rec["progress"]
+        if not payload["state_verified"]:
+            payload["recovery_hint"] = (
+                "Restored running state is unverified: this process does not own the solve "
+                "worker. Poll for its persisted completion; do not start the solve again. "
+                "If the original MCP process exited, confirm completion in AEDT."
+            )
         return payload
 
     def analyze_cancel(self, job_id: str) -> dict[str, Any]:
@@ -1692,7 +1721,9 @@ class AppContext:
                 f"unknown report type {report_type!r}; "
                 "use category/quantity/function via report_catalog",
                 code="report_type_unknown",
-                details={"allowed": [item["id"] for item in REPORT_TYPES] + ["modal_s", "terminal_z"]},
+                details={
+                    "allowed": [item["id"] for item in REPORT_TYPES] + ["modal_s", "terminal_z"]
+                },
             )
 
         if cat not in CURVE_CATEGORIES:
