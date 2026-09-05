@@ -1,0 +1,2906 @@
+{
+  "project": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\ReportFamilyProbe.aedt",
+  "calls": [
+    {
+      "tool": "allowlist_load",
+      "arguments": {
+        "allowlist": {
+          "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\ReportFamilyProbe.aedt",
+          "project_name": "ReportFamilyProbe",
+          "design_name": "77GHZantenna",
+          "default_setup": "Setup1",
+          "default_sweep": "Sweep",
+          "parameters": [
+            {
+              "name": "l1",
+              "unit": "mm",
+              "min": 0.6,
+              "max": 2.0
+            },
+            {
+              "name": "l2",
+              "unit": "mm",
+              "min": 0.25,
+              "max": 1.0
+            },
+            {
+              "name": "w",
+              "unit": "mm",
+              "min": 0.8,
+              "max": 2.5
+            },
+            {
+              "name": "wp",
+              "unit": "mm",
+              "min": 0.25,
+              "max": 1.0
+            },
+            {
+              "name": "lp",
+              "unit": "mm",
+              "min": 0.4,
+              "max": 1.2
+            },
+            {
+              "name": "d1",
+              "unit": "mm",
+              "min": 0.1,
+              "max": 0.45
+            },
+            {
+              "name": "g3",
+              "unit": "mm",
+              "min": 0.05,
+              "max": 0.4
+            },
+            {
+              "name": "e1",
+              "unit": "mm",
+              "min": 0.05,
+              "max": 0.35
+            }
+          ]
+        }
+      },
+      "result": {
+        "ok": true,
+        "allowlist_id": "al_82fe250f5cf7f8bc",
+        "project_name": "ReportFamilyProbe",
+        "design_name": "77GHZantenna",
+        "parameters": [
+          {
+            "name": "l1",
+            "unit": "mm",
+            "min": 0.6,
+            "max": 2.0
+          },
+          {
+            "name": "l2",
+            "unit": "mm",
+            "min": 0.25,
+            "max": 1.0
+          },
+          {
+            "name": "w",
+            "unit": "mm",
+            "min": 0.8,
+            "max": 2.5
+          },
+          {
+            "name": "wp",
+            "unit": "mm",
+            "min": 0.25,
+            "max": 1.0
+          },
+          {
+            "name": "lp",
+            "unit": "mm",
+            "min": 0.4,
+            "max": 1.2
+          },
+          {
+            "name": "d1",
+            "unit": "mm",
+            "min": 0.1,
+            "max": 0.45
+          },
+          {
+            "name": "g3",
+            "unit": "mm",
+            "min": 0.05,
+            "max": 0.4
+          },
+          {
+            "name": "e1",
+            "unit": "mm",
+            "min": 0.05,
+            "max": 0.35
+          }
+        ],
+        "constraints": [],
+        "default_setup": "Setup1",
+        "bound": {
+          "project_name": "ReportFamilyProbe",
+          "design_name": "77GHZantenna",
+          "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\ReportFamilyProbe.aedt",
+          "process_id": 16992
+        },
+        "open_projects": [
+          "Project6",
+          "me_dipole_77",
+          "ReportValidityProbe",
+          "ReportSetupProbe",
+          "ReportFamilyProbe"
+        ]
+      }
+    },
+    {
+      "tool": "report_create",
+      "arguments": {
+        "name": "MultiS",
+        "category": "S Parameter",
+        "quantity": "S(1,1)",
+        "function": "dB",
+        "families": {
+          "l1": [
+            "1.05mm",
+            "1.3mm"
+          ],
+          "l2": [
+            "0.45mm"
+          ],
+          "w": [
+            "1.6mm"
+          ],
+          "wp": [
+            "0.4mm"
+          ],
+          "lp": [
+            "0.8mm",
+            "1mm"
+          ],
+          "d1": [
+            "0.35mm"
+          ],
+          "g3": [
+            "0.15mm"
+          ],
+          "e1": [
+            "0.05mm"
+          ]
+        },
+        "setup": "Setup1",
+        "sweep": "Sweep"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiS",
+          "report_id": "MultiS",
+          "report_type": "curve",
+          "category": "S Parameter",
+          "quantities": [
+            "S(1,1)"
+          ],
+          "functions": [
+            "dB"
+          ],
+          "expressions": [
+            "dB(S(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null
+        }
+      }
+    },
+    {
+      "tool": "report_get",
+      "arguments": {
+        "name": "MultiS"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiS",
+          "report_id": "MultiS",
+          "report_type": "curve",
+          "category": "S Parameter",
+          "quantities": [
+            "S(1,1)"
+          ],
+          "functions": [
+            "dB"
+          ],
+          "expressions": [
+            "dB(S(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null,
+          "tree": "Results",
+          "solution_data": "Modal Solution Data",
+          "display_type": "Rectangular Plot",
+          "solution": "Setup1 : Sweep",
+          "context": null,
+          "domain": "Sweep",
+          "primary_sweep": "Freq",
+          "x_component": "Freq",
+          "traces": [
+            "dB(S(1,1))"
+          ],
+          "families": {
+            "l2": [
+              "0.45mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "w": [
+              "1.6mm"
+            ]
+          },
+          "trace_details": [
+            {
+              "expression": "dB(S(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "dB(S(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            }
+          ],
+          "prop_names": [
+            "Name",
+            "Report Type",
+            "Display Type",
+            "Display Type/Choices",
+            "dB(S(1,1))"
+          ]
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "MultiS",
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\MultiS.csv"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiS",
+          "report_id": "MultiS",
+          "report_type": "curve",
+          "category": "S Parameter",
+          "quantities": [
+            "S(1,1)"
+          ],
+          "functions": [
+            "dB"
+          ],
+          "expressions": [
+            "dB(S(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null,
+          "tree": "Results",
+          "solution_data": "Modal Solution Data",
+          "display_type": "Rectangular Plot",
+          "solution": "Setup1 : Sweep",
+          "context": null,
+          "domain": "Sweep",
+          "primary_sweep": "Freq",
+          "x_component": "Freq",
+          "traces": [
+            "dB(S(1,1))"
+          ],
+          "families": {
+            "l2": [
+              "0.45mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "w": [
+              "1.6mm"
+            ]
+          },
+          "trace_details": [
+            {
+              "expression": "dB(S(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "dB(S(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            }
+          ],
+          "prop_names": [
+            "Name",
+            "Report Type",
+            "Display Type",
+            "Display Type/Choices",
+            "dB(S(1,1))"
+          ],
+          "artifact": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\MultiS.csv",
+          "format": "csv"
+        },
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\MultiS.csv",
+        "format": "csv",
+        "traces": 4,
+        "labeled": true,
+        "csv_format": "family",
+        "header": [
+          "freq_ghz",
+          "variation",
+          "s11_db"
+        ],
+        "solution_validity": "unknown",
+        "solution_status": {
+          "data_availability": "available",
+          "report_refreshed": true,
+          "validity": "unknown",
+          "source": "GetSolutionDataPerVariation",
+          "traces": [
+            {
+              "expression": "dB(S(1,1))",
+              "trace": "dB(S(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 4,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            }
+          ],
+          "reason": "Data availability does not certify current geometry/material/Setup validity"
+        }
+      }
+    },
+    {
+      "tool": "report_create",
+      "arguments": {
+        "name": "MultiZ",
+        "category": "Z Parameter",
+        "quantity": "Z(1,1)",
+        "function": [
+          "re",
+          "im"
+        ],
+        "families": {
+          "l1": [
+            "1.05mm",
+            "1.3mm"
+          ],
+          "l2": [
+            "0.45mm"
+          ],
+          "w": [
+            "1.6mm"
+          ],
+          "wp": [
+            "0.4mm"
+          ],
+          "lp": [
+            "0.8mm",
+            "1mm"
+          ],
+          "d1": [
+            "0.35mm"
+          ],
+          "g3": [
+            "0.15mm"
+          ],
+          "e1": [
+            "0.05mm"
+          ]
+        },
+        "setup": "Setup1",
+        "sweep": "Sweep"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiZ",
+          "report_id": "MultiZ",
+          "report_type": "curve",
+          "category": "Z Parameter",
+          "quantities": [
+            "Z(1,1)"
+          ],
+          "functions": [
+            "re",
+            "im"
+          ],
+          "expressions": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null
+        }
+      }
+    },
+    {
+      "tool": "report_get",
+      "arguments": {
+        "name": "MultiZ"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiZ",
+          "report_id": "MultiZ",
+          "report_type": "curve",
+          "category": "Z Parameter",
+          "quantities": [
+            "Z(1,1)"
+          ],
+          "functions": [
+            "re",
+            "im"
+          ],
+          "expressions": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null,
+          "tree": "Results",
+          "solution_data": "Modal Solution Data",
+          "display_type": "Rectangular Plot",
+          "solution": "Setup1 : Sweep",
+          "context": null,
+          "domain": "Sweep",
+          "primary_sweep": "Freq",
+          "x_component": "Freq",
+          "traces": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "families": {
+            "l2": [
+              "0.45mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "w": [
+              "1.6mm"
+            ]
+          },
+          "trace_details": [
+            {
+              "expression": "re(Z(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "re(Z(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            },
+            {
+              "expression": "im(Z(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "im(Z(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            }
+          ],
+          "prop_names": [
+            "Name",
+            "Report Type",
+            "Display Type",
+            "Display Type/Choices",
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ]
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "MultiZ",
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\MultiZ.csv"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiZ",
+          "report_id": "MultiZ",
+          "report_type": "curve",
+          "category": "Z Parameter",
+          "quantities": [
+            "Z(1,1)"
+          ],
+          "functions": [
+            "re",
+            "im"
+          ],
+          "expressions": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null,
+          "tree": "Results",
+          "solution_data": "Modal Solution Data",
+          "display_type": "Rectangular Plot",
+          "solution": "Setup1 : Sweep",
+          "context": null,
+          "domain": "Sweep",
+          "primary_sweep": "Freq",
+          "x_component": "Freq",
+          "traces": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "families": {
+            "l2": [
+              "0.45mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "w": [
+              "1.6mm"
+            ]
+          },
+          "trace_details": [
+            {
+              "expression": "re(Z(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "re(Z(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            },
+            {
+              "expression": "im(Z(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "im(Z(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            }
+          ],
+          "prop_names": [
+            "Name",
+            "Report Type",
+            "Display Type",
+            "Display Type/Choices",
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "artifact": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\MultiZ.csv",
+          "format": "csv"
+        },
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\MultiZ.csv",
+        "format": "csv",
+        "traces": 4,
+        "labeled": true,
+        "csv_format": "terminal_z_family",
+        "header": [
+          "freq_ghz",
+          "variation",
+          "re",
+          "im"
+        ],
+        "solution_validity": "unknown",
+        "solution_status": {
+          "data_availability": "available",
+          "report_refreshed": true,
+          "validity": "unknown",
+          "source": "GetSolutionDataPerVariation",
+          "traces": [
+            {
+              "expression": "re(Z(1,1))",
+              "trace": "re(Z(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 4,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            },
+            {
+              "expression": "im(Z(1,1))",
+              "trace": "im(Z(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 4,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            }
+          ],
+          "reason": "Data availability does not certify current geometry/material/Setup validity"
+        }
+      }
+    },
+    {
+      "tool": "variables_set",
+      "arguments": {
+        "parameters": [
+          {
+            "name": "l1",
+            "value": 0.9137,
+            "unit": "mm"
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "readback": {
+          "l1": {
+            "name": "l1",
+            "value": 0.9137,
+            "unit": "mm"
+          }
+        },
+        "saved": false,
+        "needs_solve": null,
+        "parameters_changed": true,
+        "solution_validity": "unknown",
+        "note": "Variables are written. This point may already have a solution. Select the required report Families; changing variables alone does not prove staleness."
+      }
+    },
+    {
+      "tool": "report_create",
+      "arguments": {
+        "name": "NominalCheck",
+        "category": "S Parameter",
+        "quantity": "S(1,1)",
+        "function": "dB",
+        "families": [],
+        "setup": "Setup1",
+        "sweep": "Sweep"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "NominalCheck",
+          "report_id": "NominalCheck",
+          "report_type": "curve",
+          "category": "S Parameter",
+          "quantities": [
+            "S(1,1)"
+          ],
+          "functions": [
+            "dB"
+          ],
+          "expressions": [
+            "dB(S(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [],
+          "nominal_variables": [],
+          "selected_values": {},
+          "families_applied": false,
+          "face": null
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "NominalCheck"
+      },
+      "result": {
+        "ok": false,
+        "error": {
+          "code": "report_solution_query_failed",
+          "message": "HFSS could not retrieve the selected report data; cached CSV was not exported",
+          "details": {
+            "data_availability": "query_failed",
+            "query_error": "GetSolutionDataPerVariation(string reportTypeArg, string solutionNameArg, Structured Array simValueCtxtArg, Structured Array pointSetArg, Structured Array expressionArgs) -> Structured Array(Modal Solution Data,Setup1 : Sweep,IronPython.Runtime.List,IronPython.Runtime.List,IronPython.Runtime.List) - call failed. Logs or message window might have more details",
+            "validity": "unknown",
+            "source": "GetSolutionDataPerVariation",
+            "traces": [],
+            "reason": "Data availability does not certify current geometry/material/Setup validity"
+          }
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "MultiZ",
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\fixed-while-unsolved.csv"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "MultiZ",
+          "report_id": "MultiZ",
+          "report_type": "curve",
+          "category": "Z Parameter",
+          "quantities": [
+            "Z(1,1)"
+          ],
+          "functions": [
+            "re",
+            "im"
+          ],
+          "expressions": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [
+            "l1",
+            "l2",
+            "w",
+            "wp",
+            "lp",
+            "d1",
+            "g3",
+            "e1"
+          ],
+          "nominal_variables": [],
+          "selected_values": {
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "l2": [
+              "0.45mm"
+            ],
+            "w": [
+              "1.6mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ]
+          },
+          "families_applied": true,
+          "face": null,
+          "tree": "Results",
+          "solution_data": "Modal Solution Data",
+          "display_type": "Rectangular Plot",
+          "solution": "Setup1 : Sweep",
+          "context": null,
+          "domain": "Sweep",
+          "primary_sweep": "Freq",
+          "x_component": "Freq",
+          "traces": [
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "families": {
+            "l2": [
+              "0.45mm"
+            ],
+            "g3": [
+              "0.15mm"
+            ],
+            "lp": [
+              "0.8mm",
+              "1mm"
+            ],
+            "e1": [
+              "0.05mm"
+            ],
+            "d1": [
+              "0.35mm"
+            ],
+            "wp": [
+              "0.4mm"
+            ],
+            "l1": [
+              "1.05mm",
+              "1.3mm"
+            ],
+            "w": [
+              "1.6mm"
+            ]
+          },
+          "trace_details": [
+            {
+              "expression": "re(Z(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "re(Z(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            },
+            {
+              "expression": "im(Z(1,1))",
+              "domain": "Sweep",
+              "families": {
+                "l2": [
+                  "0.45mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ]
+              },
+              "name": "im(Z(1,1))",
+              "primary_sweep": "Freq",
+              "solution": "Setup1 : Sweep",
+              "x_component": "Freq"
+            }
+          ],
+          "prop_names": [
+            "Name",
+            "Report Type",
+            "Display Type",
+            "Display Type/Choices",
+            "re(Z(1,1))",
+            "im(Z(1,1))"
+          ],
+          "artifact": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\fixed-while-unsolved.csv",
+          "format": "csv"
+        },
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\fixed-while-unsolved.csv",
+        "format": "csv",
+        "traces": 4,
+        "labeled": true,
+        "csv_format": "terminal_z_family",
+        "header": [
+          "freq_ghz",
+          "variation",
+          "re",
+          "im"
+        ],
+        "solution_validity": "unknown",
+        "solution_status": {
+          "data_availability": "available",
+          "report_refreshed": true,
+          "validity": "unknown",
+          "source": "GetSolutionDataPerVariation",
+          "traces": [
+            {
+              "expression": "re(Z(1,1))",
+              "trace": "re(Z(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 4,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            },
+            {
+              "expression": "im(Z(1,1))",
+              "trace": "im(Z(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                },
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.3mm;lp=1mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.001,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.0013,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 4,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm",
+                  "1.3mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm",
+                  "1mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            }
+          ],
+          "reason": "Data availability does not certify current geometry/material/Setup validity"
+        }
+      }
+    },
+    {
+      "tool": "variables_set",
+      "arguments": {
+        "parameters": [
+          {
+            "name": "l1",
+            "value": 1.05,
+            "unit": "mm"
+          },
+          {
+            "name": "l2",
+            "value": 0.45,
+            "unit": "mm"
+          },
+          {
+            "name": "w",
+            "value": 1.6,
+            "unit": "mm"
+          },
+          {
+            "name": "wp",
+            "value": 0.4,
+            "unit": "mm"
+          },
+          {
+            "name": "lp",
+            "value": 0.8,
+            "unit": "mm"
+          },
+          {
+            "name": "d1",
+            "value": 0.35,
+            "unit": "mm"
+          },
+          {
+            "name": "g3",
+            "value": 0.15,
+            "unit": "mm"
+          },
+          {
+            "name": "e1",
+            "value": 0.05,
+            "unit": "mm"
+          }
+        ]
+      },
+      "result": {
+        "ok": true,
+        "readback": {
+          "l1": {
+            "name": "l1",
+            "value": 1.05,
+            "unit": "mm"
+          },
+          "l2": {
+            "name": "l2",
+            "value": 0.45,
+            "unit": "mm"
+          },
+          "w": {
+            "name": "w",
+            "value": 1.6,
+            "unit": "mm"
+          },
+          "wp": {
+            "name": "wp",
+            "value": 0.4,
+            "unit": "mm"
+          },
+          "lp": {
+            "name": "lp",
+            "value": 0.8,
+            "unit": "mm"
+          },
+          "d1": {
+            "name": "d1",
+            "value": 0.35,
+            "unit": "mm"
+          },
+          "g3": {
+            "name": "g3",
+            "value": 0.15,
+            "unit": "mm"
+          },
+          "e1": {
+            "name": "e1",
+            "value": 0.05,
+            "unit": "mm"
+          }
+        },
+        "saved": false,
+        "needs_solve": null,
+        "parameters_changed": true,
+        "solution_validity": "unknown",
+        "note": "Variables are written. This point may already have a solution. Select the required report Families; changing variables alone does not prove staleness."
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "NominalCheck",
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\restored.csv"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "NominalCheck",
+          "report_id": "NominalCheck",
+          "report_type": "curve",
+          "category": "S Parameter",
+          "quantities": [
+            "S(1,1)"
+          ],
+          "functions": [
+            "dB"
+          ],
+          "expressions": [
+            "dB(S(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [],
+          "nominal_variables": [],
+          "selected_values": {},
+          "families_applied": false,
+          "face": null,
+          "artifact": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\restored.csv",
+          "format": "csv"
+        },
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\restored.csv",
+        "format": "csv",
+        "traces": 1,
+        "labeled": true,
+        "csv_format": "single",
+        "header": [
+          "freq_ghz",
+          "s11_db"
+        ],
+        "solution_validity": "unknown",
+        "solution_status": {
+          "data_availability": "available",
+          "report_refreshed": true,
+          "validity": "unknown",
+          "source": "GetSolutionDataPerVariation",
+          "traces": [
+            {
+              "expression": "dB(S(1,1))",
+              "trace": "dB(S(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 1,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            }
+          ],
+          "reason": "Data availability does not certify current geometry/material/Setup validity"
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "NominalCheck",
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\setup-changed.csv"
+      },
+      "result": {
+        "ok": true,
+        "report": {
+          "name": "NominalCheck",
+          "report_id": "NominalCheck",
+          "report_type": "curve",
+          "category": "S Parameter",
+          "quantities": [
+            "S(1,1)"
+          ],
+          "functions": [
+            "dB"
+          ],
+          "expressions": [
+            "dB(S(1,1))"
+          ],
+          "created": true,
+          "reused": false,
+          "in_results": true,
+          "setup": "Setup1",
+          "sweep": "Sweep",
+          "frequency": null,
+          "family_variables": [],
+          "nominal_variables": [],
+          "selected_values": {},
+          "families_applied": false,
+          "face": null,
+          "artifact": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\setup-changed.csv",
+          "format": "csv"
+        },
+        "path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\.tmp-report-validity\\20260905-200655\\setup-changed.csv",
+        "format": "csv",
+        "traces": 1,
+        "labeled": true,
+        "csv_format": "single",
+        "header": [
+          "freq_ghz",
+          "s11_db"
+        ],
+        "solution_validity": "unknown",
+        "solution_status": {
+          "data_availability": "available",
+          "report_refreshed": true,
+          "validity": "unknown",
+          "source": "GetSolutionDataPerVariation",
+          "traces": [
+            {
+              "expression": "dB(S(1,1))",
+              "trace": "dB(S(1,1))",
+              "variations": [
+                {
+                  "variation_key": "e1=0.05mm;d1=0.35mm;d=-0.01mm;l1=1.05mm;lp=0.8mm;offset=-0.01mm;h=0.508mm;wp=0.4mm;g4=0.05mm;w=1.6mm;r1=0.125mm;g3=0.15mm;gndw=18mm;viagap=0.55mm;lsub=0.08mm;e2=0.19mm;l2=0.45mm;tcop=0.0175mm",
+                  "variables_si": {
+                    "d": -1e-05,
+                    "g3": 0.00015,
+                    "l2": 0.00045,
+                    "lp": 0.0008,
+                    "lsub": 8e-05,
+                    "e1": 5e-05,
+                    "d1": 0.00035,
+                    "gndw": 0.018,
+                    "h": 0.000508,
+                    "wp": 0.0004,
+                    "l1": 0.00105,
+                    "w": 0.0016,
+                    "g4": 5e-05,
+                    "viagap": 0.00055,
+                    "e2": 0.00019,
+                    "offset": -1e-05,
+                    "tcop": 1.75e-05,
+                    "r1": 0.000125
+                  },
+                  "points": 100
+                }
+              ],
+              "variation_count": 1,
+              "variations_truncated": false,
+              "solution": "Setup1 : Sweep",
+              "requested_families": {
+                "e1": [
+                  "0.05mm"
+                ],
+                "d1": [
+                  "0.35mm"
+                ],
+                "d": [
+                  "-0.01mm"
+                ],
+                "l1": [
+                  "1.05mm"
+                ],
+                "via_offset": [
+                  "l2/2+d1"
+                ],
+                "lp": [
+                  "0.8mm"
+                ],
+                "offset": [
+                  "-0.01mm"
+                ],
+                "h": [
+                  "0.508mm"
+                ],
+                "wp": [
+                  "0.4mm"
+                ],
+                "g4": [
+                  "0.05mm"
+                ],
+                "w": [
+                  "1.6mm"
+                ],
+                "r1": [
+                  "0.125mm"
+                ],
+                "g3": [
+                  "0.15mm"
+                ],
+                "gndw": [
+                  "18mm"
+                ],
+                "viagap": [
+                  "0.55mm"
+                ],
+                "Freq": [
+                  "All"
+                ],
+                "ls": [
+                  "lp+offset"
+                ],
+                "ws": [
+                  "wp+g3"
+                ],
+                "lsub": [
+                  "0.08mm"
+                ],
+                "e2": [
+                  "0.19mm"
+                ],
+                "l2": [
+                  "0.45mm"
+                ],
+                "tcop": [
+                  "0.0175mm"
+                ]
+              }
+            }
+          ],
+          "reason": "Data availability does not certify current geometry/material/Setup validity"
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "NominalCheck"
+      },
+      "result": {
+        "ok": false,
+        "error": {
+          "code": "report_solution_query_failed",
+          "message": "HFSS could not retrieve the selected report data; cached CSV was not exported",
+          "details": {
+            "data_availability": "query_failed",
+            "query_error": "GetSolutionDataPerVariation(string reportTypeArg, string solutionNameArg, Structured Array simValueCtxtArg, Structured Array pointSetArg, Structured Array expressionArgs) -> Structured Array(Modal Solution Data,Setup1 : Sweep,IronPython.Runtime.List,IronPython.Runtime.List,IronPython.Runtime.List) - call failed. Logs or message window might have more details",
+            "validity": "unknown",
+            "source": "GetSolutionDataPerVariation",
+            "traces": [],
+            "reason": "Data availability does not certify current geometry/material/Setup validity"
+          }
+        }
+      }
+    },
+    {
+      "tool": "report_export",
+      "arguments": {
+        "report_id": "MultiZ"
+      },
+      "result": {
+        "ok": false,
+        "error": {
+          "code": "report_solution_query_failed",
+          "message": "HFSS could not retrieve the selected report data; cached CSV was not exported",
+          "details": {
+            "data_availability": "query_failed",
+            "query_error": "GetSolutionDataPerVariation(string reportTypeArg, string solutionNameArg, Structured Array simValueCtxtArg, Structured Array pointSetArg, Structured Array expressionArgs) -> Structured Array(Modal Solution Data,Setup1 : Sweep,IronPython.Runtime.List,IronPython.Runtime.List,IronPython.Runtime.List) - call failed. Logs or message window might have more details",
+            "validity": "unknown",
+            "source": "GetSolutionDataPerVariation",
+            "traces": [],
+            "reason": "Data availability does not certify current geometry/material/Setup validity"
+          }
+        }
+      }
+    }
+  ],
+  "report_create_schema": {
+    "properties": {
+      "report_type": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Report Type"
+      },
+      "category": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Category"
+      },
+      "quantity": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Quantity"
+      },
+      "function": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Function"
+      },
+      "name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Name"
+      },
+      "setup": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Setup"
+      },
+      "sweep": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Sweep"
+      },
+      "face": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Face"
+      },
+      "frequency": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Frequency"
+      },
+      "families": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Families"
+      },
+      "parametric": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Parametric"
+      }
+    },
+    "title": "report_createArguments",
+    "type": "object"
+  },
+  "passed": true
+}

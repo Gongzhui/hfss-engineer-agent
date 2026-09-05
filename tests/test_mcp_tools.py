@@ -99,13 +99,13 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         )
         assert changed["ok"] is True
         assert changed["saved"] is False
-        assert changed["needs_solve"] is True
+        assert changed["needs_solve"] is None
         assert changed["readback"]["patch_w"]["value"] == 11.0
         aliased = variables_set(
             parameters=[{"variable": "patch_l", "value": 12.5, "unit": "mm"}]
         )
         assert aliased["ok"] is True
-        assert aliased["needs_solve"] is True
+        assert aliased["needs_solve"] is None
         assert aliased["readback"]["patch_l"]["value"] == 12.5
 
         started = analyze_start(setup="Setup1")
@@ -344,9 +344,10 @@ def test_tool_smoke_with_injected_app(tmp_path: Path) -> None:
         dirty = variables_set(
             parameters=[{"name": "patch_w", "value": 10.5, "unit": "mm"}]
         )
-        assert dirty["needs_solve"] is True
+        assert dirty["needs_solve"] is None
         stale = report_export(created["report"]["report_id"])
-        assert stale["stale_solution"] is True
+        assert "stale_solution" not in stale
+        assert stale["solution_validity"] == "unknown"
         joint = parametric_create(
             name="Parametric_joint",
             sweeps=[

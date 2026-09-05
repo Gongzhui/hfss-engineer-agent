@@ -28,6 +28,7 @@ cases/*/preview/
 
 # Regenerable run artifacts (BLOCKED B1, 2026-08-11)
 .tmp_pytest/
+.tmp-report-validity/
 examples/demo_output/
 *.aedtresults/
 benchmark/cases/*/build/

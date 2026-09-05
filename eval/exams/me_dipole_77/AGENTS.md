@@ -25,12 +25,12 @@
 5. 每一轮矩阵**开扫前**把已记下的 `solve_time` 加总，写入 `solve_total`。累计已满 24 小时，或再开一轮会超过：不要再 `parametric_create`，按第 8 步交卷。还在扫的那一轮可以等它结束（这一轮仍计入），写完日志就收。预估不够再开一轮时，也交卷，不要赌。
 6. 每一轮矩阵：
    - 看 `parametric_create` 返回的 `points`。一轮最多 256 点（安全阀，不是推荐网格）。物理上该更大时拆组或减密，并写明是被上限卡住。
-   - `parametric_create` → 确认出现在 Optimetrics → `parametric_start` → **`analyze_status` 直到 `done`**（`ok` 不是扫完；失败看 `job.error` / `messages`）。等待期间没有专门的等待工具：两次 `analyze_status` 之间用 bash 的 `sleep` 隔开，不要空转刷屏。**预计要跑几小时的扫参（例如一轮约 4 小时），大约每小时看一次进度最合适**（`sleep 3600`），不要几分钟就查一次——密查只会烧 token，扫也不会更快。短扫（大约十几分钟内）可以密一点。同名会改树上那个节点，不删除。扫完立刻用 job 的 `started_at` / `finished_at`（或自己记下的起止）写出本轮 `solve_time`，再加进 `solve_total`。单独 `analyze_start` 同样要记一笔 `solve_time`。
+   - `parametric_create` → 确认出现在 Optimetrics → `parametric_start` → **`analyze_wait` 直到 `done`**（`ok` 不是扫完；失败看 `job.error` / `messages`）。等待按 Skill 的 `analyze_wait` 规则执行：超时继续等待同一任务，失败或未验证状态先处理；利用宿主后台等待，避免无新信息时反复 sleep 或播报。同名会改树上那个节点，不删除。扫完立刻用 job 的 `started_at` / `finished_at`（或自己记下的起止）写出本轮 `solve_time`，再加进 `solve_total`。单独 `analyze_start` 同样要记一笔 `solve_time`。
    - `parametric_export_table` 存成 `round-00N-table.csv`。
    - **另建** Results 报告（不要复用开场那张单迹 `S11`）：`report_create(report_type="modal_s", name="<该Parametric名>_S11", parametric="<该Parametric名>")`，再 `report_export` 为 `round-00N-s11.csv`（`freq_ghz,variation,s11_db`）。variation 是 Export Data 表里各变量列拼成的参数组合（和图例同一句话），用来认出每条线是哪一组点。All 里出现同一量的历史取值是正常的。
    - 日志写清：哪个量搬带宽/中心，哪个量几乎不动，下一轮换组、收窄、还是钉死。`variables_set` 之后看模型：从 `snapshot` 的 `objects` 认名字，用 `view_hide` 藏占画面的东西，要盯某一块就 `view_capture(fit=["那块的名字"])`。看出来几何错了就写进日志，不要留那组点。看完 `view_show` 还原。
 7. 至少做一轮联合矩阵。不要把预算理解成一串单点 Analyze。钉点时才 `variables_set`，不要为此单独 Analyze，除非矩阵已经指出那一组点。改完参数就看模型。
-8. **只有**两项都达标、或第 5 步已经判定再开一轮会超过 24 小时：停并交卷。没达标且预算还够，**不准停**。不要用「连续两轮看不出新的影响」「该问的耦合已经问完」「好像该停在某几轮」当停手理由，也不要只扫一次就交差。上一轮看出两个量互斥，下一轮就要把它们放进同一张联合矩阵（或改到中间值再问），这不叫问题已经问完。交卷：钉住当时最好的一组（`variables_set` 的键是 `name` 或 `variable`，返回 `needs_solve`）。模型已经明显错了的点不要交。导出**单迹** `s11.csv` 用新报告名 + `families=[]`，不要复用开场 `S11`。若 `report_export` 带 `stale_solution`，那条曲线仍是上一份已解的点。日志写 `stopped`（本机时钟）和最终 `solve_total`。不要覆盖用户的 sandbox，除非用户说保存。
+8. **只有**两项都达标、或第 5 步已经判定再开一轮会超过 24 小时：停并交卷。没达标且预算还够，**不准停**。不要用「连续两轮看不出新的影响」「该问的耦合已经问完」「好像该停在某几轮」当停手理由，也不要只扫一次就交差。上一轮看出两个量互斥，下一轮就要把它们放进同一张联合矩阵（或改到中间值再问），这不叫问题已经问完。交卷：钉住当时最好的一组（`variables_set` 的键是 `name` 或 `variable`，返回 `needs_solve`）。模型已经明显错了的点不要交。导出**单迹** `s11.csv` 用新报告名 + `families=[]`，不要复用开场 `S11`。报告的 Family 选择与数据可用性按 Skill 核对；`solution_validity=unknown` 不等于旧解，不要为清除该状态重算。日志写 `stopped`（本机时钟）和最终 `solve_total`。不要覆盖用户的 sandbox，除非用户说保存。
 
 ## 曲线怎么读
 

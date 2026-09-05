@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ PUBLIC_TOOL_NAMES: tuple[str, ...] = (
     "variables_set",
     "analyze_start",
     "analyze_status",
+    "analyze_wait",
     "analyze_cancel",
     "report_types",
     "report_catalog",
@@ -141,7 +143,7 @@ def variables_set(parameters: list[dict[str, Any]]) -> dict[str, Any]:
 
 @mcp.tool()
 def analyze_start(setup: str | None = None) -> dict[str, Any]:
-    """Accept an Analyze job. ok is not solved — poll analyze_status until done."""
+    """Accept an Analyze job. ok is not solved — use analyze_wait until done."""
     try:
         return get_app().analyze_start(setup=setup)
     except Exception as exc:  # noqa: BLE001
@@ -153,6 +155,21 @@ def analyze_status(job_id: str) -> dict[str, Any]:
     """Job state plus Message Manager lines (what a human sees while it solves)."""
     try:
         return get_app().analyze_status(job_id)
+    except Exception as exc:  # noqa: BLE001
+        return error_envelope(exc)
+
+
+@mcp.tool()
+async def analyze_wait(job_id: str, timeout_s: float = 45) -> dict[str, Any]:
+    """Wait for a solve, at most 120 seconds (default 45). Returns early on completion
+    or failure. A timeout does NOT cancel or restart the solve; wait on the same ID.
+    Choose a timeout below the client's tool deadline. Prefer host background waiting
+    over repeated sleep/status calls. Unverified restored jobs return immediately;
+    inspect recovery_hint instead of waiting blindly. Cancelling this request only
+    stops waiting, not HFSS. Status queries remain available while this tool awaits.
+    """
+    try:
+        return await get_app().analyze_wait(job_id, timeout_s)
     except Exception as exc:  # noqa: BLE001
         return error_envelope(exc)
 
@@ -223,12 +240,15 @@ def report_create(
     sweep: str | None = None,
     face: str | None = None,
     frequency: str | None = None,
-    families: list[str] | None = None,
+    families: list[str] | dict[str, list[str | float]] | None = None,
     parametric: str | None = None,
 ) -> dict[str, Any]:
     """Create a Results plot. Curves: category + quantity + function (both multi-ok).
 
     quantity/function may be a string or list; Y = cartesian Function × Quantity.
+    Families: [] = Nominal; [names] = All; {name: [values]} selects multiple values
+    per variable (Cartesian, not zipped). Numbers use allowlist units; strings may
+    include units. All/Nominal must be the only choice for that variable.
     Call report_catalog first. field_face still uses report_type + face + frequency.
     """
     try:
@@ -256,7 +276,7 @@ def report_export(
     summarize: dict[str, Any] | None = None,
     png: bool = False,
 ) -> dict[str, Any]:
-    """ExportToFile a Results report. CSV includes traces/labeled; may be stale.
+    """ExportToFile with trace identities; full solution validity remains unknown.
 
     Family S11 uses GUI Export Data (one column per swept variable).
     Optional path writes the CSV there. summarize={target_ghz, threshold_db}
@@ -367,7 +387,7 @@ def parametric_create(
 
 @mcp.tool()
 def parametric_start(name: str) -> dict[str, Any]:
-    """Accept Optimetrics SolveSetup (async). ok is not solved — poll analyze_status."""
+    """Accept Optimetrics SolveSetup (async). ok is not solved — use analyze_wait."""
     try:
         return get_app().parametric_start(name)
     except Exception as exc:  # noqa: BLE001
@@ -424,7 +444,7 @@ def main() -> None:
     try:
         import faulthandler
         import os
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from hfss_mcp.config import default_data_dir
 
@@ -434,7 +454,7 @@ def main() -> None:
         faulthandler.enable(crash)
         with open(log_dir / "server-lifecycle.log", "a", encoding="utf-8") as fh:
             fh.write(
-                f"{datetime.now(timezone.utc).isoformat()} start pid={os.getpid()}\n"
+                f"{datetime.now(UTC).isoformat()} start pid={os.getpid()}\n"
             )
     except Exception:
         pass

@@ -82,13 +82,19 @@ uv run hfss-mcp
 }
 ```
 
-Set `lifecycle: "keep-alive"` (or an `idleTimeout` of hours) on hosts that
-support it. Long sweeps are watched with sleeps between polls; if the host
-idle-closes the stdio server (pi-mcp-adapter default: 10 minutes), the job
-registry / allowlist / view-hide bookkeeping — all in-memory — are lost while
-AEDT keeps solving unattended. The server self-heals allowlist and view-hide
-state from `~/.hfss-mcp/session-state.json` after a restart, but job handles
-cannot be resurrected.
+Keep the server alive during solves using the host's supported lifecycle options;
+`lifecycle` is host-specific, not a portable MCP setting. Jobs persist in the data
+directory, but a restarted server does not own the original solve worker. A restored
+running job is unverified until its owner publishes completion. Never infer completion
+from existing curves or start the solve again merely because the client disconnected.
+
+After starting, prefer `analyze_wait(job_id, timeout_s=45)` over sleep/status loops.
+It returns on completion/failure or after a bounded interval (0–120 seconds). Choose
+an interval below the client's tool deadline. `wait_reason=timeout` leaves the solve
+running: wait again on the same ID. `unverified` returns immediately with recovery
+guidance. Cancelling the wait request does not cancel HFSS. Use the host's background
+tool waiting when available; this MCP tool alone cannot suppress host wakeups or
+resume an ended conversation. Status remains available during waits.
 
 ## MCP tools
 
@@ -99,8 +105,8 @@ cannot be resurrected.
 | `session_attach` | session | Bind to an already-open GUI project. Never reopens a closed file |
 | `allowlist_load` | policy | Slim JSON / old manifest / `case.json`. Live: that project must currently be open |
 | `snapshot` | read | Follows the GUI active project. Variables, setups, identity. No screenshot |
-| `variables_set` | mutate | Partial allowlisted update; `name` or `variable`; no solve; no save; returns `needs_solve` |
-| `analyze_start` / `analyze_status` / `analyze_cancel` | job | `ok` on start = accepted, not solved. Status returns cached job state without waiting for COM; Message Manager refresh is single-flight in the background. `messages_updated_at` marks freshness. Restored running jobs report `state_verified=false` until their original worker publishes completion. |
+| `variables_set` | mutate | Partial allowlisted update; no solve/save; `parameters_changed=true`, `needs_solve=null` (may already be solved) |
+| `analyze_start` / `analyze_status` / `analyze_wait` / `analyze_cancel` | job | `ok` on start = accepted, not solved. Status returns cached job state without waiting for COM; Message Manager refresh is single-flight in the background. `messages_updated_at` marks freshness. Restored running jobs report `state_verified=false` until their original worker publishes completion. |
 | `report_types` / `report_catalog` / `report_list` / `report_get` / `report_create` / `report_export` | reports | Curves: progressive `report_catalog` (Category→Quantity→Function). Categories are Modal **S Parameter** / **Z Parameter**; Quantity/Function multi-select (Y = Function×Quantity). `report_get(name)` reads full settings of an existing Results plot (MCP- or user-created): expressions, quantities, functions, solution, families. `report_export` is GUI Export Data; classic `dB(S(1,1))` stays `s11_db`; multi-Y / phase are wide columns (not mistaken for variation). Aliases `modal_s` / `terminal_z` deprecated. `field_face` takes `face`, `frequency`, field `quantity`. |
 | `view_hide` / `view_show` | visual | Exclude/include 3D objects for subsequent captures. Bookkeeping only — the GUI is not touched (no GUI-hide API on 2023 R2). `view_show(all_objects=true)` clears the set |
 | `view_capture` | visual | Screenshot, always freshly rendered (warm-up export trick). Renders only the `fit=["name"]` parts — or everything minus the hidden set — via export-time `Selections`, framed by `FitToSelections`. `orientation` one of isometric/top/bottom/front/back/left/right |
@@ -108,7 +114,7 @@ cannot be resurrected.
 | `project_save` | save | `save` or `save_as`; never automatic |
 | `optimetrics_types` / `optimetrics_list` | read | Catalog + setups currently under **Optimetrics** |
 | `parametric_create` | mutate | Real `OptiParametric` node. Sweep key `variable` or `name`. Allowlisted variables; **cap 256 points** (safety rail, not a recipe). Same name edits the node; never deletes |
-| `parametric_start` | job | `Optimetrics.SolveSetup`. `ok` = accepted. Poll `analyze_status` |
+| `parametric_start` | job | `Optimetrics.SolveSetup`. `ok` = accepted. Wait with `analyze_wait` |
 | `parametric_export_table` | read | `ExportParametricSetupTable` (combination table, not Modal S11). Family S11 is a Results report |
 
 **Not registered:** `exec`, `trial_*`, `run_*`, setup CRUD, checkpoint, `run_python_code`, Optimetrics Optimization / Sensitivity / Statistical / DOE.
@@ -139,6 +145,17 @@ uv run mypy
 Procedural tuning knowledge lives in `skills/tune-hfss-antenna/` (not inside the Python package). On this machine it is linked from `~/.agents/skills/tune-hfss-antenna` so Cursor and other hosts can discover it without a `.cursor/` folder in the repo.
 
 The current Skill matches the V1 engineer loop: live attach, joint Optimetrics Parametric whose grouping and density the agent must justify from the structure, family curves via a Results plot, pin with `variables_set` after the matrix, and look at the live model after changing parameters. One-factor-at-a-time `variables_set` + Analyze is not the inner loop. The Skill does not ship a default N or samples-per-axis.
+
+## Report selections
+
+Report Families accept a value map, e.g. `{"l1":["1.05mm","1.3mm"],"lp":["0.8mm","1mm"]}`.
+Each parameter can select multiple values; selections combine rather than zip.
+Legacy lists select All, and `[]` selects Nominal. Idle Modal frequency exports
+query the actual trace selections and refresh before GUI export; failed queries
+do not export cached curves. Z families retain `freq_ghz,variation,re,im`.
+`solution_status.data_availability=available` is not a full validity guarantee:
+Setup edits can leave data retrievable, so `solution_validity` remains `unknown`.
+See [real HFSS validation and limitations](docs/FIX-REPORT-FAMILIES-20260905.md).
 
 ## Package layout
 

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import copy
+import csv
+import itertools
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -157,10 +160,9 @@ class FakeAdapter:
                 "functions": functions or list(rec.get("functions") or []),
                 "expressions": cleaned or expressions,
                 "traces": list(rec.get("traces") or cleaned or expressions),
-                "families": {
-                    var: ["All"] for var in (rec.get("family_variables") or [])
-                }
-                | {var: ["Nominal"] for var in (rec.get("nominal_variables") or [])},
+                "families": {var: ["All"] for var in (rec.get("family_variables") or [])}
+                | {var: ["Nominal"] for var in (rec.get("nominal_variables") or [])}
+                | dict(rec.get("selected_values") or {}),
                 "properties": {},
                 "trace_details": [],
             }
@@ -224,6 +226,7 @@ class FakeAdapter:
         face: str | None = None,
         family_variables: list[str] | None = None,
         nominal_variables: list[str] | None = None,
+        selected_values: dict[str, list[str]] | None = None,
         quantity: str | None = None,
         report_type: str | None = None,
     ) -> dict[str, Any]:
@@ -282,6 +285,7 @@ class FakeAdapter:
                     "reused": False,
                     "family_variables": family,
                     "nominal_variables": nominal,
+                    "selected_values": selected_values or {},
                     "families_applied": bool(family),
                     "expressions": ["dB(GainTotal)"],
                 }
@@ -339,6 +343,7 @@ class FakeAdapter:
                 "reused": False,
                 "family_variables": family,
                 "nominal_variables": nominal,
+                "selected_values": selected_values or {},
                 "families_applied": bool(family),
                 "traces": (
                     [
@@ -375,38 +380,53 @@ class FakeAdapter:
             if kind == "field_face":
                 dest.write_bytes(b"\xff\xd8\xff\xd9")
                 return dest
-            exprs = list(
-                expressions
-                or (rec or {}).get("expressions")
-                or ["dB(S(1,1))"]
-            )
+            exprs = list(expressions or (rec or {}).get("expressions") or ["dB(S(1,1))"])
             families = list((rec or {}).get("family_variables") or [])
+            selected = dict((rec or {}).get("selected_values") or {})
+            explicit = {n: v for n, v in selected.items() if v not in (["All"], ["Nominal"])}
+            if explicit:
+                with dest.open("w", newline="", encoding="utf-8") as stream:
+                    writer = csv.writer(stream)
+                    writer.writerow(
+                        [
+                            *[f"{n} [mm]" for n in explicit],
+                            "Freq [GHz]",
+                            *[f"{e} []" for e in exprs],
+                        ]
+                    )
+                    for selected_combo in itertools.product(*explicit.values()):
+                        numeric = [re.sub(r"[A-Za-z_%µμ]+$", "", v) for v in selected_combo]
+                        for freq in (1.0, 2.4):
+                            writer.writerow(
+                                [*numeric, freq, *[40.0 + i for i in range(len(exprs))]]
+                            )
+                return dest
             if kind == "farfield_2d":
                 dest.write_text(
                     "theta_deg,db_gain_total\n-180,-12.0\n0,5.0\n180,-12.0\n",
                     encoding="utf-8",
                 )
                 return dest
-            if (
-                len(exprs) == 2
-                and {e.lower().replace(" ", "") for e in exprs}
-                == {"re(z(1,1))", "im(z(1,1))"}
-            ):
+            if len(exprs) == 2 and {e.lower().replace(" ", "") for e in exprs} == {
+                "re(z(1,1))",
+                "im(z(1,1))",
+            }:
                 dest.write_text(
                     "freq_ghz,re,im\n1.0,40.0,12.0\n2.4,50.0,2.0\n",
                     encoding="utf-8",
                 )
                 return dest
-            if families and len(exprs) == 1 and exprs[0].lower().replace(" ", "") in {
-                "db(s(1,1))",
-                "db(s11)",
-            }:
-                combo_lo = {
-                    var: 10.0 if index == 0 else 11.0 for index, var in enumerate(families)
+            if (
+                families
+                and len(exprs) == 1
+                and exprs[0].lower().replace(" ", "")
+                in {
+                    "db(s(1,1))",
+                    "db(s11)",
                 }
-                combo_hi = {
-                    var: 11.0 if index == 0 else 13.0 for index, var in enumerate(families)
-                }
+            ):
+                combo_lo = {var: 10.0 if index == 0 else 11.0 for index, var in enumerate(families)}
+                combo_hi = {var: 11.0 if index == 0 else 13.0 for index, var in enumerate(families)}
                 header = [f"{var} [mm]" for var in families] + [
                     "Freq [GHz]",
                     f"{exprs[0]} []",

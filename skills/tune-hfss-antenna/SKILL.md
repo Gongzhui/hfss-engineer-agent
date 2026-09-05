@@ -19,16 +19,16 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 - 只调 allowlist 里的变量；禁改几何、材料、端口、HFSS Setup。
 - 扫参必须出现在 Optimetrics 树里。禁止自己循环 `variables_set`+Analyze 冒充矩阵。
 - 禁止 Optimetrics Optimization / Sensitivity / Statistical / DOE。
-- `variables_set` 用来把矩阵里的一组点写进活模型。不要求解、不要保存。返回 `needs_solve: true`：Results 仍是上一份已解的 variation，不是刚写入的值。几何会立刻跟着变，看模型不必 Analyze。
+- `variables_set` 用来把矩阵里的一组点写进活模型，不自动求解或保存。返回 `parameters_changed: true`、`needs_solve: null`：该点可能已经有解，不能仅因改了参数就认定旧解或重算。几何会立刻跟着变，看模型不必 Analyze。
 - **每次改完参数都要看模型。** 怎么看是你的判断（看哪几个零件、什么角度、看几张都不是清单），但有一条底线：模型已经不像原来那副天线，这组点就不能留。可用的看图工具见「看模型」一节。
 - `variables_set` 的参数键是 `name` 或 `variable`；`parametric_create` 的扫参键同样是 `variable` 或 `name`。两种写法等价。
-- `parametric_start` / `analyze_start` 的 `ok: true` **只表示任务已受理**，不是扫完。看 `done`。未 `done` 就必须 `analyze_status`（里面有 Message Manager 最近几行，这就是进度）。`failed` 时读 `job.error` 和 `messages`，不要空等。
-- `analyze_status` 返回 `job_not_found`：job 注册表在 MCP 服务内存里，宿主（idle 超时）重启过服务就会丢句柄。此时**不要重开扫**——AEDT 里的扫描还在跑，改用 `report_export` 数迹线/`optimetrics_list` 判断扫完。根治法：宿主的 mcp.json 给 hfss-mcp 设 `lifecycle: "keep-alive"`。
-- **钉固定量必须在 `parametric_start` 之前完成。** 求解进行中调用 `variables_set` / `parametric_create` / `report_create` 会被服务器直接拒绝（`solve_in_progress`）——这是保护：AEDT 会把它们推迟到扫完才执行，期间连 `analyze_status` 都会排在后面卡死。求解中只发 `analyze_status`（进度）和 `report_export`（数迹线，允许）。
+- `parametric_start` / `analyze_start` 的 `ok: true` **只表示任务已受理**。优先 `analyze_wait(job_id, timeout_s=45)` 等待 `done`，按需用 `analyze_status` 查看进度。等待上限 120 秒，必须小于宿主工具超时；支持后台等待的宿主应保持同一次工具调用，避免反复 sleep。旧服务没有 wait 时才退回低频 status。`wait_reason=timeout` 只表示本次等待到期，继续使用同一 job_id；`terminal` 后检查 `job.state`，失败读 `job.error` / `messages`。取消等待不等于取消求解。
+- job 持久化在数据目录。`job_not_found` 时先核对数据目录与任务编号；`wait_reason=unverified` / `state_verified=false` 时按 `recovery_hint` 核实原 worker 或 AEDT 完成状态，不能无限等待，也不能用已有曲线、部分结果判定扫完或重开求解。保持原 MCP 服务存活；keep-alive 配置因宿主而异。工具不会自动恢复已结束的对话，也不能阻止宿主主动让出等待。
+- **钉固定量必须在 `parametric_start` 之前完成。** 求解进行中调用 `variables_set` / `parametric_create` / `report_create` 会被服务器直接拒绝（`solve_in_progress`）——这是保护：AEDT 会把它们推迟到扫完才执行，期间连 `analyze_status` 都会排在后面卡死。求解中只发 `analyze_wait`（等待）、`analyze_status`（进度）和 `report_export`（数迹线，允许）。
 - **禁止** `trial_*` / `run_*`。
 - 不自动保存。有明显进展才 `project_save(mode="save_as")`。用户说「直接保存」才 `mode="save"`。
 - 推理写在 `hfss-tuning-log.md`。开扫前必须写清：**为什么是这一组、为什么是这些采样点、本轮上下文向量、覆盖表更新**。写不出结构理由就还没到 `parametric_create`。纯微扰「碰运气」不是结构理由。
-- **不要并行调用 hfss-mcp 的 HFSS 工具。** AEDT 的 COM / `RunScript` 同一时刻只能进一个；并行 `health`+`snapshot` 或几个 `report_*` 会在 `SetActiveProject` 上卡死。同一轮里这些调用要串行。求解期间轮询 `analyze_status` 除外。
+- **不要并行调用 hfss-mcp 的 HFSS 工具。** AEDT 的 COM / `RunScript` 同一时刻只能进一个；并行 `health`+`snapshot` 或几个 `report_*` 会在 `SetActiveProject` 上卡死。同一轮里这些调用要串行。求解期间的 `analyze_status` / `analyze_wait` 除外。
 
 ## 看模型
 
@@ -117,7 +117,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 ## Tools
 
-`health` → `session_list` → 必要时 `session_attach` → `allowlist_load`（必须对应当前打开的工程）→ `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_status` 轮询）→ `parametric_export_table` + **新的** Results 报告：先 `report_catalog`（需要时逐层问 Category→Quantity→Function；Category 只有 S Parameter / Z Parameter），再 `report_create(category=..., quantity=..., function=..., parametric=<该矩阵名>)` → `report_export`。匹配默认 `S Parameter` + `S(1,1)` + `dB`；带宽题对最优点再 `Z Parameter` + `Z(1,1)` + `function=["re","im"]`。Quantity/Function 可多选（Y = 笛卡尔积）。读取已有图（含用户自建）用 `report_get(name)`。旧别名 `modal_s` / `terminal_z` 仍可用但不推荐。钉点时 `variables_set`，随后再看模型。
+`health` → `session_list` → 必要时 `session_attach` → `allowlist_load`（必须对应当前打开的工程）→ `snapshot` → `variable_map` / `view_hide` / `view_capture` / `view_show` → `optimetrics_list` → `parametric_create` → `parametric_start`（`analyze_wait` 等待）→ `parametric_export_table` + **新的** Results 报告：先 `report_catalog`（需要时逐层问 Category→Quantity→Function；Category 只有 S Parameter / Z Parameter），再 `report_create(category=..., quantity=..., function=..., parametric=<该矩阵名>)` → `report_export`。匹配默认 `S Parameter` + `S(1,1)` + `dB`；带宽题对最优点再 `Z Parameter` + `Z(1,1)` + `function=["re","im"]`。Quantity/Function 可多选（Y = 笛卡尔积）。读取已有图（含用户自建）用 `report_get(name)`。旧别名 `modal_s` / `terminal_z` 仍可用但不推荐。钉点时 `variables_set`，随后再看模型。
 
 白名单：考场用该目录 `allowlist.json`；否则 `cases/uwb_circular_notch/allowlist.json`。
 
@@ -125,7 +125,9 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 开场那张单迹 `S11` **不会**因为后来扫了参就自动变成一簇。矩阵跑完后必须再建一份人看得到的报告（例如 `<Parametric名>_S11`），用 `parametric=<该矩阵名>`（或显式 `families`）把扫过的量设成 All——和 GUI 里把 Family 设成 All 一样，同一量历史上解过的点都会出现在这簇里。其它量钉在 Nominal。`report_export` 走的是 GUI 右键 **Export Data**（Separate Columns 关掉）：原生表是每个扫过的量一列，再加 Freq 和 \(S_{11}\)。交给 Agent 的 CSV 是 `freq_ghz,variation,s11_db`，**variation 就是那几列拼成的参数组合**（例如 `g1='8.5mm' l2='1mm' lw='1.75mm'`），和图例一致。`labeled: true` 表示能分清每条线是哪一组点；不要按 Optimetrics 表的行序去对。不要把开场那条单迹当成矩阵结果。同名报告若已经在 Results 里，再带 family / Nominal 钉死会报 `report_exists`——换个新名字。
 
-钉住之后若要单条曲线，新建一份报告：省略 `families`/`parametric`，或传 `families=[]`。两者都把已知 Parametric 量钉在 Nominal，不会把所有矩阵当成 All。若刚 `variables_set` 还没 Analyze，`report_export` 会带 `stale_solution`：那条 CSV 仍是上一份已解的点。
+报告支持三种 Family 选择：省略 `families`/`parametric` 或 `families=[]` 为 Nominal；`families=[变量名]` 将指定变量设为 All；`families={变量名: [值1, 值2]}` 对每个参数多选值，多个参数之间是组合关系，不是逐行配对。数值使用白名单单位，也可写带单位字符串；单个参数的 All/Nominal 不能与具体值混选。若要只看矩阵最佳点，可显式选中其完整上下文，不必先改活模型。`report_get.trace_details` 可核对每条 trace 实际的 Solution 和 Families。
+
+`report_export` 对支持的 Modal 频率报告按实际 trace 的 Family 查询 HFSS 数据后刷新报告，再导出 CSV；查询失败返回 `report_solution_query_failed`，不把旧缓存交给 Agent。`solution_status.data_availability=available` 只表示请求有数据；`solution_validity=unknown` 不等于报告已打叉，也不等于一定需要重算：HFSS 2023 R2 在部分 Setup 修改后仍会返回已有数据，MCP 未能读取原生打叉状态。不要为消除 unknown 而重复 Analyze。几何、材料、Setup 被外部修改时应单独核验，不能仅凭存在数据认定有效。Z 族 CSV 为 `freq_ghz,variation,re,im`，按 variation 识别参数组合；不要把不同组合的 R/X 混成一条曲线。
 
 `field_face` 需要 `face` 和 `frequency`。插值扫频常常没存场，失败就继续看簇曲线，不要改 HFSS Setup 去强行存场。
 
@@ -133,7 +135,7 @@ Host Agent 当工程师，挂用户**已经打开**的 AEDT。内环是人坐在
 
 1. `health` / `session_list`。看 `open_projects`、`active`、`bound`。没有 Desktop 就让用户先打开工程。用户换了工程时 MCP **不会**跟着去打开已关掉的文件；`snapshot` / 看图会跟 GUI 当前活动工程。若 `bound` 不是眼前这份，或返回了 `allowlist_dropped`，对 `open_projects` 里的名字调用 `session_attach(project_name=...)`。
 2. `allowlist_load` **必须**是当前打开工程的白名单。关掉上一份再打开下一份之后，旧白名单会被丢掉；改参会报 `allowlist_project_not_open` / `allowlist_not_loaded`。不要对已关闭工程的 allowlist 硬调。然后 `snapshot`。`variable_map` 抄约束；不熟则自己 `view_hide` / `view_capture`。
-3. 写清这一轮在调匹配还是相位，以及所处阶段。按上一节排出分组和采样；日志写入**本轮上下文向量**（全部白名单量当前值）和**覆盖表**（每个量至今试过的 min–max）。再 `parametric_create`（须在树上能看见；用导出表核对 `points`）→ `parametric_start` → **`analyze_status` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
+3. 写清这一轮在调匹配还是相位，以及所处阶段。按上一节排出分组和采样；日志写入**本轮上下文向量**（全部白名单量当前值）和**覆盖表**（每个量至今试过的 min–max）。再 `parametric_create`（须在树上能看见；用导出表核对 `points`）→ `parametric_start` → **`analyze_wait` 直到 `done`**。不要把 start 的 `ok` 当成扫完。
 4. `parametric_export_table` 是组合表。再 `report_create` 一份带 family 的 Results 图并 `report_export`。用下面的画图脚本出 **PNG**（不要只出 SVG——宿主 `read` 往往读不了 SVG），**真正看图**，再写「图上看出了什么标量摘要里没有的东西」。带宽题对最优点导 `terminal_z` 并同样看图或读 R/X。
 5. 按阶段更新：侦察补覆盖；定性写作用与方向；联合收敛才正式钉死（带上下文）；该逃逸就逃逸。钉点时才 `variables_set`。**改完就看模型**。钉住之后如需单条曲线，再导出不含 family 的新报告。不要复用开场那张 `S11` 来「钉死」。
 6. 重复。停手只有：观察量已经达标；或（考场）再开一轮会超过求解时间上限。上一轮看出互斥，下一轮把互斥的量放进同一张联合矩阵（或改中间值再问）。连续两轮几乎无改善 → 逃逸，不是微扫。

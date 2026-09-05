@@ -320,6 +320,14 @@ def csv_export_summary(path: Path) -> dict[str, Any]:
         return {"header": header, "traces": 1, "labeled": True, "format": "single"}
     if lowered[:3] == ["freq_ghz", "re", "im"]:
         return {"header": header, "traces": 1, "labeled": True, "format": "terminal_z"}
+    if lowered[:4] == ["freq_ghz", "variation", "re", "im"]:
+        labels = {row[1] for row in rows[1:] if len(row) >= 4}
+        return {
+            "header": header,
+            "traces": len(labels),
+            "labeled": True,
+            "format": "terminal_z_family",
+        }
     if lowered[:3] == ["freq_ghz", "variation", "value"]:
         labels = {row[1] for row in rows[1:] if len(row) >= 3}
         return {
@@ -595,6 +603,8 @@ def normalize_exported_report_csv(
         return path
     if lowered_head[:3] == ["freq_ghz", "re", "im"]:
         return path
+    if lowered_head[:4] == ["freq_ghz", "variation", "re", "im"]:
+        return path
     if lowered_head[:1] == ["freq_ghz"] and "value" in lowered_head:
         return path
     headers, rows = parse_hfss_report_table(path)
@@ -679,9 +689,7 @@ def normalize_exported_report_csv(
                 tag = _combo_label(var_cols, row).replace(",", " ")
                 if not tag:
                     continue
-                labeled_rows.append(
-                    (_freq_to_ghz(row[freq_i], unit), tag, float(row[db_i]))
-                )
+                labeled_rows.append((_freq_to_ghz(row[freq_i], unit), tag, float(row[db_i])))
                 if tag not in unique:
                     unique.append(tag)
             if len(unique) == 1:
@@ -769,10 +777,7 @@ def normalize_exported_report_csv(
         ]
         # Drop false-positive variation cols that are actually expressions.
         var_cols = [
-            col
-            for col in var_cols
-            if not _is_classic_s11_db_header(col[1])
-            and "(" not in col[1]
+            col for col in var_cols if not _is_classic_s11_db_header(col[1]) and "(" not in col[1]
         ]
         if len(y_cols) == 1 and not var_cols:
             lines = ["freq_ghz,value"]
@@ -780,9 +785,7 @@ def normalize_exported_report_csv(
             for row in rows:
                 if max(freq_i, yi) >= len(row):
                     continue
-                lines.append(
-                    f"{_freq_to_ghz(row[freq_i], unit):.6g},{row[yi]:.6g}"
-                )
+                lines.append(f"{_freq_to_ghz(row[freq_i], unit):.6g},{row[yi]:.6g}")
             path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             return path
         if len(y_cols) == 1 and var_cols:
@@ -792,9 +795,7 @@ def normalize_exported_report_csv(
                 if max(freq_i, yi, max(c[0] for c in var_cols)) >= len(row):
                     continue
                 tag = _combo_label(var_cols, row).replace(",", " ")
-                lines.append(
-                    f"{_freq_to_ghz(row[freq_i], unit):.6g},{tag},{row[yi]:.6g}"
-                )
+                lines.append(f"{_freq_to_ghz(row[freq_i], unit):.6g},{tag},{row[yi]:.6g}")
             path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             return path
         # Wide multi-Y table (quote headers so S(1,1) commas survive).
@@ -804,9 +805,7 @@ def normalize_exported_report_csv(
         if var_cols:
             writer.writerow(["freq_ghz", "variation", *y_headers])
             for row in rows:
-                needed = max(
-                    freq_i, max(c[0] for c in var_cols), max(i for i, _ in y_cols)
-                )
+                needed = max(freq_i, max(c[0] for c in var_cols), max(i for i, _ in y_cols))
                 if needed >= len(row):
                     continue
                 tag = _combo_label(var_cols, row).replace(",", " ")
@@ -831,6 +830,10 @@ def normalize_exported_report_csv(
         path.write_text(buf.getvalue(), encoding="utf-8")
         return path
     if kind == "terminal_z":
+        # Wide family exports have several re/im column pairs. Preserve all
+        # original labeled columns rather than silently choosing the first pair.
+        if len(header_exprs) > 2:
+            return path
         freq_i = _col_index(headers, "freq")
         if freq_i is None:
             freq_i = 0
@@ -841,13 +844,29 @@ def normalize_exported_report_csv(
         if im_i is None:
             im_i = 2 if len(rows[0]) > 2 else 1
         unit = _header_unit(headers[freq_i] if headers else "", "GHz")
+        var_cols = _variation_value_columns(headers, freq_i)
+        if var_cols:
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(["freq_ghz", "variation", "re", "im"])
+            needed = max(freq_i, re_i, im_i, *(col[0] for col in var_cols))
+            for row in rows:
+                if needed < len(row):
+                    writer.writerow(
+                        [
+                            f"{_freq_to_ghz(row[freq_i], unit):.6g}",
+                            _combo_label(var_cols, row),
+                            f"{row[re_i]:.6g}",
+                            f"{row[im_i]:.6g}",
+                        ]
+                    )
+            path.write_text(buf.getvalue(), encoding="utf-8")
+            return path
         lines = ["freq_ghz,re,im"]
         for row in rows:
             if max(freq_i, re_i, im_i) >= len(row):
                 continue
-            lines.append(
-                f"{_freq_to_ghz(row[freq_i], unit):.6g},{row[re_i]:.6g},{row[im_i]:.6g}"
-            )
+            lines.append(f"{_freq_to_ghz(row[freq_i], unit):.6g},{row[re_i]:.6g},{row[im_i]:.6g}")
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return path
     if kind == "farfield_2d":

@@ -26,6 +26,8 @@ from hfss_mcp.domain import ParameterValue, utc_now_iso
 from hfss_mcp.errors import AdapterError
 from hfss_mcp.ids import sha256_hex
 from hfss_mcp.metrics import normalize_exported_report_csv
+from hfss_mcp.report_details import REPORT_DETAILS_SCRIPT
+from hfss_mcp.report_query import REPORT_QUERY_SCRIPT
 from hfss_mcp.report_trace import (
     CURVE_CATEGORIES,
     MODAL_TRACE_FUNCTIONS,
@@ -35,9 +37,7 @@ from hfss_mcp.report_trace import (
     parse_name_list,
 )
 
-_EXPR_GLUED = re.compile(
-    r"^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([A-Za-z_%µμ]+)$"
-)
+_EXPR_GLUED = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([A-Za-z_%µμ]+)$")
 _VAR_TOKEN = re.compile(r"\$?[A-Za-z_][\w$]*")
 _AIRBOX_KEYS = (
     "airbox",
@@ -180,6 +180,7 @@ def view_capture_script(
             "result['objects'] = all_names",
         ]
     )
+
 
 REPORT_TYPES: list[dict[str, str]] = [
     {
@@ -786,254 +787,33 @@ class LiveDesign:
         return [item for item in reports if isinstance(item, dict)]
 
     def get_report(self, name: str) -> dict[str, Any]:
-        """Read full settings for an existing Results report (incl. user-created)."""
-        report_name = str(name or "").strip()
-        if not report_name:
-            raise AdapterError("report name is required", code="report_name_required")
-        raw = self._script(
-            "\n".join(
-                [
-                    "def _s(value):",
-                    "    if value is None:",
-                    "        return None",
-                    "    try:",
-                    "        return str(value)",
-                    "    except Exception:",
-                    "        return repr(value)",
-                    "def _slist(value):",
-                    "    if value is None:",
-                    "        return []",
-                    "    if isinstance(value, str):",
-                    "        text = value.strip()",
-                    "        return [text] if text else []",
-                    "    try:",
-                    "        if isinstance(value, unicode):",
-                    "            text = str(value).strip()",
-                    "            return [text] if text else []",
-                    "    except Exception:",
-                    "        pass",
-                    "    out = []",
-                    "    try:",
-                    "        for item in list(value):",
-                    "            text = _s(item)",
-                    "            if text:",
-                    "                out.append(text)",
-                    "    except Exception:",
-                    "        text = _s(value)",
-                    "        if text:",
-                    "            out.append(text)",
-                    "    return out",
-                    f"report_name = {report_name!r}",
-                    "report_module = oDesign.GetModule('ReportSetup')",
-                    "names = []",
-                    "try:",
-                    "    names = [str(x) for x in (report_module.GetAllReportNames() or [])]",
-                    "except Exception:",
-                    "    names = []",
-                    "if report_name not in names:",
-                    "    raise Exception('report ' + report_name + ' is not under Results')",
-                    "solution_data = None",
-                    "display_type = None",
-                    "try:",
-                    "    solution_data = _s(report_module.GetReportType(report_name))",
-                    "except Exception:",
-                    "    pass",
-                    "try:",
-                    "    display_type = _s(report_module.GetDisplayType(report_name))",
-                    "except Exception:",
-                    "    pass",
-                    "traces = []",
-                    "for getter in ('GetTraceNames', 'GetReportTraceNames'):",
-                    "    try:",
-                    "        traces = _slist(getattr(report_module, getter)(report_name))",
-                    "        if traces:",
-                    "            break",
-                    "    except Exception:",
-                    "        continue",
-                    "solution = None",
-                    "context = None",
-                    "domain = None",
-                    "primary_sweep = None",
-                    "x_component = None",
-                    "y_components = []",
-                    "families = {}",
-                    "prop_names = []",
-                    "try:",
-                    "    rpt = report_module.GetChildObject(report_name)",
-                    "    try:",
-                    "        prop_names = _slist(rpt.GetPropNames(True))",
-                    "    except Exception:",
-                    "        try:",
-                    "            prop_names = _slist(rpt.GetPropNames())",
-                    "        except Exception:",
-                    "            prop_names = []",
-                    "    for prop in prop_names:",
-                    "        try:",
-                    "            value = rpt.GetPropValue(prop)",
-                    "        except Exception:",
-                    "            continue",
-                    "        key = str(prop)",
-                    "        if key in ('Solution', 'solution'):",
-                    "            solution = _s(value)",
-                    "        elif key in ('Context',):",
-                    "            context = _slist(value) if not isinstance(value, str) else _s(value)",
-                    "        elif key in ('Domain',):",
-                    "            domain = _s(value)",
-                    "        elif key in ('Primary Sweep', 'PrimarySweep'):",
-                    "            primary_sweep = _s(value)",
-                    "        elif key in ('X Component', 'XComponent'):",
-                    "            x_component = _s(value)",
-                    "        elif key in ('Y Component', 'YComponent'):",
-                    "            y_components = _slist(value)",
-                    "        else:",
-                    "            # Family / sweep variables: keep string or string-list only.",
-                    "            if isinstance(value, str):",
-                    "                families[key] = value",
-                    "            else:",
-                    "                try:",
-                    "                    if isinstance(value, unicode):",
-                    "                        families[key] = str(value)",
-                    "                        continue",
-                    "                except Exception:",
-                    "                    pass",
-                    "                try:",
-                    "                    families[key] = _slist(value)",
-                    "                except Exception:",
-                    "                    families[key] = _s(value)",
-                    "except Exception as error:",
-                    "    result['prop_error'] = _s(error)",
-                    "def _prop_get(key):",
-                    "    for path in (report_name + '/' + key, 'Results/' + report_name + '/' + key):",
-                    "        try:",
-                    "            return report_module.GetPropValue(path)",
-                    "        except Exception:",
-                    "            try:",
-                    "                return oDesign.GetPropValue(path)",
-                    "            except Exception:",
-                    "                pass",
-                    "    return None",
-                    "if not solution:",
-                    "    solution = _s(_prop_get('Solution'))",
-                    "if not context:",
-                    "    raw_context = _prop_get('Context')",
-                    "    if raw_context is not None:",
-                    "        context = _slist(raw_context) if not isinstance(raw_context, str) else _s(raw_context)",
-                    "if not domain:",
-                    "    domain = _s(_prop_get('Domain'))",
-                    "if not primary_sweep:",
-                    "    primary_sweep = _s(_prop_get('Primary Sweep'))",
-                    "if not x_component:",
-                    "    x_component = _s(_prop_get('X Component'))",
-                    "trace_y = []",
-                    "for trace in traces:",
-                    "    got = False",
-                    "    for path in (report_name + '/' + trace, report_name + '/' + trace.split(' - ')[0].strip()):",
-                    "        try:",
-                    "            tr = report_module.GetChildObject(path)",
-                    "            val = tr.GetPropValue('Y Component')",
-                    "            items = _slist(val)",
-                    "            if items:",
-                    "                for item in items:",
-                    "                    if item not in trace_y:",
-                    "                        trace_y.append(item)",
-                    "                got = True",
-                    "                break",
-                    "        except Exception:",
-                    "            continue",
-                    "    if not got:",
-                    "        # Trace name itself is usually the expression (+ optional legend).",
-                    "        if trace and trace not in trace_y:",
-                    "            trace_y.append(trace)",
-                    "if not y_components:",
-                    "    y_components = list(trace_y)",
-                    "result['name'] = report_name",
-                    "result['report_id'] = report_name",
-                    "result['in_results'] = True",
-                    "result['tree'] = 'Results'",
-                    "result['solution_data'] = solution_data",
-                    "result['display_type'] = display_type",
-                    "result['solution'] = solution",
-                    "result['context'] = context",
-                    "result['domain'] = domain",
-                    "result['primary_sweep'] = primary_sweep",
-                    "result['x_component'] = x_component",
-                    "result['y_components'] = y_components",
-                    "result['traces'] = traces",
-                    "result['families'] = families",
-                    "result['prop_names'] = prop_names",
-                ]
-            )
-        )
-        traces = [str(t) for t in (raw.get("traces") or []) if str(t).strip()]
-        y_components = [
-            str(t) for t in (raw.get("y_components") or []) if str(t).strip()
-        ]
-        expressions = y_components or list(traces)
+        """Read each trace's real Solution/Families, including user-created plots."""
+        raw = self._script(f"report_name = {name!r}\n" + REPORT_DETAILS_SCRIPT)
+        details = list(raw.get("trace_details") or [])
+        expressions = list(dict.fromkeys(str(t["expression"]) for t in details))
         quantities, functions, cleaned = expressions_to_trace_parts(expressions)
-        families_raw = raw.get("families") if isinstance(raw.get("families"), dict) else {}
-        families: dict[str, Any] = {}
-        meta_keys = {
-            "Solution",
-            "Context",
-            "Domain",
-            "Display Type",
-            "Display Type/Choices",
-            "Primary Sweep",
-            "X Component",
-            "Y Component",
-            "Name",
-            "Report Type",
-            "solution",
-            "context",
-            "domain",
-        }
-        solution_data = raw.get("solution_data")
-        report_type_prop = families_raw.get("Report Type")
-        if not solution_data and report_type_prop:
-            solution_data = (
-                report_type_prop
-                if isinstance(report_type_prop, str)
-                else str(report_type_prop)
-            )
-        expr_set = {e.lower().replace(" ", "") for e in (cleaned or expressions)}
-        for key, value in families_raw.items():
-            key_s = str(key)
-            if key_s in meta_keys or key_s.endswith("/Choices"):
-                continue
-            # Trace map entries look like "dB(S(1,1))": "Freq ,dB(S(1,1))" — skip.
-            if key_s.lower().replace(" ", "") in expr_set:
-                continue
-            if "(" in key_s and ")" in key_s:
-                continue
-            families[key_s] = value
+        first = details[0] if details else {}
+        same_families = all(t.get("families") == first.get("families") for t in details)
+        same_solution = all(t.get("solution") == first.get("solution") for t in details)
         category = None
         if quantities:
-            sample = quantities[0].upper()
-            if sample.startswith("S("):
+            if quantities[0].upper().startswith("S("):
                 category = "S Parameter"
-            elif sample.startswith("Z("):
+            elif quantities[0].upper().startswith("Z("):
                 category = "Z Parameter"
         return {
-            "name": report_name,
-            "report_id": report_name,
-            "in_results": True,
-            "tree": "Results",
-            "solution_data": solution_data,
-            "display_type": raw.get("display_type")
-            or families_raw.get("Display Type"),
-            "solution": raw.get("solution"),
-            "context": raw.get("context"),
-            "domain": raw.get("domain"),
-            "primary_sweep": raw.get("primary_sweep") or "Freq",
-            "x_component": raw.get("x_component") or "Freq",
-            "category": category,
-            "quantities": quantities,
-            "functions": functions,
+            "name": name, "report_id": name, "in_results": True, "tree": "Results",
+            "solution_data": raw.get("solution_data"),
+            "display_type": raw.get("display_type"),
+            "solution": first.get("solution") if same_solution else None,
+            "context": first.get("context"), "domain": first.get("domain"),
+            "primary_sweep": first.get("primary_sweep"),
+            "x_component": first.get("x_component"), "category": category,
+            "quantities": quantities, "functions": functions,
             "expressions": cleaned or expressions,
-            "traces": traces,
-            "families": families,
-            "prop_names": list(raw.get("prop_names") or []),
-            "prop_error": raw.get("prop_error"),
+            "traces": [t["name"] for t in details],
+            "families": first.get("families", {}) if same_families else None,
+            "trace_details": details, "prop_names": raw.get("prop_names", []),
         }
 
     def report_catalog(
@@ -1138,6 +918,7 @@ class LiveDesign:
         frequency: str | None = None,
         family_variables: list[str] | None = None,
         nominal_variables: list[str] | None = None,
+        selected_values: dict[str, list[str]] | None = None,
         report_type: str | None = None,
     ) -> dict[str, Any]:
         """Add a Modal Results plot. Never delete an existing report.
@@ -1193,6 +974,7 @@ class LiveDesign:
                 "frequency": frequency,
                 "family_variables": family,
                 "nominal_variables": nominal,
+                "selected_values": selected_values or {},
                 "families_applied": False,
             }
         available = self._modal_quantities(cat, preferred, setup)
@@ -1207,8 +989,7 @@ class LiveDesign:
         unknown_fn = [
             item
             for item in fns
-            if item.strip().lower() not in allowed_fns
-            and not (item.strip().lower() in {"", "none"})
+            if item.strip().lower() not in allowed_fns and item.strip().lower() not in {"", "none"}
         ]
         if unknown_fn:
             raise AdapterError(
@@ -1221,6 +1002,7 @@ class LiveDesign:
             )
         family_payload = json.dumps(family, ensure_ascii=True)
         nominal_payload = json.dumps(nominal, ensure_ascii=True)
+        values_payload = json.dumps(selected_values or {}, ensure_ascii=True)
         expr_payload = json.dumps(expressions, ensure_ascii=True)
         raw = self._script(
             "\n".join(
@@ -1231,10 +1013,11 @@ class LiveDesign:
                     f"setup = {setup!r}",
                     f"family_vars = json.loads({family_payload!r})",
                     f"nominal_vars = json.loads({nominal_payload!r})",
+                    f"selected_values = json.loads({values_payload!r})",
                     f"y_exprs = json.loads({expr_payload!r})",
                     "variation = ['Freq:=', ['All']]",
                     "for var in family_vars:",
-                    "    variation += [str(var) + ':=', ['All']]",
+                    "    variation += [str(var) + ':=', selected_values.get(var, ['All'])]",
                     "for var in nominal_vars:",
                     "    if var not in family_vars:",
                     "        variation += [str(var) + ':=', ['Nominal']]",
@@ -1298,6 +1081,7 @@ class LiveDesign:
             "frequency": frequency,
             "family_variables": family,
             "nominal_variables": nominal,
+            "selected_values": selected_values or {},
             "families_applied": bool(raw.get("families_applied")),
         }
 
@@ -1310,6 +1094,7 @@ class LiveDesign:
         frequency: str | None = None,
         family_variables: list[str] | None = None,
         nominal_variables: list[str] | None = None,
+        selected_values: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Legacy Far Fields 2D cut. Not advertised in report_types."""
         preferred = f"{setup} : {sweep}" if sweep else f"{setup} : LastAdaptive"
@@ -1334,10 +1119,12 @@ class LiveDesign:
                 "frequency": frequency,
                 "family_variables": family,
                 "nominal_variables": nominal,
+                "selected_values": selected_values or {},
                 "families_applied": False,
             }
         family_payload = json.dumps(family, ensure_ascii=True)
         nominal_payload = json.dumps(nominal, ensure_ascii=True)
+        values_payload = json.dumps(selected_values or {}, ensure_ascii=True)
         raw = self._script(
             "\n".join(
                 [
@@ -1347,6 +1134,7 @@ class LiveDesign:
                     f"freq = {freq!r}",
                     f"family_vars = json.loads({family_payload!r})",
                     f"nominal_vars = json.loads({nominal_payload!r})",
+                    f"selected_values = json.loads({values_payload!r})",
                     "report_module = oDesign.GetModule('ReportSetup')",
                     "existing = []",
                     "try:",
@@ -1379,6 +1167,10 @@ class LiveDesign:
                     "    adaptive = [s for s in ff_solutions if 'LastAdaptive' in s]",
                     "    ff_setup = adaptive[0] if adaptive else ff_solutions[0]",
                     "variation = ['Theta:=', ['All'], 'Phi:=', ['0deg'], 'Freq:=', [freq]]",
+                    "for var in family_vars:",
+                    "    variation += [str(var) + ':=', selected_values.get(var, ['All'])]",
+                    "for var in nominal_vars:",
+                    "    variation += [str(var) + ':=', ['Nominal']]",
                     "created = False",
                     "errors = []",
                     "for sphere in spheres:",
@@ -1414,8 +1206,21 @@ class LiveDesign:
             "frequency": frequency,
             "family_variables": family,
             "nominal_variables": nominal,
+            "selected_values": selected_values or {},
             "families_applied": bool(raw.get("families_applied")),
         }
+
+    def prepare_report_export(self, name: str) -> dict[str, Any]:
+        """Query actual trace selections and refresh; never claim GUI validity."""
+        raw = self._script(f"report_name = {name!r}\n" + REPORT_QUERY_SCRIPT)
+        status = dict(raw["solution_status"])
+        if status["data_availability"] == "query_failed":
+            raise AdapterError(
+                "HFSS could not retrieve the selected report data; cached CSV was not exported",
+                code="report_solution_query_failed",
+                details=status,
+            )
+        return status
 
     def export_results_report(
         self,

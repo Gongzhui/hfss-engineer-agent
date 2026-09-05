@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import json
+import math
 import re
 import shutil
 import threading
@@ -42,6 +44,7 @@ from hfss_mcp.metrics import (
     summarize_modal_s_csv,
     summarize_terminal_z_csv,
 )
+from hfss_mcp.report_families import FamilySelection, family_values
 from hfss_mcp.report_trace import (
     CURVE_CATEGORIES,
     compose_y_expressions,
@@ -888,10 +891,13 @@ class AppContext:
         return {
             "ok": True,
             **result,
-            "needs_solve": True,
+            "needs_solve": None,
+            "parameters_changed": True,
+            "solution_validity": "unknown",
             "note": (
-                "Variables are written. Results still show the last solved "
-                "variation until you Analyze or export a family trace for this point."
+                "Variables are written. This point may already have a solution. "
+                "Select the required report Families; "
+                "changing variables alone does not prove staleness."
             ),
         }
 
@@ -978,12 +984,40 @@ class AppContext:
                 code="job_not_found",
                 details={
                     "hint": "jobs persist under the data dir as jobs.json. If this "
-                    "id is missing, the solve may still be running in AEDT — poll "
-                    "report_export / optimetrics_list, or call solved_points_list."
+                    "id is missing, verify the data directory and original job ID. "
+                    "The solve may still be running in AEDT; confirm its state there. "
+                    "Do not restart the solve or infer completion from existing results."
                 },
             )
         self._reconcile_running_job(rec)
         return self._job_payload(rec)
+
+    async def analyze_wait(self, job_id: str, timeout_s: float = 45) -> dict[str, Any]:
+        """Bounded, cancellable wait; never enter COM or hold a lock while sleeping."""
+        if not math.isfinite(timeout_s) or not 0 <= timeout_s <= 120:
+            raise ValueError("timeout_s must be finite and between 0 and 120 seconds")
+        started = time.monotonic()
+        payload = self.analyze_status(job_id)
+        while not payload["done"] and payload["state_verified"]:
+            remaining = timeout_s - (time.monotonic() - started)
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(0.25, remaining))
+            # Only inspect the worker's in-memory state. Do not refresh COM messages
+            # on each internal tick or infer completion from existing result files.
+            with self._job_lock:
+                finished = self._jobs[job_id]["state"] != JobState.RUNNING.value
+            if finished:
+                payload = self.analyze_status(job_id)
+                break
+        payload = self.analyze_status(job_id)
+        payload["wait_reason"] = (
+            "terminal" if payload["done"] else
+            "unverified" if not payload["state_verified"] else "timeout"
+        )
+        payload["waited_s"] = round(time.monotonic() - started, 3)
+        payload["timed_out"] = payload["wait_reason"] == "timeout"
+        return payload
 
     def _job_payload(self, rec: dict[str, Any]) -> dict[str, Any]:
         """Return a cache snapshot immediately; no synchronous GUI/COM calls."""
@@ -998,6 +1032,7 @@ class AppContext:
             "accepted": True,
             "done": done,
             "poll": "analyze_status" if running else None,
+            "wait": "analyze_wait" if running else None,
             "job_id": rec.get("job_id"),
             "job": rec,
             "status_source": "worker" if rec.get("job_id") in self._owned_job_ids else "persisted",
@@ -1550,30 +1585,23 @@ class AppContext:
     def _report_variation_plan(
         self,
         *,
-        families: list[str] | None,
+        families: FamilySelection | None,
         parametric: str | None,
-    ) -> tuple[list[str], list[str]]:
-        """(All vars, Nominal-pinned vars). Default does not All every setup."""
+    ) -> tuple[list[str], list[str], dict[str, list[str]]]:
+        """Selected vars, Nominal pins and per-variable choices; default is Nominal."""
         allowlist = self._require_allowlist()
         known = self._known_parametric_variable_names()
-        family: list[str] = []
-        if families is not None:
-            for name in families:
-                key = str(name).strip()
-                if not key:
-                    continue
-                if key not in allowlist.names():
-                    raise PolicyError(
-                        f"variable {key!r} is not on the allowlist",
-                        code="variable_not_allowed",
-                        details={"name": key, "allowed": sorted(allowlist.names())},
-                    )
-                if key not in family:
-                    family.append(key)
-        elif parametric:
-            family = self._parametric_setup_variables(parametric)
-        nominal = [name for name in known if name not in family]
-        return family, nominal
+        selected = family_values(families, {p.name: p.unit for p in allowlist.parameters})
+        if families is None and parametric:
+            selected = {name: ["All"] for name in self._parametric_setup_variables(parametric)}
+        family = [name for name, values in selected.items() if values != ["Nominal"]]
+        nominal = list(
+            dict.fromkeys(
+                [name for name in known if name not in family]
+                + [name for name, values in selected.items() if values == ["Nominal"]]
+            )
+        )
+        return family, nominal, selected
 
     def report_create(
         self,
@@ -1587,7 +1615,7 @@ class AppContext:
         sweep: str | None = None,
         face: str | None = None,
         frequency: str | None = None,
-        families: list[str] | None = None,
+        families: FamilySelection | None = None,
         parametric: str | None = None,
     ) -> dict[str, Any]:
         self._guard_no_solve("report_create")
@@ -1654,7 +1682,7 @@ class AppContext:
             self._ensure_session()
             setup_name = setup or allowlist.default_setup or "Setup1"
             sweep_name = sweep or allowlist.default_sweep
-            family_variables, nominal_variables = self._report_variation_plan(
+            family_variables, nominal_variables, selected_values = self._report_variation_plan(
                 families=families, parametric=parametric
             )
             report_name = self._default_report_name(
@@ -1673,6 +1701,7 @@ class AppContext:
                     frequency=frequency,
                     family_variables=family_variables,
                     nominal_variables=nominal_variables,
+                    selected_values=selected_values,
                 )
             else:
                 assert self._live is not None
@@ -1683,6 +1712,7 @@ class AppContext:
                     frequency=frequency,
                     family_variables=family_variables,
                     nominal_variables=nominal_variables,
+                    selected_values=selected_values,
                 )
             rec["report_id"] = rec.get("name") or report_name
             rec["report_type"] = "farfield_2d"
@@ -1735,8 +1765,7 @@ class AppContext:
             )
         if not quantities or not functions:
             raise PolicyError(
-                "curve reports need quantity and function "
-                "(lists allowed; Y = function × quantity)",
+                "curve reports need quantity and function (lists allowed; Y = function × quantity)",
                 code="report_trace_args",
                 details={"category": cat},
             )
@@ -1748,7 +1777,7 @@ class AppContext:
         self._ensure_session()
         setup_name = setup or allowlist.default_setup or "Setup1"
         sweep_name = sweep or allowlist.default_sweep
-        family_variables, nominal_variables = self._report_variation_plan(
+        family_variables, nominal_variables, selected_values = self._report_variation_plan(
             families=families, parametric=parametric
         )
         report_name = self._default_report_name(
@@ -1772,6 +1801,7 @@ class AppContext:
                 functions=functions,
                 family_variables=family_variables,
                 nominal_variables=nominal_variables,
+                selected_values=selected_values,
             )
         else:
             assert self._live is not None
@@ -1785,6 +1815,7 @@ class AppContext:
                 functions=functions,
                 family_variables=family_variables,
                 nominal_variables=nominal_variables,
+                selected_values=selected_values,
                 report_type=kind,
             )
         rec["report_id"] = rec.get("name") or report_name
@@ -1843,9 +1874,7 @@ class AppContext:
             dest = self._resolve_export_path(path, suffix=".jpg", default="field_face")
             if self.is_fake:
                 assert self._fake is not None
-                dest = self._fake.export_results_report(
-                    listed_name, dest, report_type="field_face"
-                )
+                dest = self._fake.export_results_report(listed_name, dest, report_type="field_face")
             else:
                 assert self._live is not None
                 dest = self._live.export_field_overlay(listed_name, dest)
@@ -1855,12 +1884,20 @@ class AppContext:
             out["format"] = "image"
             self._reports[listed_name] = out
             return {"ok": True, "report": out, "path": str(dest), "format": "image"}
+        solution_status: dict[str, Any] = {
+            "data_availability": "not_checked",
+            "validity": "unknown",
+            "reason": "HFSS report validity/cross state is not exposed by this adapter",
+        }
+        if self._solve_running() is not None:
+            solution_status["reason"] = (
+                "Solve in progress; exporting existing report without refresh"
+            )
+        elif not self.is_fake:
+            assert self._live is not None
+            solution_status = self._live.prepare_report_export(listed_name)
         dest = self._resolve_export_path(path, suffix=".csv", default=str(kind or "report"))
-        expressions = list(
-            (rec or {}).get("expressions")
-            or listed_item.get("expressions")
-            or []
-        )
+        expressions = list((rec or {}).get("expressions") or listed_item.get("expressions") or [])
         if not expressions and not is_overlay:
             try:
                 inspected = self.report_get(listed_name)["report"]
@@ -1935,13 +1972,8 @@ class AppContext:
                     "code": getattr(exc, "code", "png_failed"),
                     "message": str(exc),
                 }
-        if self._variables_dirty:
-            payload["stale_solution"] = True
-            payload["note"] = (
-                "variables_set has not been solved. This CSV is the last solved "
-                "variation, not the current design values. Analyze, or export a "
-                "family trace that already contains this point."
-            )
+        payload["solution_validity"] = "unknown"
+        payload["solution_status"] = solution_status
         return payload
 
     def _resolve_export_path(self, path: str | None, *, suffix: str, default: str) -> Path:
