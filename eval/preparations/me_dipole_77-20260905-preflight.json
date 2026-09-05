@@ -1,0 +1,100 @@
+{
+  "health": {
+    "data_dir": "C:\\Users\\Gongzhui\\.hfss-mcp-exams\\me_dipole_77\\20260905-1015",
+    "real_hfss_ready": true,
+    "open_projects": [
+      "Project6",
+      "me_dipole_77"
+    ]
+  },
+  "allowlist_load": {
+    "ok": true,
+    "allowlist_id": "al_e5b89fd1961a01da",
+    "project_name": "me_dipole_77",
+    "design_name": "77GHZantenna",
+    "parameters": [
+      {
+        "name": "l1",
+        "unit": "mm",
+        "min": 0.6,
+        "max": 2.0
+      },
+      {
+        "name": "l2",
+        "unit": "mm",
+        "min": 0.25,
+        "max": 1.0
+      },
+      {
+        "name": "w",
+        "unit": "mm",
+        "min": 0.8,
+        "max": 2.5
+      },
+      {
+        "name": "wp",
+        "unit": "mm",
+        "min": 0.25,
+        "max": 1.0
+      },
+      {
+        "name": "lp",
+        "unit": "mm",
+        "min": 0.4,
+        "max": 1.2
+      },
+      {
+        "name": "d1",
+        "unit": "mm",
+        "min": 0.1,
+        "max": 0.45
+      },
+      {
+        "name": "g3",
+        "unit": "mm",
+        "min": 0.05,
+        "max": 0.4
+      },
+      {
+        "name": "e1",
+        "unit": "mm",
+        "min": 0.05,
+        "max": 0.35
+      }
+    ],
+    "constraints": [],
+    "default_setup": "Setup1",
+    "bound": {
+      "project_name": "me_dipole_77",
+      "design_name": "77GHZantenna",
+      "project_path": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\cases\\me_dipole_77\\sandbox\\me_dipole_77.aedt",
+      "process_id": 16992
+    },
+    "open_projects": [
+      "Project6",
+      "me_dipole_77"
+    ]
+  },
+  "solved_points_list": {
+    "ok": true,
+    "points": [],
+    "count": 0
+  },
+  "optimetrics_list": {
+    "ok": true,
+    "setups": []
+  },
+  "report_list": {
+    "ok": true,
+    "reports": [
+      {
+        "display_type": "Rectangular Plot",
+        "name": "S11",
+        "report_id": "S11",
+        "in_results": true,
+        "tree": "Results"
+      }
+    ]
+  },
+  "tool_count": 26
+}

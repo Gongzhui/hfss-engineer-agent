@@ -1,0 +1,2 @@
+# Preserve archived evidence bytes and SHA-256 across checkouts.
+runs/** -text -whitespace

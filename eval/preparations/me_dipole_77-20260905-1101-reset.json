@@ -1,0 +1,11 @@
+{
+  "archive": "C:\\Users\\Gongzhui\\Documents\\Projects\\hfss-mcp\\eval\\archive\\exams\\me_dipole_77\\runs\\20260905-102725",
+  "saved_project_sha256": "bbf1e5776ee62d3ab51c29cdb5322baff0e9dbc929e75c8cfc473b1c976eee09",
+  "baseline_head": "b7ad7e3a47e34ce4b4bd7d8a1adcc9efc33c0c9c",
+  "removed": {
+    "Soln": 6,
+    "Optimetrics": 1,
+    "ReportSetup": 1,
+    "ProjectPreview": 1
+  }
+}

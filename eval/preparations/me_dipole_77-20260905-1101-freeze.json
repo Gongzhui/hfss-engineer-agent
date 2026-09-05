@@ -1,0 +1,30 @@
+{
+  "head": "b7ad7e3a47e34ce4b4bd7d8a1adcc9efc33c0c9c",
+  "sha256": {
+    "eval/exams/me_dipole_77/GOAL.md": "7a8573655287567066f0e3cc3b0c7051057ebb4fe69e05ded6e57ed5cb95c8bc",
+    "eval/exams/me_dipole_77/OUTPUT.md": "d6ceac92ae37a05da1d2fe2971fec06c79e17503a89b0014c48924ebd79f15eb",
+    "eval/keys/me_dipole_77.json": "b255047edcc1362434f2cb58cd0a1aecf7243d08caa59d725c8b5ab2974d361f",
+    "skills/tune-hfss-antenna/scripts/plot_s11.py": "bfb065a18cb7e99f21fb22404e313a92b62cc1c75cf8768e352a9e4617127276",
+    "skills/tune-hfss-antenna/SKILL.md": "6014d023e3557448a2259d2dac3c95c4aa294e1eaf51bad847f985ceb8c12ae7",
+    "src/hfss_mcp/__init__.py": "693d65cf599ba0dee2db6ee7687ef1b62471aa8c4df6bda2e7eda0a320da6c43",
+    "src/hfss_mcp/adapter/__init__.py": "8daccdac4c59d8c57eab4a57d49464652ee9a717094961a0ebefa98e5213a0a6",
+    "src/hfss_mcp/adapter/fake.py": "12c72c4919714b27f1f8a3743d0e7b0cc6b66a25b6b7e8749d715381b17842f0",
+    "src/hfss_mcp/allowlist.py": "c905b7956ebc14e9e096d9ee8272ad082a8b9dea1139346fbe26b03612e0a844",
+    "src/hfss_mcp/app.py": "f25ea5db366a5cee0329b09a5614c9f80ebe8c7c9841986035cc114892542da4",
+    "src/hfss_mcp/com_session.py": "290ea19d184baac6dc7054f7a15a9bdfb76c385fa10230ee0b27e1d25e6dfc5b",
+    "src/hfss_mcp/config.py": "41a6545a18dd2a0b72261d048b5d09bc46acadde81dff7f8b708d5fa6067dcbf",
+    "src/hfss_mcp/constraints.py": "f146802182ef1da4ca74fada1261efa26f0ab7c0150291ac5f7e53db18d88345",
+    "src/hfss_mcp/domain.py": "e06f592485c9fe4b1aea1f3ad20003ee648365d4564f7564fc67b2ca4d36a2bf",
+    "src/hfss_mcp/environment.py": "cf7b5eb86d63c29b6b4845e9f894ed1e4b1a2fd66d1f5af56cea70aba53b909b",
+    "src/hfss_mcp/errors.py": "143afb95345dac51eada85e8783a3a775dfebd5352e8af96154b88a5ef9177c4",
+    "src/hfss_mcp/ids.py": "993cf25b307cc5ef57b8e40ce80b62ce166df82b5dbdd6de1b70aed2c683122d",
+    "src/hfss_mcp/ledger.py": "80ffe9cb2b1219ca2cc408a7facd58d2f834925e140b31f31d9db5b8fe3ac8cf",
+    "src/hfss_mcp/live.py": "75d63909afd9736da585cfe18d74ca56293a98cabb50f6c910f9e92dde28c193",
+    "src/hfss_mcp/metrics.py": "1aed906631a5a8609e9fc5e17ecf43e3ccee447166cc893e5cbb94df3a167601",
+    "src/hfss_mcp/real_project.py": "4bcd2c428b2afcfaf0f86263af57318e835cbee11e0001ae1112077ddb117496",
+    "src/hfss_mcp/report_trace.py": "50bbb31878cc37f9ba90632fac4d69fe8fb37143e7b1f710321e5d084cadceac",
+    "src/hfss_mcp/server.py": "7e505dde37d7259a63b67836fe529b10c2a8aa06f0390cf31494201d71a1391c",
+    "src/hfss_mcp/session_discovery.py": "8148aa50f50a921bbf2426670473ce833ac5cebeb934104b3c65d8803fbe3652",
+    "src/hfss_mcp/sweeps.py": "bda008f6429d4223c330358b7de7fcf1a2383110434868b5578a103041d52c00"
+  }
+}

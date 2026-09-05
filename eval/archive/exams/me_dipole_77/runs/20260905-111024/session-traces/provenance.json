@@ -1,0 +1,12 @@
+{
+  "scope": "User/assistant visible messages and tool calls/results. Internal reasoning, system/developer prompts, telemetry and duplicate events omitted. Original sessions remain local.",
+  "sources": [
+    {
+      "source_name": "rollout-2026-09-05T11-09-42-01a06f8b-1976-7ec2-9c47-2830bf8b3db7.jsonl",
+      "source_sha256": "81b0664a80c154502ecaeba44493da19d4614cbd201d4e7a21ec504db9755877",
+      "export": "session-traces/rollout-2026-09-05T11-09-42-01a06f8b-1976-7ec2-9c47-2830bf8b3db7.jsonl",
+      "records": 1464,
+      "export_sha256": "0ae3e0fd58118e95b258e2a22875308042e50c190f70add1696ce7ca8bfb8d98"
+    }
+  ]
+}

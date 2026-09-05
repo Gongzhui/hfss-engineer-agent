@@ -6,7 +6,7 @@
   "nominal_s11": "cases/me_dipole_77/results/s11.csv",
   "start_s11": "cases/me_dipole_77/results/s11_sandbox.csv",
   "answer_vars": "cases/me_dipole_77/answer/nominal_vars.json",
-  "time_limit_hours": 24,
+  "time_limit_hours": 12,
   "time_budget": "solve",
   "spec": {
     "kind": "match",
@@ -14,5 +14,5 @@
     "rel_bw_min": 0.30,
     "s11_at_center_max_db": -10.0
   },
-  "notes": "Pass if the continuous S11<=-10 dB band covering 77 GHz (nearest sweep point) has relative bandwidth 2(fH-fL)/(fH+fL) >= 0.30. Do not pass/fail on matching S11_min. Nominal must pass (~32% around 77 GHz, only ~2pp of headroom); sandbox start must fail (no -10 dB band). Budget is 24 hours of HFSS solve time only (sum of log solve_time lines); protocol.on_time is separate from RF pass. Third sitting: RF floor stays 0.30; budget 8h -> 24h after the second sitting matched 77 GHz but stopped at 26.4% / 8h07m."
+  "notes": "Pass if the continuous S11<=-10 dB band covering 77 GHz (nearest sweep point) has relative bandwidth 2(fH-fL)/(fH+fL) >= 0.30. Do not pass/fail on matching S11_min. Nominal must pass (~32% around 77 GHz, only ~2pp of headroom); sandbox start must fail (no -10 dB band). Budget is 12 hours of HFSS solve time only (sum of log solve_time lines); protocol.on_time is separate from RF pass. Fourth sitting: RF floor stays 0.30; budget 24h -> 12h after the third sitting spent 23h in a wrong basin and finished at 27.2%."
 }

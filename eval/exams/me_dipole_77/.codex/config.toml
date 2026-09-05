@@ -1,0 +1,12 @@
+# Dedicated runtime state for this sitting; do not inherit past solved points.
+[mcp_servers.hfss-mcp]
+command = 'C:\Users\Gongzhui\AppData\Local\Microsoft\WinGet\Packages\astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe\uv.exe'
+args = ["run", "--directory", "C:/Users/Gongzhui/Documents/Projects/hfss-mcp", "hfss-mcp"]
+startup_timeout_sec = 120
+tool_timeout_sec = 180
+
+[mcp_servers.hfss-mcp.env]
+HFSS_MCP_ADAPTER = "pyaedt"
+HFSS_MCP_AEDT_VERSION = "2023.2"
+HFSS_MCP_DEMO = "0"
+HFSS_MCP_DATA_DIR = 'C:\Users\Gongzhui\.hfss-mcp-exams\me_dipole_77\20260905-1101'

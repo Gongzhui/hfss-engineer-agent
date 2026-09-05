@@ -1,0 +1,133 @@
+{
+  "exam_id": "me_dipole_77",
+  "run": "eval/archive/exams/me_dipole_77/runs/20260902-231549",
+  "start": {
+    "bands_ghz": [],
+    "impedance_bw_ghz": 0,
+    "design_band_frac_le_m10": 0.0,
+    "span_ghz": null,
+    "relative_bw": null,
+    "notch": null,
+    "s11_min_informational": [
+      76.97,
+      -9.217
+    ]
+  },
+  "end": {
+    "bands_ghz": [
+      [
+        68.081,
+        93.535
+      ]
+    ],
+    "impedance_bw_ghz": 25.455,
+    "design_band_frac_le_m10": 0.64,
+    "span_ghz": 25.455,
+    "relative_bw": 0.315,
+    "notch": null,
+    "s11_min_informational": [
+      75.353,
+      -23.447
+    ]
+  },
+  "nominal_reference": {
+    "bands_ghz": [
+      [
+        66.869,
+        92.323
+      ]
+    ],
+    "impedance_bw_ghz": 25.455,
+    "design_band_frac_le_m10": 0.64,
+    "span_ghz": 25.455,
+    "relative_bw": 0.32,
+    "notch": null,
+    "s11_min_informational": [
+      76.566,
+      -30.675
+    ]
+  },
+  "pass_fail_note": "Pass if a continuous S11<=-10 dB band covers the stated center (nearest sweep point) and that band's relative bandwidth 2(fH-fL)/(fH+fL) meets rel_bw_min. s11_min is informational and must not decide pass/fail. Nominal is the known-good reference, not a number to copy. The time budget is protocol.on_time and does not decide pass.",
+  "spec": {
+    "kind": "match",
+    "center_ghz": 77.0,
+    "rel_bw_min": 0.3,
+    "s11_at_center_max_db": -10.0
+  },
+  "verdict": {
+    "start": {
+      "center_ghz": 77.0,
+      "nearest_ghz": 76.97,
+      "s11_at_nearest_db": -9.22,
+      "band_ghz": null,
+      "relative_bw": null,
+      "checks": {
+        "center_matched": false,
+        "rel_bw_ok": false
+      },
+      "pass": false
+    },
+    "end": {
+      "center_ghz": 77.0,
+      "nearest_ghz": 76.97,
+      "s11_at_nearest_db": -19.74,
+      "band_ghz": [
+        68.081,
+        93.535
+      ],
+      "relative_bw": 0.315,
+      "checks": {
+        "center_matched": true,
+        "rel_bw_ok": true
+      },
+      "pass": true
+    },
+    "nominal_reference": {
+      "center_ghz": 77.0,
+      "nearest_ghz": 76.97,
+      "s11_at_nearest_db": -29.13,
+      "band_ghz": [
+        66.869,
+        92.323
+      ],
+      "relative_bw": 0.32,
+      "checks": {
+        "center_matched": true,
+        "rel_bw_ok": true
+      },
+      "pass": true
+    }
+  },
+  "pass": true,
+  "protocol": {
+    "time_limit_hours": 12,
+    "time_budget": "solve",
+    "started": "2026-09-02T23:15:49+08:00",
+    "stopped": "2026-09-03T10:33:10+08:00",
+    "solve_seconds": [
+      7079.0,
+      3109.0,
+      3636.0,
+      2449.0,
+      1766.0,
+      1738.0,
+      1777.0,
+      1921.0,
+      1748.0,
+      3085.0,
+      2455.0,
+      1558.0,
+      1551.0,
+      1216.0
+    ],
+    "solve_total_s": 35088.0,
+    "job_ids": 14,
+    "on_time": true
+  },
+  "archive_review": {
+    "reviewed": "2026-09-06",
+    "budget_hours_at_sitting": 12,
+    "scorer_sha256": "35ec1ed123e81aa6272dca5e98fa35038ee5507ad68abb502adb7ad758e346d4",
+    "note": "RF and solve-time checks only; no new HFSS solve. Historical budget overrides current key for third sitting."
+  }
+}

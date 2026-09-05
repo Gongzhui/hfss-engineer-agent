@@ -1,0 +1,1385 @@
+{
+  "run": "20260905-102725",
+  "files": [
+    {
+      "path": "ARCHIVE-NOTE.md",
+      "bytes": 441,
+      "sha256": "8e985654e0f602c07363816c0ef24ede2905e845ebf0f54fad7f9f5706cb7d82",
+      "storage": "git"
+    },
+    {
+      "path": "hfss-tuning-log.md",
+      "bytes": 2879,
+      "sha256": "b7a45efc4fcfc45d120e3d3f55fa9e1657143856cb9afb69191ba6a6039a5dbf",
+      "storage": "git"
+    },
+    {
+      "path": "plot.py",
+      "bytes": 1615,
+      "sha256": "82e3c2f95ae2ee31e5cd3230658d00b5a688d31ec611ae916c8e31893d1b2ad3",
+      "storage": "git"
+    },
+    {
+      "path": "round-000-s11.csv",
+      "bytes": 1788,
+      "sha256": "f9ebc871d03fca701b1a154896ba6f0f62936dd360849db0fc68d6322c1bb198",
+      "storage": "git"
+    },
+    {
+      "path": "round-000-s11.png",
+      "bytes": 185237,
+      "sha256": "286880532a073d31351dc57f2b217e9b9502b5b345a6d6a0cc74a50ace9ce2e6",
+      "storage": "git"
+    },
+    {
+      "path": "round-000-z.csv",
+      "bytes": 2553,
+      "sha256": "6ec2a45559daecd7d26612bf5a90bc32f21f6d38f51a5c204eb58a8676717ee6",
+      "storage": "git"
+    },
+    {
+      "path": "round-000-z.png",
+      "bytes": 207674,
+      "sha256": "c033def484bf466161b86aef85814d6db615b742746d27a82abcc56782cd52e2",
+      "storage": "git"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedt",
+      "bytes": 314281,
+      "sha256": "bbf1e5776ee62d3ab51c29cdb5322baff0e9dbc929e75c8cfc473b1c976eee09",
+      "storage": "git"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.asol",
+      "bytes": 21583,
+      "sha256": "9289614b900f525e1788448526d947979a0283cf351508034ffba3089a936dd6",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_MI0_V6589.sd/initial.stats",
+      "bytes": 2674,
+      "sha256": "e6b8c4c62094e3963fe36eedd25cbd0ffe8cb62790a42252bb1574b4c0d1932d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_ADP6_V6589.sd/native.adp",
+      "bytes": 4157286,
+      "sha256": "6a5f0a780b5afc0f7fd7fc72ca57f63c00fcd015be5902cf2cc7759e11ece29f",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_MI0_V6589.sd/current.stats",
+      "bytes": 2676,
+      "sha256": "96aa4a3add0749191c0c17ad908beae9bb7b8551738e0375b480cc4cb62dfb7c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_SD1_V6589.su",
+      "bytes": 842,
+      "sha256": "0e63f1f8c4962a1159f5c3648783472bcd51acc22224dd80d7cd81524bf920cf",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_SD2_V6589.su",
+      "bytes": 842,
+      "sha256": "fbda4399828d3e494fd19e93363b504ddf5b9a8d97166f9b35383f1620d626db",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_SD3_V6589.su",
+      "bytes": 843,
+      "sha256": "fc6b384084709021b4aed0e395fb605747c0d692a85199ff36ee786960d4e107",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_SD4_V6589.su",
+      "bytes": 843,
+      "sha256": "b0056ed8f53359d89e9c3e5b188fbd0e70b0d0226adfbb96f00d1324fa82e02c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_SD5_V6589.su",
+      "bytes": 843,
+      "sha256": "939042ed50965e5631425268db73bb20b2f105924c35817c76515d6e8e9a351a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_SD6_V6589.su",
+      "bytes": 843,
+      "sha256": "d6ad89008260631a293b3622ca9b120513e7b34b7b0970f903239dd353fa2407",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_V6589.cmesh/bodyFaceInfo.info",
+      "bytes": 14907,
+      "sha256": "5459d2422a451eaf6127bd95e18b9d457df629da9be7d047e8f6ca165c9f972d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_V6589.cmesh/current.ngmesh",
+      "bytes": 2187150,
+      "sha256": "ed99d2e0778bb3876b4dd601aedf6fbbe5104ad8459aa1593e83deb29c578290",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_V6589.cmesh/current.stats",
+      "bytes": 2676,
+      "sha256": "96aa4a3add0749191c0c17ad908beae9bb7b8551738e0375b480cc4cb62dfb7c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_V6589.EMConvData",
+      "bytes": 2759,
+      "sha256": "c3009cf654cde0cd2411260810eab641d46da02e9aced5acc06c31e1d4eb6a64",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1146_V6589.profile",
+      "bytes": 14851,
+      "sha256": "a121043a89915c2ea8bc879594df9bd1671778d0535aa82666ce75159a7acd5f",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/9.nvc",
+      "bytes": 322,
+      "sha256": "34b06f2e178c7eb4725ead62c0835958162e15eab9cd1889a4ec080438fb610a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/9_1.tvc",
+      "bytes": 15346,
+      "sha256": "51c3a4de6d8911f41e47526041cf3a8770bf4a12440534000383e4e37ce035ae",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/9_1.tvm",
+      "bytes": 3310,
+      "sha256": "05b8bce4bb2774f76452f6fe41e78954d20e8f557a8174927b3de751da175f72",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/9_1.tvz",
+      "bytes": 15344,
+      "sha256": "00eec13323ffa647262b29a885b16004aa018028a1dc9aac9d90ae5ea505541e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/current.sf_msh",
+      "bytes": 88760,
+      "sha256": "d2f557f115afb78d6bc488e910478b0eba6c67fcd2cc6272852d3edde1e093a4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/current.sf_mshhdr",
+      "bytes": 186,
+      "sha256": "57128a8064c75db4d248cb8bba16daff2a02c332b4cef05be2727fb4d1745d62",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.evtrs",
+      "bytes": 207,
+      "sha256": "77be3fe5af57625f31ec7293129800f38b0ef0f5ef6182084ca6b7a0afe7bedf",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.evtrs_0",
+      "bytes": 9372672,
+      "sha256": "433672bb7f2289de16c0b7ca7c24e00de88a1a14fc6c399463a8956a2333940b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.evtrs_hyd",
+      "bytes": 664689,
+      "sha256": "bccc0a56bf5c889542c1a6489026535d59f9432212c0994bf3d3c71894d19d4a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.imp",
+      "bytes": 52799,
+      "sha256": "b31b0cd81303ab3676799c4fdc0d2faa9da3c45302c12bf87c95069a2729b621",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_0",
+      "bytes": 4074768,
+      "sha256": "65faf745a1c92d8e8d6929f0eab235286bb45217b27390d974b413f4c0cba630",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_1",
+      "bytes": 4074768,
+      "sha256": "1ad126f569967bc899882ce8dba1f1708785a62e7b8b2f49240020f6a3af57ef",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_10",
+      "bytes": 4074768,
+      "sha256": "2e14a6b0fab624206da586124343b5ebe593ef6085f0fe3b82fe3aed6e12254c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_11",
+      "bytes": 4074768,
+      "sha256": "3957ad6cafa10507e6c434c0789ceee3a55404d9d1eb13949170bd01b8f7c7f7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_12",
+      "bytes": 4074768,
+      "sha256": "e94b89d1c151308f061dcfb6a69c85c6993cfd8c30bc0af58162ec18ade10783",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_13",
+      "bytes": 4074768,
+      "sha256": "ed1cf1619d4630590b4f4a87e8cb8303374a73007c74db4b9ca0133a67d5570e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_14",
+      "bytes": 4074768,
+      "sha256": "c6edf1e2f362274c2ffc886d8f5e596bbcd0c815e2722a85ec859ada2ccfef7b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_15",
+      "bytes": 4074768,
+      "sha256": "e01e49dc083fd2c31e8bc93ae6464900e592deefa2456f97200e699d1879f86d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_16",
+      "bytes": 4074768,
+      "sha256": "eaff9cbb0e4d10b1d68e8361c13175fa79363c255812570fb78d9936a376ddfc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_17",
+      "bytes": 4074768,
+      "sha256": "128dea24f4b444630ce644fbf3c51e9503a0261de1912b34850b7047cebb09cd",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_18",
+      "bytes": 4074768,
+      "sha256": "15e8796f280035fc11db09ff5496ccdd5e231b38d11c9a76d323418d4ef5f4b1",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_19",
+      "bytes": 4074768,
+      "sha256": "3af46aeba846f0d2f973f565f3687664875bd997b89ccfeb3d0d8b3eb61d8c2a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_2",
+      "bytes": 4074768,
+      "sha256": "52665e71bb6c2fd479f73e7ee8cece99160b8686cf21f36f110fb628b0f7d063",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_20",
+      "bytes": 4074768,
+      "sha256": "6cbc4e1c2507d57d746d59ddc951e8d9ed47addba26cec928ebe0a7853b19b9e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_21",
+      "bytes": 4074768,
+      "sha256": "fc7d85ec14fd4494955645c0f372b1e9c98e15ac9876ed7e051da5ca165deba7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_22",
+      "bytes": 4074768,
+      "sha256": "a54f46c51a9b275f69a36c310f6988a87270de53e32b17fd298a539fb9d80b6a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_23",
+      "bytes": 4074768,
+      "sha256": "4fb071e9fbd00ac51baa8ae06152d0456f49049bc419b0cff45be8437cb1b513",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_24",
+      "bytes": 4074768,
+      "sha256": "fb7912b0256e708508f22226c22c0ef01b09f4d010ffecbbd5a52943d808d1b6",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_25",
+      "bytes": 4074768,
+      "sha256": "f70708a797f2c0206086ba7da6ea29047bbe33d235356d8cc294daa77a3822db",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_26",
+      "bytes": 4074768,
+      "sha256": "58b42fffa161e6110a21572485eb01853f03ebcd3bc5853a46a375ebb233227d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_27",
+      "bytes": 4074768,
+      "sha256": "618d7146caa623f227e902386aa2b8fe5e95487d15ac8fa122c4385f9cae2e0a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_28",
+      "bytes": 4074768,
+      "sha256": "67e2be44ba6c4c213ec1b4272d43b2ff2e70dcce6ff69ab7ac8ec3b577e423bf",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_29",
+      "bytes": 4074768,
+      "sha256": "faf79df184f03083064bdf594bb6c511b06694d40798c22a73340da2b99826a2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_3",
+      "bytes": 4074768,
+      "sha256": "ea83e4d31ac704d72ff730e45443aa8b28e75496fe8ffa9ad291e90d31e96325",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_30",
+      "bytes": 4074768,
+      "sha256": "b7288899d7a38917aa2f680dd9cc691e9a92769c8123c193ae9f7287b0c1bf16",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_31",
+      "bytes": 4074768,
+      "sha256": "5c35855cc069ccea9bcd8a00ef65d206f847c724f52a7814e97993b6a9031400",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_32",
+      "bytes": 4074768,
+      "sha256": "a2a2a4145c340fae4a33ca7a93f60f65edc2a7664ccb83f16b6e06331bb1e0fc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_33",
+      "bytes": 4074768,
+      "sha256": "e31b7cae5b087d13bf07f817f254ded959907c0c157e8c0148e193edec319459",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_34",
+      "bytes": 4074768,
+      "sha256": "878f05b0fe82f0263401cf143052f4d85653f103623f0551d291d8d02b337da2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_35",
+      "bytes": 4074768,
+      "sha256": "78fc77d314514672291324eaec3d883a274b860cc38e5fcad56be68662cd535d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_36",
+      "bytes": 4074768,
+      "sha256": "d632ce663e7af4840eeb7f0cdf6bea235c1f650d57b66695612b3d6ef6278c59",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_37",
+      "bytes": 4074768,
+      "sha256": "83727e6c404a46ed30aa3db84a077ecb5a282f7aff4f77930b8557511d1606bb",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_38",
+      "bytes": 4074768,
+      "sha256": "0361e201a8bb3ccc7aa860bbbc689ad185b117920aa6bd524c03419dd8cf5ceb",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_39",
+      "bytes": 4074768,
+      "sha256": "c22402bbb34c795184e73f1dee66fce086c9dd927891d6eef0e5312ca693c961",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_4",
+      "bytes": 4074768,
+      "sha256": "9815d8dd7dc6daeaa44883f30aba9960350ff4778dfa4730b1be38c76b2f1afb",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_40",
+      "bytes": 4074768,
+      "sha256": "58388b3cfa06d587f81cd9357493bc93b6ccf9dcf63888e22672fbf2ad390ee7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_41",
+      "bytes": 4074768,
+      "sha256": "7c444a530d67c29466efa23fe89cb2b5f00bcebe6b9962d436f85233679927c7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_42",
+      "bytes": 4074768,
+      "sha256": "bf6ddc1ccbe96da4f988891e39968c7bf521740d768a3705d8596dd560622e33",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_43",
+      "bytes": 4074768,
+      "sha256": "9a6bfcad5c9747991e95f2b6aa27716b945c4a99c9e1456c08cc4e5f40a9d80c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_44",
+      "bytes": 4074768,
+      "sha256": "4716ccac371488132ae1df5c61633da44968b7f122d2dffc7bd39c3007336369",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_45",
+      "bytes": 4074768,
+      "sha256": "7ad70eb68ef0ac743a5cefc9f10ad1d98af83cb7bb49b33dd89c406246bf3bf2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_46",
+      "bytes": 4074768,
+      "sha256": "6d5db31f1fd9fd0b9935b9979fa5a500a95cff1805701261becee04bb6273a77",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_47",
+      "bytes": 4074768,
+      "sha256": "414cd82c90b091dc3e5acd0ec412632f3b004468c27d8dc81a62c1c17737a0f8",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_48",
+      "bytes": 4074768,
+      "sha256": "407ada5c217d93c441a5f0b9675b77326839385802293c0a5d40e0a9eda38a1f",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_49",
+      "bytes": 4074768,
+      "sha256": "f2507b30de292ba71f0e2bb354dcf08e430647f88c443709fbbe246fad4ca24c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_5",
+      "bytes": 4074768,
+      "sha256": "ed37e8df624e35c012ec425ed93e1f20895db31bffdc089c16e9d60b8bf778f9",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_50",
+      "bytes": 4074768,
+      "sha256": "734c5bd24f724133ea6a7ba7976ae7529aac5db1d7910a11fe571d87defde1bc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_51",
+      "bytes": 4074768,
+      "sha256": "f6ff87d471be4808c3591d2aef2d569aabd151bf5c52fd56237fe9122c281628",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_52",
+      "bytes": 4074768,
+      "sha256": "6dc281de9eb4bf4b81b3457a996c9216e88832fb2a7b8bd05f7f8aeffc71a2a0",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_53",
+      "bytes": 4074768,
+      "sha256": "d03a284778f7a83ca3d57f7c9d6d418b84cc3909fa946f636ef6555a93ef4b65",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_54",
+      "bytes": 4074768,
+      "sha256": "eca261f33c3227cf48c7cdf7714bf19669d1f689b1f5656c68089734ad2feed3",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_55",
+      "bytes": 4074768,
+      "sha256": "aa074dd764c76b960a3d2458782e1ee959fe94061a9cd2fb5ffbd3a62cb725b0",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_56",
+      "bytes": 4074768,
+      "sha256": "71e88233137d4bdfa660c5fd05a30742d0e15cdeda49190f7e78a31b6bd25ab3",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_57",
+      "bytes": 4074768,
+      "sha256": "ac3ce102517e302e887328e42121fc3dc5572401fb74584325d4d71e8534df3c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_58",
+      "bytes": 4074768,
+      "sha256": "914f7f6b5ae8c598bdf7bce85e79cd0d95db524d1319278282e686a936c6acf4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_59",
+      "bytes": 4074768,
+      "sha256": "ca4afc768e25a1deed571737caec6be4551aaac51ae6e29c7f3b689ba037e54e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_6",
+      "bytes": 4074768,
+      "sha256": "4ec23e333c215d3224544dd53cc177bdb0fcad0ee5709cbda87c52df638519d0",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_7",
+      "bytes": 4074768,
+      "sha256": "7a44e1b3b54bc19ccc521f7427c01226a93ded6cce72005a58a32cbd93542aa2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_8",
+      "bytes": 4074768,
+      "sha256": "f26c272f32fdc659f956ef9220a78fba64c54bc905d83b38af7efd35fac3d39e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvc_9",
+      "bytes": 4074768,
+      "sha256": "7d080fb01b81cb5d7f635934b25110f9a3614ba58ccb18b0eed60c8de3124680",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.kvcsp",
+      "bytes": 186,
+      "sha256": "0377fbdd2fce78c320f4307626504f2b0cfe3b831a65ae4ce60d3afdb9fb29b3",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdm_0",
+      "bytes": 57608,
+      "sha256": "c5eb93aeee7e1d0d6a6d1e95e1da2130d74a4d1b21af5e6299981afa92ff6b14",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdm_1",
+      "bytes": 57608,
+      "sha256": "96fc3ce2e1506ef54d7b5ddb9ef6805d5c8935fb04f88252f2dd7580a0bee8d9",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdm_2",
+      "bytes": 57608,
+      "sha256": "d327a716d121b6242876e807bf4c84e6f8522842daef84d5442ac0de9bb6acb4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdm_3",
+      "bytes": 57608,
+      "sha256": "c5926b5abc8f0f5b11460d5449bcb2249ccb7d8bd78d4d438886a2a91ab4066d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdm_4",
+      "bytes": 57608,
+      "sha256": "21ad38f33f64e0d4c44e6ea30eb44a5bb5091f9ed29d92043c86980fa00f3a1e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_0",
+      "bytes": 57616,
+      "sha256": "3726baeaf102334ec62d1d000120d83e99828d6ff8f0fda89908f2a426b4a808",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_1",
+      "bytes": 57616,
+      "sha256": "f7ce56adaafadae0f9f223b721cc2c21bf7693fbfec7bfde8b7e5c106c4efcf5",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_10",
+      "bytes": 57616,
+      "sha256": "7d61fae55f6d26d1d67d456bb399d59b2fab0b5c673a08f809894c050ea5ca33",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_11",
+      "bytes": 57616,
+      "sha256": "a2299c86295812472a499661de8025e269d0673ba651d57c6c705ea79e34f814",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_12",
+      "bytes": 57616,
+      "sha256": "9a1ceb394a0988c4db9a8e60ca208d5360648d3c68f1467b86a113a4b1ad769a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_13",
+      "bytes": 57616,
+      "sha256": "fcc4d3196d0550a5ca22a8a23dfccdae4a84f6b75ed0b7173b76509cc3c8aa68",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_14",
+      "bytes": 57616,
+      "sha256": "ba0e4825a9482fc162eecfd60566a9fa512f9b3635617b56f9846e6d582186e1",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_15",
+      "bytes": 57616,
+      "sha256": "8b7fa14f68db3eb44a21288e7cebeed014c56a09e6c7fe432498775d0d7ece7a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_2",
+      "bytes": 57616,
+      "sha256": "e270c1042aea295c29034d1c3ce3cb1fec72a44df06796f08f8505fd94602bd7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_3",
+      "bytes": 57616,
+      "sha256": "1c2d9a9d5166a743a13103117c058b62db7aadaf91a4543b4af1649812702665",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_4",
+      "bytes": 57616,
+      "sha256": "c6152d1c800b0213fa05614249085eaf020cf4396c9fc34aaf3db9d5a00a77ea",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_5",
+      "bytes": 57616,
+      "sha256": "02760f2c304a22497e4670dacfb4cd399613f0086dd9ebde1f43317acbd1a7fc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_6",
+      "bytes": 57616,
+      "sha256": "08efbbd6fa249c45f3021fbb0fcf4f3546d8c16ec60bf369f72ccde31ea02869",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_7",
+      "bytes": 57616,
+      "sha256": "7f48cbc3a63449488cf303f8b550a7cc55b9384a54f74f7da0eab5d665a15427",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_8",
+      "bytes": 57616,
+      "sha256": "43049647c45ac4d7726b710e3b93ca4cddc7c2164c8774646ea73e556e238fca",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdp_9",
+      "bytes": 57616,
+      "sha256": "103d50c8fa9741761f4bdbead74b014e7ad82be8ebf111a5353ba0d074b41d3b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdsp",
+      "bytes": 520,
+      "sha256": "08ed4d8ef2e4ad00ba0592c5abb97532463734d6ae870fd499c3d1e670677b67",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdv_0",
+      "bytes": 968,
+      "sha256": "2dfe749055ccc4766bfe8e2c2c6ad851a5a679a90ea9ef2522852dbb314cbd8b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.rdv_1",
+      "bytes": 968,
+      "sha256": "2dfe749055ccc4766bfe8e2c2c6ad851a5a679a90ea9ef2522852dbb314cbd8b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1148_V0_F6671/fields.sf_fld_0",
+      "bytes": 625160,
+      "sha256": "4450be32dcec0200c9422642b6f33e0d20798dd11148cf0671c81fc499e39303",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/9.nvc",
+      "bytes": 322,
+      "sha256": "34b06f2e178c7eb4725ead62c0835958162e15eab9cd1889a4ec080438fb610a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/9_1.tvc",
+      "bytes": 15346,
+      "sha256": "89aa06d418026d4bab0a67392c31580be4db498efbd0d55f0c3c8daf7bd42d27",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/9_1.tvm",
+      "bytes": 3310,
+      "sha256": "6a77e82a84cad73d5d4a17e88567ba82796b75fc690745f2475889fa13a64023",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/9_1.tvz",
+      "bytes": 15344,
+      "sha256": "cba44eddfc435effb35f6e448b5a8dbb7f66b45dc172366c20acda488e7c9f22",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/current.sf_msh",
+      "bytes": 88760,
+      "sha256": "d2f557f115afb78d6bc488e910478b0eba6c67fcd2cc6272852d3edde1e093a4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/current.sf_mshhdr",
+      "bytes": 186,
+      "sha256": "57128a8064c75db4d248cb8bba16daff2a02c332b4cef05be2727fb4d1745d62",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/fields.evtrs",
+      "bytes": 209,
+      "sha256": "b927b39e5291c99f8fa558372102fd5c57576667b0d33a181212494a8349d9b5",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/fields.evtrs_0",
+      "bytes": 9372672,
+      "sha256": "c54da520f76be4062b98b7d55a34c8684379cf932a4b3d910ffb09fe85127f52",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/fields.evtrs_hyd",
+      "bytes": 664689,
+      "sha256": "bccc0a56bf5c889542c1a6489026535d59f9432212c0994bf3d3c71894d19d4a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/fields.imp",
+      "bytes": 52799,
+      "sha256": "69765bb29d623c55307793d7a90c42cd97c51a4c8a867673875a13d84924f403",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_S1149_V0_F6651/fields.sf_fld_0",
+      "bytes": 625160,
+      "sha256": "edc2a75cdc23dc2f4033e6d1a240147e905d8174a111eb60a3aee7ec43578625",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1147_M1_V0.sd",
+      "bytes": 2920,
+      "sha256": "f86049b7877911ae1f13acc4d62c832ea2279fc6bd820b5f596d9bf2015dadbe",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1147_M2_V0.sd",
+      "bytes": 2830,
+      "sha256": "1013b1db6c7eb33493d740a540d1424562f36bfa3e7efa5f2c2698746e94ad28",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1147_M3_V0.sd",
+      "bytes": 2831,
+      "sha256": "280826214b01ca578ec1237eda67f8f00622d32ad137260a0dd973f81120c290",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1147_M4_V0.sd",
+      "bytes": 2829,
+      "sha256": "66905196df07e3026f33e75d6804d1ca1d829e50536fb819173829d32705d134",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1147_M5_V0.sd",
+      "bytes": 2830,
+      "sha256": "df8f174449c25a2feeb8a97a9a3710724472518c4be22d047d848e373b798f0a",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1147_M6_V0.sd",
+      "bytes": 2830,
+      "sha256": "f52e514d72f23ab2eb62c5b0bd479cb49c899333a6e0273592efbdec58a30ca2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1148_M0_V0.sd",
+      "bytes": 16827,
+      "sha256": "291d0115d90e971aad3425fe951ec6c2133b6e40281b7f6597142f9d0a502c21",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_SOL1149_M0_V0.sd",
+      "bytes": 2831,
+      "sha256": "1f3f63393b42116388f9216324a5b102b76670e53c5e6fec5576bb2e40342ee5",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_V6589.imesh/bodyFaceInfo.info",
+      "bytes": 14907,
+      "sha256": "5459d2422a451eaf6127bd95e18b9d457df629da9be7d047e8f6ca165c9f972d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_V6589.imesh/initial.ngmesh",
+      "bytes": 259826,
+      "sha256": "0f63b7b1299bbe5638d10b222da34890b2ada14f10e2cda504b7e4068249cd25",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6643_V6589.imesh/initial.stats",
+      "bytes": 2674,
+      "sha256": "e6b8c4c62094e3963fe36eedd25cbd0ffe8cb62790a42252bb1574b4c0d1932d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_S1146_V6589.EMConvData",
+      "bytes": 2321,
+      "sha256": "88750104d70bf29ff8ad0eabd3936075b789284e5d0f0edb9f03bc369500ed3d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_S1146_V6589.profile",
+      "bytes": 13419,
+      "sha256": "2bf75d8d55ab127b7a90467a25173a6ca97a8bfdbf26a622219302d165646fc4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1147_M1_V0.sd",
+      "bytes": 2915,
+      "sha256": "9bfe9fec042f43680f6e55d439bc602ece305479119a20f010c7510332338a6f",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1147_M2_V0.sd",
+      "bytes": 2830,
+      "sha256": "aba61e8f95146eb8e7832b4a32ee68fb2ee6e457e6a186da51f5f4806358f341",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1147_M3_V0.sd",
+      "bytes": 2827,
+      "sha256": "a1b350b8c99d96dc1396166340a022eca092746b053294708c6d31b3170a3e1d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1147_M4_V0.sd",
+      "bytes": 2830,
+      "sha256": "fd9fb50245a8db1f2186d8993a31b89f774c9d57914a930ac2d144f9b2010860",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1147_M5_V0.sd",
+      "bytes": 2828,
+      "sha256": "01486408aebfc92ccfc10c7b6deccfa6e840fc074fa29b792c034bcc5f8a5f16",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1148_M0_V0.sd",
+      "bytes": 12942,
+      "sha256": "10a5074516e7bca7fcfea0ca5da66aa32e28580457a9a0029e3060f9784f534b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6675_SOL1149_M0_V0.sd",
+      "bytes": 2829,
+      "sha256": "27d29505adf3dd671ffd0f88fd0e231b6c6909c45faef39939316c779e450aa7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_S1146_V6589.EMConvData",
+      "bytes": 2321,
+      "sha256": "6fbc0993f822be2214f8934e466ceaff30d508f06e9b30f59f93a1c5c7cc3878",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_S1146_V6589.profile",
+      "bytes": 13509,
+      "sha256": "1fb8d0b114b8322cd46668992db7886d4800a76c4113be3023a544a3779d2e82",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1147_M1_V0.sd",
+      "bytes": 2917,
+      "sha256": "32f04ff3c7e311f52af5549bf999d0f6e3ca74087a6a97b93edc17d6d4674173",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1147_M2_V0.sd",
+      "bytes": 2830,
+      "sha256": "7612b66ec771ba8df28a4ff9f369f19d8102ddc366db080dc54506eafa9d364d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1147_M3_V0.sd",
+      "bytes": 2829,
+      "sha256": "8502aae6644bd918bcf730200ca0f69a4e023eef2a91d1faaef5703720ac84c4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1147_M4_V0.sd",
+      "bytes": 2830,
+      "sha256": "8215783ae499cab5ab8927ab2d0b325a7ff0116bd12c5ce71a2de9ce4c975d5f",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1147_M5_V0.sd",
+      "bytes": 2831,
+      "sha256": "a651c3de09afb9e3344e715d3c66c549f63ffdeca35ad1e8a47b5b7ea50fc275",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1148_M0_V0.sd",
+      "bytes": 16833,
+      "sha256": "310a955ceaf591dfcd718c369e320595ed16f598fd49448ec60087e83b4d2872",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6677_SOL1149_M0_V0.sd",
+      "bytes": 2832,
+      "sha256": "c51703e259a56440df49e8c05cc8cb71cb91ee17fbd6b300c63c3a791557e101",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_S1146_V6589.EMConvData",
+      "bytes": 2759,
+      "sha256": "d973943032620bf9c010d8370f9a26d50a51dda39041b660b8d9db258c4bc777",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_S1146_V6589.profile",
+      "bytes": 14862,
+      "sha256": "a3c5c153f5e24fa7bfe154c475857454b73fa9432e8ea80112b234f2597401b9",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1147_M1_V0.sd",
+      "bytes": 2920,
+      "sha256": "a97a204fe697a0362bbb49655de591499b9275a7adf638e2d97eecc938878afc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1147_M2_V0.sd",
+      "bytes": 2829,
+      "sha256": "e9b1d3175b36212ff9c92793931b6971086a592a0a2eb4da2ee4151fc7bb09d1",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1147_M3_V0.sd",
+      "bytes": 2830,
+      "sha256": "c8e1bd0e068714295148e613b6c329280bf85fc74b1b3018b31ffc703c364645",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1147_M4_V0.sd",
+      "bytes": 2830,
+      "sha256": "72d68e5d9b770f9a82f04e80d4f6976d434009ff60f66e05c52676291d351439",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1147_M5_V0.sd",
+      "bytes": 2830,
+      "sha256": "bb2aabd7833d2e107333e4c9a57acc304eee092c3ef2224d2c39fb0b041066d1",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1147_M6_V0.sd",
+      "bytes": 2829,
+      "sha256": "0b4aa74b599a5137b7cabded281999f161c66a20c9628baeb8e228a8ba538c3b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1148_M0_V0.sd",
+      "bytes": 15544,
+      "sha256": "7e80e5336887c9da0ad9037051d0f10b0d66ca4b731fca06d4bb24bcc73e9ec0",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6679_SOL1149_M0_V0.sd",
+      "bytes": 2830,
+      "sha256": "76a865f66d18158172054e30e661d109461d7c1d8b815aab7a984ebb11b858a0",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_S1146_V6589.EMConvData",
+      "bytes": 1883,
+      "sha256": "2a8117142e3d2e55f749116b7cbefbbcd44ece4cb016d255837f8f0db2d5da95",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_S1146_V6589.profile",
+      "bytes": 11982,
+      "sha256": "b1407e936408eaae303066b0eed181025563bde3e12f936af40af429f48ab791",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_SOL1147_M1_V0.sd",
+      "bytes": 2917,
+      "sha256": "69a0f58d290408d158b5a070b653938753c8633a6a23440d0c33c4c9624f46ed",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_SOL1147_M2_V0.sd",
+      "bytes": 2832,
+      "sha256": "320d8d3182c9c0d940cc54a8fbbed1e7c0afcce144ff823ce79e5350c8d6dcb8",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_SOL1147_M3_V0.sd",
+      "bytes": 2832,
+      "sha256": "cd3f03a53fa9c87c8f38bd45a4a17bf1ce9dbfa8e62eed1909cff56efa7918b9",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_SOL1147_M4_V0.sd",
+      "bytes": 2831,
+      "sha256": "d7fd365f7e5e85ae33b9e5608b199b45f89f83b3242b9c7330c9846dd0b00bf1",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_SOL1148_M0_V0.sd",
+      "bytes": 19444,
+      "sha256": "d313a32cddbe52fd1a61b257c29452f768cddf8d96f6f1f33c09bac9b156f8b4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6681_SOL1149_M0_V0.sd",
+      "bytes": 2832,
+      "sha256": "c240f8125818631d8bcf20d03f05f54ee088aa0abe10c325bf57cb81905097d3",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_S1146_V6589.EMConvData",
+      "bytes": 2759,
+      "sha256": "a2439983d2ee498b1c5dd9b5b45e00eaeca1c1ee42b77fc0635d3af98e038556",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_S1146_V6589.profile",
+      "bytes": 14823,
+      "sha256": "974fe4c3ffd9554a004e1fc94e27f174e97cd2c633a75e76027dd6ce18095944",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1147_M1_V0.sd",
+      "bytes": 2919,
+      "sha256": "66da85b037263a17ad03fa856525d5111aaaae9d8c6fcc85041d752217109ca7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1147_M2_V0.sd",
+      "bytes": 2830,
+      "sha256": "25f5ebf7ca2067a23d4ecb34a8a949f40018a7c3dc2b836e1a5b8b9abde028b9",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1147_M3_V0.sd",
+      "bytes": 2830,
+      "sha256": "1ac53474d7852f3d1b675855f6f0e3236f1826a3323bdb5dd1bdda9f1c9c20a7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1147_M4_V0.sd",
+      "bytes": 2828,
+      "sha256": "bc8313e83036ef4bc86ae7094847532f05f2068a2411fe9dc67a76e096811a41",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1147_M5_V0.sd",
+      "bytes": 2829,
+      "sha256": "0eba543f98ea07eddbc2dd29e8f1c03e88b858b2027abe6f8a880e42fe231fb8",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1147_M6_V0.sd",
+      "bytes": 2830,
+      "sha256": "777931bce07607f5fc4b148528aa59e46ebe33f0ed2fe4af35374cb2f8fd1cd0",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1148_M0_V0.sd",
+      "bytes": 14267,
+      "sha256": "970deb169b61cfcb857457cdf372aab883bd9b39534497a5a4fb387fca719b73",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6683_SOL1149_M0_V0.sd",
+      "bytes": 2831,
+      "sha256": "12a77665d24c61fe1c1ed7e56c1bfc98e0d1a16ce9d5cc98a4b3f557a8596c03",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/DV6685_S1146_V6589.profile",
+      "bytes": 2659,
+      "sha256": "2e69add239436c98b0be197e11b2d76ba73785226dbcb9ca3c02281ed1204047",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6645_V0.dmesh/defn_native_vmesh.ngmesh",
+      "bytes": 259826,
+      "sha256": "0f63b7b1299bbe5638d10b222da34890b2ada14f10e2cda504b7e4068249cd25",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6645_V0.dmesh/defn_native_vmesh.stats",
+      "bytes": 2674,
+      "sha256": "e6b8c4c62094e3963fe36eedd25cbd0ffe8cb62790a42252bb1574b4c0d1932d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6676_V0.dmesh/defn_native_vmesh.ngmesh",
+      "bytes": 255278,
+      "sha256": "cadcaceddee30aa2797f543ede1e1ace8b7ba87a8acc0b21e7ddbecaa4f24fc4",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6676_V0.dmesh/defn_native_vmesh.stats",
+      "bytes": 2674,
+      "sha256": "e0530cf182a3416ebfaa9928341dcdd99bc3f13cb018c054f34f8eae41c0c148",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6678_V0.dmesh/defn_native_vmesh.ngmesh",
+      "bytes": 399042,
+      "sha256": "69260fbe285b4567487daf340a1ccf96455822521916eb90a5be55f93af29762",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6678_V0.dmesh/defn_native_vmesh.stats",
+      "bytes": 2674,
+      "sha256": "2ca9870b50cac642d0ad3a0209e874feb2be43cf0945b5c1adfcb3600b72f31e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6680_V0.dmesh/defn_native_vmesh.ngmesh",
+      "bytes": 263070,
+      "sha256": "233013eebb1e0a53fc27c40136d5d019d011f7eb698f9a3d6c2315c596f12863",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6680_V0.dmesh/defn_native_vmesh.stats",
+      "bytes": 2674,
+      "sha256": "7653ed3415811d440607f1fed3e3ee43145dde38b379f394ea0578cf6524024d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6682_V0.dmesh/defn_native_vmesh.ngmesh",
+      "bytes": 362350,
+      "sha256": "32723f4b278aed202ba2a4e6accf84eae0e503897b2d314c617d8f4708233a9f",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6682_V0.dmesh/defn_native_vmesh.stats",
+      "bytes": 2674,
+      "sha256": "26b685bff7b3ca3afca19353417490ca07e6db154b945e0157c2b2b0f607bfc2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6684_V0.dmesh/defn_native_vmesh.ngmesh",
+      "bytes": 295922,
+      "sha256": "c757f57a8304fbbd0fe1fc12bd3afeb818160d2791d7adde7185e9cd0a8a5384",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/NDV6684_V0.dmesh/defn_native_vmesh.stats",
+      "bytes": 2674,
+      "sha256": "ce87aa273a793e7325caefe45e27ca4b0db7a544f7d08a7fcaba179b36d30fc2",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/77GHZantenna.results/nominalmesh.g3derr",
+      "bytes": 600202,
+      "sha256": "768db7ab9d962e7a61401aa5e9185690b7dc2963c6997008ac11c32a244d9376",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/ManagedFiles_Design2.asol",
+      "bytes": 138,
+      "sha256": "f5feb9995bda6ca8b5bbfa3ca73344b01770739f874c8e75878434e376c1f740",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0000006.fct",
+      "bytes": 23932,
+      "sha256": "356fc6cb8ccf6e8804f70d5956f5041b2768c84ff03367ac633fbfe30999b781",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0000006.x_b",
+      "bytes": 11339,
+      "sha256": "58eda3b53ed94e5f9d6bc4b94f9ea92787706b0bf5b81336f9afe41b92aa76a5",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0000071.x_b",
+      "bytes": 10866,
+      "sha256": "42b594af17cb2562a3c5b2500e4004bdab8644954bb38ec16a804c19554bc359",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0000206.fct",
+      "bytes": 8108,
+      "sha256": "3ff5c0fc4647b463985398f99c743e109015349c80a3e50d29971e4cdb9c99e8",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0000215.fct",
+      "bytes": 8108,
+      "sha256": "812727ebf9ec4ab777f90ac55f7ab3b239378086d7dcc16c5b904d1077829930",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0000222.fct",
+      "bytes": 8108,
+      "sha256": "14f34728359ed88761b01ad53fee2107c570483df19dd876e1576b2db285feed",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0001131.fct",
+      "bytes": 8108,
+      "sha256": "d186d01f2390a96972f615b500563ef80833fda5151abe662120a3fa73ddc04d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0001131.x_b",
+      "bytes": 4086,
+      "sha256": "29a1c2454f79e15ea4ceb6c9f762f357446ec73fac1cf7540ae53d362a1f7ad7",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0001164.fct",
+      "bytes": 8108,
+      "sha256": "03cae9ac36562ac346e68bf2b3cf977f68083de9bc9b9584eeffa176a0152ddc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0001164.x_b",
+      "bytes": 4090,
+      "sha256": "59ff2b87a66d2a7cfe997913896558510731a071a717ed287adf5876ae9cb05c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003075.fct",
+      "bytes": 8524,
+      "sha256": "103cfbb9b3c181b7243a96059fcdb360c10a0f5a5cccf37719a5326ee4c39937",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003075.x_b",
+      "bytes": 15149,
+      "sha256": "b12e5d7c58a5e745668c55916dc9bd2668107e4ebfad8b17dc2cd2f2a4512c74",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003168.fct",
+      "bytes": 15228,
+      "sha256": "e01baf52630007b03ad3a44d7410b12b0c979f6ee66ce1bda01408c972dead9b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003168.x_b",
+      "bytes": 4766,
+      "sha256": "2075b640de13e0b400ee88328feac4a2a4f95238de318820d403d46e4646f08e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003241.fct",
+      "bytes": 7148,
+      "sha256": "57d97c8019fa4e6657c7b250e4dbf79e1bc0f6566f2aa4a6d6de8f6a1bdea67b",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003452.fct",
+      "bytes": 17628,
+      "sha256": "82dccb2b83b01acf7fbb33155e698516bc57a98742ea77346048daf01ca2f95d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003452.x_b",
+      "bytes": 4766,
+      "sha256": "b9e7ecb8cc6524f285c75dd287a97d2946a668399332f26e9ef7323df2b2a1bc",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0003473.fct",
+      "bytes": 10028,
+      "sha256": "701601c1a6f128f0cce94056951332d9cc1ae83ceb4d7a3268dae58936caa7f3",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/BodyCache/0004153.x_b",
+      "bytes": 7939,
+      "sha256": "8c491b3352265d1e9a42a814af8e34db1a0f6e8d25e8c804523d29dc844c4903",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/CacheDataVersion.tmp",
+      "bytes": 403,
+      "sha256": "289600b3f91857ac9a37954a68cbef0f53be3401ac7f51d95c09f0796381f88e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/InterrogationCache.tmp",
+      "bytes": 3776,
+      "sha256": "4433e35b91ee2c1a5973f0d359f5af9a6313f29491aaa0890780fc08ec9e765c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/GeometryCache/OperationDataCache.tmp",
+      "bytes": 12,
+      "sha256": "09f4493a7016a764f6190b5e84a16d72f8d5f85c3119f6b4d79f2785b628881c",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/radfld/RAD7C1620536178515259758.tmp",
+      "bytes": 258,
+      "sha256": "d164bf282c2a65677ee7b2a4278d232b835fb193f8709db89d66d3d5cce3e99d",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/svcache/HDR0249169921788574800320.tmp",
+      "bytes": 1672,
+      "sha256": "e578837c3c344556785fce3448c05e2530529f1363bf0d82d9494dd03a35080e",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/mf_2/svcache/min0249169921788574800321.tmp",
+      "bytes": 5657,
+      "sha256": "d66212f49fa25bbd2f2c55d223384abd2c47d408597177078eef21e5070f5315",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "saved-project-before-reset/me_dipole_77.aedtresults/opti2_0.profile",
+      "bytes": 4159,
+      "sha256": "f6facd0ba8de6a2b8a09eb2c805637f8efe5e0002115815b58038209dd0889bd",
+      "storage": "local-only-regenerable-solver-cache"
+    },
+    {
+      "path": "session-traces/provenance.json",
+      "bytes": 637,
+      "sha256": "eb34de68f7c8e7111e4b2ab282ef1c38e7240ac1208af3efbde6aa6989d3f720",
+      "storage": "git"
+    },
+    {
+      "path": "session-traces/rollout-2026-09-05T10-26-39-01a06f63-b1d3-7fb3-8700-e2b1d411a1bf.jsonl",
+      "bytes": 711662,
+      "sha256": "8e576572d4d1ab792ff6f3491a32a9100934661ad4bc056e9be9cd6e65b6fed0",
+      "storage": "git"
+    }
+  ]
+}
